@@ -29,8 +29,8 @@ inline std::string trim(std::string s)
 	return ltrim(rtrim(s));
 }
 
-void good_embed(dpp::cluster &bot, dpp::snowflake channel_id, const std::string &message);
-void bad_embed(dpp::cluster &bot, dpp::snowflake channel_id, const std::string &message);
+void good_embed(dpp::cluster &bot, dpp::snowflake channel_id, const std::string &message, const std::string& url = "");
+void bad_embed(dpp::cluster &bot, dpp::snowflake channel_id, const std::string &message, dpp::message ref = {});
 void good_embed(dpp::commandhandler &ch, dpp::command_source src,  const std::string &message);
 void bad_embed(dpp::commandhandler &ch, dpp::command_source src, const std::string &message);
 
