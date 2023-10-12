@@ -19,8 +19,13 @@ Create a config.json in the directory above the build directory:
 
 ```json
 {
-"token": "your bot token here", 
-"homeserver": "server id of server where the bot should run"
+    "token": "your bot token here", 
+    "homeserver": "server id of server where the bot should run",
+    "logchannel": "server id where logs go",
+    "patterns": [
+        "wildcard patterns",
+        "..."
+    ]
 }
 ```
 
