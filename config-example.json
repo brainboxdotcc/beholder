@@ -1,0 +1,10 @@
+{
+	"token": "token goes here", 
+	"homeserver": "825407338755653642",
+	"logchannel": "1162147665753153707",
+	"patterns": [
+		"yeet",
+		"yeet*YEET",
+		"y?e?e?t"
+	]
+}
