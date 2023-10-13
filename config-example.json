@@ -2,6 +2,7 @@
 	"token": "token goes here", 
 	"homeserver": "825407338755653642",
 	"logchannel": "1162147665753153707",
+	"bypassrole": "1006130853988016188",
 	"patterns": [
 		"yeet",
 		"yeet*YEET",

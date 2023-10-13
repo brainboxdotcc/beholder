@@ -18,19 +18,38 @@ constexpr size_t max_size = 8 * 1024 * 1024;
 constexpr int max_concurrency = 6;
 json configdocument;
 dpp::snowflake logchannel;
+/* The role that can bypass the checker, defined by config. */
+dpp::snowflake bypass_role;
 std::atomic<int> concurrent_images{0};
 
-void delete_message_and_warn(dpp::cluster& bot, const dpp::message_create_t ev, const dpp::attachment attach, const std::string text)
-{
+/**
+ * @brief Delete a message and send a warning.
+ * @param bot Bot reference.
+ * @param ev message_create_t reference.
+ * @param attach The attachment that was flagged as bad.
+ * @param text What the attachment was flagged for.
+ */
+void delete_message_and_warn(dpp::cluster& bot, const dpp::message_create_t ev, const dpp::attachment attach, const std::string text) {
 	bot.message_delete(ev.msg.id, ev.msg.channel_id, [&bot, ev, attach, text](const auto& cc) {
+
+		if(cc.is_error()) {
+			bad_embed(bot, ev.msg.channel_id, "Failed to delete the message: " + ev.msg.id.str(), ev.msg);
+			return;
+		}
+
 		bad_embed(bot, ev.msg.channel_id, "<@" + ev.msg.author.id.str() + ">, the picture you posted appears to contain program code, program output, or other program related text content. Please **DO NOT** share images of code, paste the code.\n\nIf you continue to send screenshots of code, you may be **muted**.\n\nFor further information, please see rule :regional_indicator_h: of the <#830548236157976617>", ev.msg);
 		good_embed(bot, logchannel, "Attachment: `" + attach.filename + "`\nSent by: `" +
 		ev.msg.author.format_username() + "`\nMatched pattern: `" + text + "`\n[Image link](" + attach.url +")");
 	});
 }
 
-void process_image(const dpp::attachment attach, dpp::cluster& bot, const dpp::message_create_t ev)
-{
+/**
+ * @brief Processes an attachment into text, then checks to see if it matches a certain pattern. If it matches then it called delete_message_and_warn.
+ * @param attach The attachment to process into text.
+ * @param bot Bot reference.
+ * @param ev message_create_t reference.
+ */
+void process_image(const dpp::attachment attach, dpp::cluster& bot, const dpp::message_create_t ev) {
 	if (attach.url.find(".webp") != std::string::npos || attach.url.find(".jpg") != std::string::npos || attach.url.find(".png") != std::string::npos || attach.url.find(".gif") != std::string::npos) {
 		bot.log(dpp::ll_info, "Image: " + attach.url);
 		if (concurrent_images > max_concurrency) {
@@ -68,15 +87,14 @@ void process_image(const dpp::attachment attach, dpp::cluster& bot, const dpp::m
 }
 
 
-int main(int argc, char const *argv[])
-{
-
+int main(int argc, char const *argv[]) {
 	/* Setup the bot */
 	std::ifstream configfile("../config.json");
 	configfile >> configdocument;
 	dpp::cluster bot(configdocument["token"], dpp::i_default_intents | dpp::i_message_content, 1, 0, 1, true, dpp::cache_policy::cpol_none);
 	dpp::snowflake home_server = dpp::snowflake_not_null(&configdocument, "homeserver");
 	logchannel = dpp::snowflake_not_null(&configdocument, "logchannel");
+	bypass_role = dpp::snowflake_not_null(&configdocument, "bypassrole");
 
 	dpp::commandhandler command_handler(&bot);
 	command_handler.add_prefix(".").add_prefix("/");
@@ -85,30 +103,47 @@ int main(int argc, char const *argv[])
 	});
 
 	bot.on_message_create([&](const dpp::message_create_t &ev) {
-		if (ev.msg.author.is_bot()) {
-			return;
-		}
-		if (ev.msg.attachments.size() > 0) {
-			bot.log(dpp::ll_info, "Message with attached images");
-			for (const dpp::attachment& attach : ev.msg.attachments) {
-				process_image(attach, bot, ev);
+		/* Coro would be good use here :sob: */
+
+		/* Use guild_get_member to gather the guild member due to cache being disabled. */
+		bot.guild_get_member(ev.msg.guild_id, ev.msg.author.id, [&](const dpp::confirmation_callback_t& callback) {
+			auto guild_member = callback.get<dpp::guild_member>();
+
+			/* Of course, this could be changed to allow more than just a pre-defined role from config. */
+			bool has_upload_role = std::find(guild_member.roles.begin(), guild_member.roles.end(), bypass_role) != guild_member.roles.end();
+
+			/* If the author is a bot, or doesn't have the bypass role, stop the event (no checking). */
+			if (ev.msg.author.is_bot() || !has_upload_role) {
+				return;
 			}
-		}
-		std::vector<std::string> parts = dpp::utility::tokenize(ev.msg.content, " ");
-		for (const std::string& possibly_url : parts) {
-			bot.log(dpp::ll_info, "Message with hyperlinked images");
-			size_t size = possibly_url.length();
-			if ((size >= 9 && possibly_url.substr(0, 8) == "https://") || (size >= 8 && possibly_url.substr(0, 7) == "http://")) {
-				dpp::attachment attach((dpp::message*)&ev.msg);
-				attach.url = possibly_url;
-				auto pos = possibly_url.find('?');
-				if (pos != std::string::npos) {
-					possibly_url.substr(0, pos - 1);
+
+			/* Are there any attachments? */
+			if (ev.msg.attachments.size() > 0) {
+				bot.log(dpp::ll_info, "Message with attached images");
+				for (const dpp::attachment& attach : ev.msg.attachments) {
+					process_image(attach, bot, ev);
 				}
-				attach.filename = fs::path(possibly_url).filename();
-				process_image(attach, bot, ev);
 			}
-		}
+
+			/* Split the message by spaces. */
+			std::vector<std::string> parts = dpp::utility::tokenize(ev.msg.content, " ");
+
+			/* Go through the parts array */
+			for (const std::string& possibly_url : parts) {
+				bot.log(dpp::ll_info, "Message with hyperlinked images");
+				size_t size = possibly_url.length();
+				if ((size >= 9 && possibly_url.substr(0, 8) == "https://") || (size >= 8 && possibly_url.substr(0, 7) == "http://")) {
+					dpp::attachment attach((dpp::message*)&ev.msg);
+					attach.url = possibly_url;
+					auto pos = possibly_url.find('?');
+					if (pos != std::string::npos) {
+						possibly_url.substr(0, pos - 1);
+					}
+					attach.filename = fs::path(possibly_url).filename();
+					process_image(attach, bot, ev);
+				}
+			}
+		});
 	});
 
 	bot.on_log(dpp::utility::cout_logger());
