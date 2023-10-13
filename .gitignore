@@ -1,2 +1,10 @@
+# IDEs
+.vs
+.idea
+
+# Build stuff
 build
+cmake-build-debug
+
+# Config stuff
 config.json

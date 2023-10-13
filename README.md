@@ -4,17 +4,20 @@ This is a bot powered by the [D++ library](https://dpp.dev) which runs images on
 
 ![image](https://github.com/brainboxdotcc/yeet/assets/1556794/1366d2c3-9c4f-46ac-82d0-ad698d994487) ![image](https://github.com/brainboxdotcc/yeet/assets/1556794/8b4b0173-db2e-4489-a50f-a4582c7de228)
 
-
 ## Compilation
 
-    mkdir build
-    cd build
-    cmake ..
-    make -j
+```bash
+mkdir build
+cd build
+cmake ..
+make -j
+```
 
 If DPP is installed in a different location you can specify the root directory to look in while running cmake 
 
-    cmake .. -DDPP_ROOT_DIR=<your-path>
+```bash
+cmake .. -DDPP_ROOT_DIR=<your-path>
+```
 
 ## Running the template bot
 
@@ -25,6 +28,10 @@ Create a config.json in the directory above the build directory:
     "token": "your bot token here", 
     "homeserver": "server id of server where the bot should run",
     "logchannel": "server id where logs go",
+    "bypassroles": [
+        "roles that will bypass checks",
+        "..."
+    ],
     "patterns": [
         "wildcard patterns",
         "..."
@@ -36,6 +43,7 @@ Create a config.json in the directory above the build directory:
 
 * Imagemagick command line tools
 * Tesseract v5.x
+* fmt
 * wget
 * g++ 8.0 or later
 * cmake
@@ -43,6 +51,7 @@ Create a config.json in the directory above the build directory:
 
 Start the bot:
 
-    cd build
-    ./yeet
-
+```bash
+cd build
+./yeet
+```
