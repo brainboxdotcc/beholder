@@ -18,8 +18,6 @@ constexpr size_t max_size = 8 * 1024 * 1024;
 constexpr int max_concurrency = 6;
 json configdocument;
 dpp::snowflake logchannel;
-/* The role that can bypass the checker, defined by config. */
-dpp::snowflake bypass_role;
 std::atomic<int> concurrent_images{0};
 
 /**
@@ -68,7 +66,7 @@ void process_image(const dpp::attachment attach, dpp::cluster& bot, const dpp::m
 			std::vector<std::string> lines = dpp::utility::tokenize(output, "\n");
 			for (const std::string& line : lines) {
 				if (line.length() && line[0] == 0x0C) {
-					/* Tesseract puts random formdeeds i nthe output, skip them */
+					/* Tesseract puts random formdeeds in the output, skip them */
 					continue;
 				}
 				for (const std::string& pattern : configdocument.at("patterns")) {
@@ -94,7 +92,6 @@ int main(int argc, char const *argv[]) {
 	dpp::cluster bot(configdocument["token"], dpp::i_default_intents | dpp::i_message_content, 1, 0, 1, true, dpp::cache_policy::cpol_none);
 	dpp::snowflake home_server = dpp::snowflake_not_null(&configdocument, "homeserver");
 	logchannel = dpp::snowflake_not_null(&configdocument, "logchannel");
-	bypass_role = dpp::snowflake_not_null(&configdocument, "bypassrole");
 
 	dpp::commandhandler command_handler(&bot);
 	command_handler.add_prefix(".").add_prefix("/");
@@ -110,10 +107,20 @@ int main(int argc, char const *argv[]) {
 			auto guild_member = callback.get<dpp::guild_member>();
 
 			/* Of course, this could be changed to allow more than just a pre-defined role from config. */
-			bool has_upload_role = std::find(guild_member.roles.begin(), guild_member.roles.end(), bypass_role) != guild_member.roles.end();
+			bool should_bypass = false;
 
-			/* If the author is a bot, or doesn't have the bypass role, stop the event (no checking). */
-			if (ev.msg.author.is_bot() || !has_upload_role) {
+		    	/* Loop through all bypass roles, defined by config. */
+	    		for (const std::string& role : configdocument.at("bypassroles")) {
+				/* If the user has this role, set should_bypass to true, then kill the loop. */
+				if(std::find(guild_member.roles.begin(), guild_member.roles.end(), role) != guild_member.roles.end()) {
+					should_bypass = true;
+					std::cout << "Should bypass." << "\n";
+					break;
+				}
+		    	}
+
+			/* If the author is a bot, or should bypass this, stop the event (no checking). */
+			if (ev.msg.author.is_bot() || should_bypass) {
 				return;
 			}
 
