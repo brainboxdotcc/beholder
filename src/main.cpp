@@ -16,7 +16,7 @@ std::atomic<int> concurrent_images{0};
 void delete_message_and_warn(dpp::cluster& bot, const dpp::message_create_t ev, const dpp::attachment attach, const std::string text) {
 	bot.message_delete(ev.msg.id, ev.msg.channel_id, [&bot, ev, attach, text](const auto& cc) {
 
-		if(cc.is_error()) {
+		if (cc.is_error()) {
 			bad_embed(bot, ev.msg.channel_id, "Failed to delete the message: " + ev.msg.id.str(), ev.msg);
 			return;
 		}
@@ -34,7 +34,7 @@ void delete_message_and_warn(dpp::cluster& bot, const dpp::message_create_t ev, 
 
 int main(int argc, char const *argv[])
 {
-	/* Setup the bot */
+	/* Set up the bot cluster and read the configuration json */
 	std::ifstream configfile("../config.json");
 	configfile >> configdocument;
 	dpp::cluster bot(configdocument["token"], dpp::i_default_intents | dpp::i_message_content | dpp::i_guild_members, 1, 0, 1, true, dpp::cache_policy::cpol_none);
@@ -55,33 +55,31 @@ int main(int argc, char const *argv[])
 	dpp::commandhandler command_handler(&bot);
 	command_handler.add_prefix(".").add_prefix("/");
 
+	/* Todo: command handler here */
 	bot.on_ready([&bot](const dpp::ready_t &event) {
 	});
 
+	/* Handle guild member messages; requires message content intent */
 	bot.on_message_create([&bot](const dpp::message_create_t &ev) {
 		auto guild_member = ev.msg.member;
-
-		/* Of course, this could be changed to allow more than just a pre-defined role from config. */
 		bool should_bypass = false;
 
-		/* Loop through all bypass roles, defined by config. */
-		db::resultset bypass_roles = db::query("SELECT * FROM guild_bypass_roles WHERE guild_id = '?'", { ev.msg.guild_id.str() });
-		for (const db::row& role : bypass_roles) {
-			/* If the user has this role, set should_bypass to true, then kill the loop. */
-			const auto& roles = guild_member.get_roles();
-			if (std::find(roles.begin(), roles.end(), dpp::snowflake(role.at("role_id"))) != roles.end()) {
-				should_bypass = true;
-				bot.log(dpp::ll_info, "User " + ev.msg.author.format_username() + " is in exempt role " + role.at("role_id"));
-				break;
-			}
-		}
-
-		/* If the author is a bot, or should bypass this, stop the event (no checking). */
-		if (ev.msg.author.is_bot() || should_bypass) {
+		/* If the author is a bot, stop the event (no checking). */
+		if (ev.msg.author.is_bot()) {
 			return;
 		}
 
-		/* Are there any attachments? */
+		/* Loop through all bypass roles in database */
+		db::resultset bypass_roles = db::query("SELECT * FROM guild_bypass_roles WHERE guild_id = '?'", { ev.msg.guild_id.str() });
+		for (const db::row& role : bypass_roles) {
+			const auto& roles = guild_member.get_roles();
+			if (std::find(roles.begin(), roles.end(), dpp::snowflake(role.at("role_id"))) != roles.end()) {
+				/* Stop the event if user is in a bypass role */
+				return;
+			}
+		}
+
+		/* Check each attachment in the message, if any */
 		if (ev.msg.attachments.size() > 0) {
 			for (const dpp::attachment& attach : ev.msg.attachments) {
 				download_image(attach, bot, ev);
@@ -91,12 +89,14 @@ int main(int argc, char const *argv[])
 		/* Split the message by spaces. */
 		std::vector<std::string> parts = dpp::utility::tokenize(ev.msg.content, " ");
 
-		/* Go through the parts array */
+		/* Check each word in the message looking for URLs */
 		for (const std::string& possibly_url : parts) {
 			size_t size = possibly_url.length();
-			if ((size >= 9 && possibly_url.substr(0, 8) == "https://") || (size >= 8 && possibly_url.substr(0, 7) == "http://")) {
+			if ((size >= 9 && dpp::lowercase(possibly_url.substr(0, 8)) == "https://") ||
+			    (size >= 8 && dpp::lowercase(possibly_url.substr(0, 7)) == "http://")) {
 				dpp::attachment attach((dpp::message*)&ev.msg);
 				attach.url = possibly_url;
+				/* Strip off query parameters */
 				auto pos = possibly_url.find('?');
 				if (pos != std::string::npos) {
 					possibly_url.substr(0, pos - 1);
@@ -107,6 +107,7 @@ int main(int argc, char const *argv[])
 		}
 	});
 
+	/* spdlog logger */
 	bot.on_log([&bot, &log](const dpp::log_t & event) {
 		switch (event.severity) {
 			case dpp::ll_trace:
@@ -136,9 +137,10 @@ int main(int argc, char const *argv[])
 	/* Connect to SQL database */
 	const json& dbconf = configdocument["database"];
 	if (!db::connect(dbconf["host"], dbconf["username"], dbconf["password"], dbconf["database"], dbconf["port"])) {
-		std::cerr << "Database connection failed\n";
+		bot.log(dpp::ll_info, "Database connection error connecting to " + dbconf["database"]);
 		exit(2);
 	}
+	bot.log(dpp::ll_info, "Connected to database: " + dbconf["database"]);
 
 	/* Start bot */
 	bot.start(dpp::st_wait);
