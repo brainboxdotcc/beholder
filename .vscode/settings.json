@@ -1,5 +1,6 @@
 {
 	"files.associations": {
 		"atomic": "cpp"
-	}
+	},
+	"C_Cpp.errorSquiggles": "disabled"
 }
