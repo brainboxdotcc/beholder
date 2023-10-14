@@ -113,7 +113,7 @@ int main(int argc, char const *argv[]) {
 	    		for (const std::string& role : configdocument.at("bypassroles")) {
 				/* If the user has this role, set should_bypass to true, then kill the loop. */
 				const auto& roles = guild_member.get_roles();
-				if(std::find(roles.begin(), roles.end(), role) != roles.end()) {
+				if(std::find(roles.begin(), roles.end(), dpp::snowflake(role)) != roles.end()) {
 					should_bypass = true;
 					break;
 				}
