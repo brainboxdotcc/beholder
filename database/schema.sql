@@ -1,6 +1,8 @@
 SET SQL_MODE = "NO_AUTO_VALUE_ON_ZERO";
 START TRANSACTION;
+
 SET time_zone = "+00:00";
+
 CREATE DATABASE IF NOT EXISTS `yeet` DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci;
 USE `yeet`;
 
@@ -17,6 +19,8 @@ CREATE TABLE `guild_patterns` (
 CREATE TABLE `guild_config` (
   `guild_id` bigint UNSIGNED NOT NULL,
   `log_channel` bigint UNSIGNED NOT NULL
+  `embed_title` varchar(256) DEFAULT NULL,
+  `embed_body` text NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 
 --
@@ -25,7 +29,6 @@ CREATE TABLE `guild_config` (
 
 ALTER TABLE `guild_config`
   ADD PRIMARY KEY (`guild_id`);
-COMMIT;
 
 ALTER TABLE `guild_bypass_roles`
   ADD PRIMARY KEY (`guild_id`,`role_id`) USING BTREE,
@@ -33,4 +36,5 @@ ALTER TABLE `guild_bypass_roles`
 
 ALTER TABLE `guild_patterns`
   ADD KEY `guild_id` (`guild_id`);
+
 COMMIT;
