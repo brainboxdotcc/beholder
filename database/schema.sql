@@ -14,6 +14,18 @@ CREATE TABLE `guild_patterns` (
   `pattern` varchar(150) NOT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 
+CREATE TABLE `guild_config` (
+  `guild_id` bigint UNSIGNED NOT NULL,
+  `log_channel` bigint UNSIGNED NOT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+
+--
+-- Indexes for dumped tables
+--
+
+ALTER TABLE `guild_config`
+  ADD PRIMARY KEY (`guild_id`);
+COMMIT;
 
 ALTER TABLE `guild_bypass_roles`
   ADD PRIMARY KEY (`guild_id`,`role_id`) USING BTREE,

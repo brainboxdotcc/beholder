@@ -1,6 +1,5 @@
 {
 	"token": "token goes here", 
-	"logchannel": "1162147665753153707",
 	"database": {
 		"host": "localhost",
 		"username": "mysql username",

@@ -19,14 +19,13 @@ If DPP is installed in a different location you can specify the root directory t
 cmake .. -DDPP_ROOT_DIR=<your-path>
 ```
 
-## Running the template bot
+## Configuring the bot
 
 Create a config.json in the directory above the build directory:
 
 ```json
 {
 	"token": "your bot token here", 
-	"logchannel": "server id where logs go",
 	"database": {
 		"host": "localhost",
 		"username": "mysql username",
@@ -37,6 +36,15 @@ Create a config.json in the directory above the build directory:
 
 }
 ```
+
+Import the base mysql schema:
+
+```bash
+mysql -u <database-user> -p <database-name> < database/schema.sql
+Enter password:
+```
+
+Insert data into database for your guild and patterns
 
 ## Dependencies
 

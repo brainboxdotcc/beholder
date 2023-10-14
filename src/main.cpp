@@ -11,7 +11,6 @@
 namespace fs = std::filesystem;
 
 json configdocument;
-dpp::snowflake logchannel;
 std::atomic<int> concurrent_images{0};
 
 void delete_message_and_warn(dpp::cluster& bot, const dpp::message_create_t ev, const dpp::attachment attach, const std::string text) {
@@ -22,9 +21,14 @@ void delete_message_and_warn(dpp::cluster& bot, const dpp::message_create_t ev, 
 			return;
 		}
 
+		db::resultset logchannel = db::query("SELECT log_channel FROM guild_config WHERE guild_id = '?'", { ev.msg.guild_id.str() });
 		bad_embed(bot, ev.msg.channel_id, "<@" + ev.msg.author.id.str() + ">, the picture you posted appears to contain program code, program output, or other program related text content. Please **DO NOT** share images of code, paste the code.\n\nIf you continue to send screenshots of code, you may be **muted**.\n\nFor further information, please see rule :regional_indicator_h: of the <#830548236157976617>", ev.msg);
-		good_embed(bot, logchannel, "Attachment: `" + attach.filename + "`\nSent by: `" +
-		ev.msg.author.format_username() + "`\nMatched pattern: `" + text + "`\n[Image link](" + attach.url +")");
+		if (logchannel.size()) {
+			good_embed(
+				bot, dpp::snowflake(logchannel[0].at("log_channel")), "Attachment: `" + attach.filename + "`\nSent by: `" +
+				ev.msg.author.format_username() + "`\nMatched pattern: `" + text + "`\n[Image link](" + attach.url +")"
+			);
+		}
 	});
 }
 
@@ -34,7 +38,6 @@ int main(int argc, char const *argv[])
 	std::ifstream configfile("../config.json");
 	configfile >> configdocument;
 	dpp::cluster bot(configdocument["token"], dpp::i_default_intents | dpp::i_message_content | dpp::i_guild_members, 1, 0, 1, true, dpp::cache_policy::cpol_none);
-	logchannel = dpp::snowflake_not_null(&configdocument, "logchannel");
 
 	/* Set up spdlog logger */
 	std::shared_ptr<spdlog::logger> log;
