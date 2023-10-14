@@ -7,7 +7,8 @@
 #include <fstream>
 #include <iostream>
 #include <filesystem>
-
+#include <tesseract/baseapi.h>
+#include <leptonica/allheaders.h>
 #include <yeet/yeet.h>
 
 using json = dpp::json;
@@ -39,6 +40,43 @@ void delete_message_and_warn(dpp::cluster& bot, const dpp::message_create_t ev, 
 		good_embed(bot, logchannel, "Attachment: `" + attach.filename + "`\nSent by: `" +
 		ev.msg.author.format_username() + "`\nMatched pattern: `" + text + "`\n[Image link](" + attach.url +")");
 	});
+}
+
+void ocr_image(const std::string& temp_filename, const dpp::attachment attach, dpp::cluster& bot, const dpp::message_create_t ev) {
+	tesseract::TessBaseAPI *api = new tesseract::TessBaseAPI();
+	if (api->Init(NULL, "eng", tesseract::OcrEngineMode::OEM_DEFAULT)) {
+		bot.log(dpp::ll_error, "Could not initialise tesseract");
+		return;
+	}
+	api->SetPageSegMode(tesseract::PageSegMode::PSM_SINGLE_BLOCK);
+	Pix* image = pixRead(temp_filename.c_str());
+	if (!image) {
+		bot.log(dpp::ll_error, "Could not read image with pixRead");
+		return;
+	}
+	api->SetImage(image);
+	char* output = api->GetUTF8Text();
+	if (!output) {
+		bot.log(dpp::ll_error, "GetUTF8Text() returned nullptr!!!");
+		return;
+	}
+	std::vector<std::string> lines = dpp::utility::tokenize(output, "\n");
+	bot.log(dpp::ll_debug, "Read " + std::to_string(lines.size()) + " lines of text from image with total size " + std::to_string(strlen(output)));
+	for (const std::string& line : lines) {
+		if (line.length() && line[0] == 0x0C) {
+			/* Tesseract puts random formdeeds in the output, skip them */
+			continue;
+		}
+		for (const std::string& pattern : configdocument.at("patterns")) {
+			std::string pattern_wild = "*" + pattern + "*";
+			if (line.length() && pattern.length() && match(line.c_str(), pattern_wild.c_str())) {
+				concurrent_images--;
+				delete_message_and_warn(bot, ev, attach, pattern);
+				return;
+			}
+		}
+		bot.log(dpp::ll_info, "Image content: " + line);
+	}
 }
 
 /**
@@ -76,23 +114,9 @@ void process_image(const dpp::attachment attach, dpp::cluster& bot, const dpp::m
 			fclose(content);
 			bot.log(dpp::ll_debug, "Downloaded and saved image of size: " + std::to_string(result.body.length()));
 			concurrent_images++;
-			dpp::utility::exec("../ocr.sh", {temp_filename}, [attach, ev, &bot](std::string output) {
-				std::vector<std::string> lines = dpp::utility::tokenize(output, "\n");
-				for (const std::string& line : lines) {
-					if (line.length() && line[0] == 0x0C) {
-						/* Tesseract puts random formdeeds in the output, skip them */
-						continue;
-					}
-					for (const std::string& pattern : configdocument.at("patterns")) {
-						std::string pattern_wild = "*" + pattern + "*";
-						if (line.length() && pattern.length() && match(line.c_str(), pattern_wild.c_str())) {
-							concurrent_images--;
-							delete_message_and_warn(bot, ev, attach, pattern);
-							return;
-						}
-					}
-					bot.log(dpp::ll_info, "Image content: " + line);
-				}
+			dpp::utility::exec("../ocr.sh", {temp_filename}, [temp_filename, attach, ev, &bot](std::string output) {
+				ocr_image(temp_filename, attach, bot, ev);
+				unlink(temp_filename.c_str());
 				concurrent_images--;
 			});
 		});
