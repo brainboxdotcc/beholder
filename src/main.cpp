@@ -29,7 +29,6 @@ int main(int argc, char const *argv[])
 	std::ifstream configfile("../config.json");
 	configfile >> configdocument;
 	dpp::cluster bot(configdocument["token"], dpp::i_default_intents | dpp::i_message_content | dpp::i_guild_members, 1, 0, 1, true, dpp::cache_policy::cpol_none);
-	dpp::snowflake home_server = dpp::snowflake_not_null(&configdocument, "homeserver");
 	logchannel = dpp::snowflake_not_null(&configdocument, "logchannel");
 
 	dpp::commandhandler command_handler(&bot);
@@ -38,7 +37,7 @@ int main(int argc, char const *argv[])
 	bot.on_ready([&bot](const dpp::ready_t &event) {
 	});
 
-	bot.on_message_create([&bot, home_server](const dpp::message_create_t &ev) {
+	bot.on_message_create([&bot](const dpp::message_create_t &ev) {
 		auto guild_member = ev.msg.member;
 
 		/* Of course, this could be changed to allow more than just a pre-defined role from config. */
