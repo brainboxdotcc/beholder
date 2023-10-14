@@ -35,7 +35,6 @@ target_include_directories(${BOT_NAME} PUBLIC
 
 target_link_libraries(${BOT_NAME}
     dl
-    fmt
     ${CMAKE_THREAD_LIBS_INIT}
     ${DPP_LIBRARIES}
 )
