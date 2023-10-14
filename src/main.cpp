@@ -2,6 +2,7 @@
 #include <dpp/json.h>
 #include <filesystem>
 #include <yeet/yeet.h>
+#include <fmt/format.h>
 #include <spdlog/spdlog.h>
 #include <spdlog/async.h>
 #include <spdlog/sinks/stdout_color_sinks.h>
@@ -137,10 +138,10 @@ int main(int argc, char const *argv[])
 	/* Connect to SQL database */
 	const json& dbconf = configdocument["database"];
 	if (!db::connect(dbconf["host"], dbconf["username"], dbconf["password"], dbconf["database"], dbconf["port"])) {
-		bot.log(dpp::ll_info, "Database connection error connecting to " + dbconf["database"]);
+		bot.log(dpp::ll_critical, fmt::format("Database connection error connecting to {}", dbconf["database"]));
 		exit(2);
 	}
-	bot.log(dpp::ll_info, "Connected to database: " + dbconf["database"]);
+	bot.log(dpp::ll_info, fmt::format("Connected to database: {}", dbconf["database"]));
 
 	/* Start bot */
 	bot.start(dpp::st_wait);
