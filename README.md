@@ -40,10 +40,10 @@ Create a config.json in the directory above the build directory:
 
 ## Dependencies
 
-* Imagemagick command line tools
-* Tesseract v5.x (libtesseract-dev)
+* Tesseract (libtesseract-dev)
 * Leptonica (libleptonica-dev)
-* g++ 8.0 or later
+* libmysqlclient
+* g++ 11.4 or later
 * cmake
 * [D++](https://github.com/brainboxdotcc/dpp) v10.0.27 or later
 
