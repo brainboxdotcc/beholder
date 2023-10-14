@@ -1,6 +1,11 @@
 #pragma once
 #include <dpp/dpp.h>
 
+constexpr size_t max_size = 8 * 1024 * 1024;
+constexpr int max_concurrency = 6;
+
+using json = dpp::json;
+
 bool match(const char* str, const char* mask);
 
 /**
@@ -34,3 +39,21 @@ void bad_embed(dpp::cluster &bot, dpp::snowflake channel_id, const std::string &
 void good_embed(dpp::commandhandler &ch, dpp::command_source src,  const std::string &message);
 void bad_embed(dpp::commandhandler &ch, dpp::command_source src, const std::string &message);
 
+/**
+ * @brief Processes an attachment into text, then checks to see if it matches a certain pattern. If it matches then it called delete_message_and_warn.
+ * @param attach The attachment to process into text.
+ * @param bot Bot reference.
+ * @param ev message_create_t reference.
+ */
+void download_image(const dpp::attachment attach, dpp::cluster& bot, const dpp::message_create_t ev);
+
+void ocr_image(std::string file_content, const dpp::attachment attach, dpp::cluster& bot, const dpp::message_create_t ev);
+
+/**
+ * @brief Delete a message and send a warning.
+ * @param bot Bot reference.
+ * @param ev message_create_t reference.
+ * @param attach The attachment that was flagged as bad.
+ * @param text What the attachment was flagged for.
+ */
+void delete_message_and_warn(dpp::cluster& bot, const dpp::message_create_t ev, const dpp::attachment attach, const std::string text);

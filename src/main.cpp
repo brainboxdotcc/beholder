@@ -1,33 +1,14 @@
 #include <dpp/dpp.h>
-#include <dpp/nlohmann/json.hpp>
-#include <iomanip>
-#include <sstream>
-#include <unistd.h>
-#include <vector>
-#include <fstream>
-#include <iostream>
+#include <dpp/json.h>
 #include <filesystem>
-#include <tesseract/baseapi.h>
-#include <leptonica/allheaders.h>
 #include <yeet/yeet.h>
-
-using json = dpp::json;
 
 namespace fs = std::filesystem;
 
-constexpr size_t max_size = 8 * 1024 * 1024;
-constexpr int max_concurrency = 6;
 json configdocument;
 dpp::snowflake logchannel;
 std::atomic<int> concurrent_images{0};
 
-/**
- * @brief Delete a message and send a warning.
- * @param bot Bot reference.
- * @param ev message_create_t reference.
- * @param attach The attachment that was flagged as bad.
- * @param text What the attachment was flagged for.
- */
 void delete_message_and_warn(dpp::cluster& bot, const dpp::message_create_t ev, const dpp::attachment attach, const std::string text) {
 	bot.message_delete(ev.msg.id, ev.msg.channel_id, [&bot, ev, attach, text](const auto& cc) {
 
@@ -41,96 +22,6 @@ void delete_message_and_warn(dpp::cluster& bot, const dpp::message_create_t ev, 
 		ev.msg.author.format_username() + "`\nMatched pattern: `" + text + "`\n[Image link](" + attach.url +")");
 	});
 }
-
-void ocr_image(std::string file_content, const dpp::attachment attach, dpp::cluster& bot, const dpp::message_create_t ev) {
-	tesseract::TessBaseAPI *api = new tesseract::TessBaseAPI();
-	if (api->Init(NULL, "eng", tesseract::OcrEngineMode::OEM_DEFAULT)) {
-		bot.log(dpp::ll_error, "Could not initialise tesseract");
-		return;
-	}
-	api->SetPageSegMode(tesseract::PageSegMode::PSM_SINGLE_BLOCK);
-	Pix* image = pixReadMem((l_uint8*)file_content.data(), file_content.length());
-	if (!image) {
-		bot.log(dpp::ll_error, "Could not read image with pixRead");
-		return;
-	}
-	/* We may have already checked this value if discord gave it us as attachment metadata.
-	 * Just to be sure, and also in case we're processing an image given in a raw url, we check the
-	 * width and height again here.
-	 */
-	if (image->w > 4096 || image->h > 4096) {
-		bot.log(dpp::ll_info, "Image dimensions of " + std::to_string(image->w) + "x" + std::to_string(image->h) + " too large to be a screenshot");
-		return;
-	}
-	image = pixConvertRGBToGray(image, 0.5, 0.3, 0.2);
-	api->SetImage(image);
-	const char* output = api->GetUTF8Text();
-	if (!output) {
-		bot.log(dpp::ll_error, "GetUTF8Text() returned nullptr!!!");
-		return;
-	}
-	std::vector<std::string> lines = dpp::utility::tokenize(output, "\n");
-	bot.log(dpp::ll_debug, "Read " + std::to_string(lines.size()) + " lines of text from image with total size " + std::to_string(strlen(output)));
-	for (const std::string& line : lines) {
-		if (line.length() && line[0] == 0x0C) {
-			/* Tesseract puts random formdeeds in the output, skip them */
-			continue;
-		}
-		bot.log(dpp::ll_info, "Image content: " + line);
-		for (const std::string& pattern : configdocument.at("patterns")) {
-			std::string pattern_wild = "*" + pattern + "*";
-			if (line.length() && pattern.length() && match(line.c_str(), pattern_wild.c_str())) {
-				concurrent_images--;
-				delete_message_and_warn(bot, ev, attach, pattern);
-				return;
-			}
-		}
-	}
-}
-
-/**
- * @brief Processes an attachment into text, then checks to see if it matches a certain pattern. If it matches then it called delete_message_and_warn.
- * @param attach The attachment to process into text.
- * @param bot Bot reference.
- * @param ev message_create_t reference.
- */
-void download_image(const dpp::attachment attach, dpp::cluster& bot, const dpp::message_create_t ev) {
-	if (attach.url.find(".webp") != std::string::npos || attach.url.find(".jpg") != std::string::npos || attach.url.find(".png") != std::string::npos || attach.url.find(".gif") != std::string::npos) {
-		bot.log(dpp::ll_info, "Image: " + attach.url);
-		if (concurrent_images > max_concurrency) {
-			bot.log(dpp::ll_info, "Too many concurrent images, skipped");
-			return;
-		}
-		/**
-		 * NOTE: The width, height and size attributes given here are only valid if the image was uploaded as
-		 * an attachment. If the image we are processing came from a URL these can't be filled yet, and will
-		 * be checked after we have downloaded the image. Bandwidth is cheap, so this doesnt matter too much,
-		 * it's just the processing cost of running OCR on a massive image we would want to prevent.
-		 */
-		if (attach.width > 4096 || attach.height > 4096) {
-			bot.log(dpp::ll_info, "Image dimensions of " + std::to_string(attach.width) + "x" + std::to_string(attach.height) + " too large to be a screenshot");
-			return;
-		}
-		if (attach.size > max_size) {
-			bot.log(dpp::ll_info, "Image size of " + std::to_string(attach.size / 1024) + "KB is larger than maximum allowed scanning size");
-			return;
-		}
-		bot.request(attach.url, dpp::m_get, [attach, ev, &bot](const dpp::http_request_completion_t& result) {
-			/**
-			 * Check size of downloaded file again here, because an attachment gives us the size
-			 * before we try to download it, a url does not. 
-			 */
-			if (result.body.size() > max_size) {
-				bot.log(dpp::ll_info, "Image size of " + std::to_string(attach.size / 1024) + "KB is larger than maximum allowed scanning size");
-			}
-			bot.log(dpp::ll_debug, "Downloaded image of size: " + std::to_string(result.body.length()));
-			concurrent_images++;
-			std::thread hard_work(ocr_image, result.body, attach, std::ref(bot), ev);
-			hard_work.detach();
-		});
-	}
-}
-
 
 int main(int argc, char const *argv[])
 {
