@@ -35,9 +35,7 @@ inline std::string trim(std::string s)
 }
 
 void good_embed(dpp::cluster &bot, dpp::snowflake channel_id, const std::string &message, const std::string& url = "");
-void bad_embed(dpp::cluster &bot, dpp::snowflake channel_id, const std::string &message, dpp::message ref = {});
-void good_embed(dpp::commandhandler &ch, dpp::command_source src,  const std::string &message);
-void bad_embed(dpp::commandhandler &ch, dpp::command_source src, const std::string &message);
+void bad_embed(const std::string& title, dpp::cluster &bot, dpp::snowflake channel_id, const std::string &message, dpp::message ref = {});
 
 /**
  * @brief Processes an attachment into text, then checks to see if it matches a certain pattern. If it matches then it called delete_message_and_warn.
@@ -57,3 +55,5 @@ void ocr_image(std::string file_content, const dpp::attachment attach, dpp::clus
  * @param text What the attachment was flagged for.
  */
 void delete_message_and_warn(dpp::cluster& bot, const dpp::message_create_t ev, const dpp::attachment attach, const std::string text);
+
+std::string replace_string(std::string subject, const std::string& search, const std::string& replace);

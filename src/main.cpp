@@ -18,13 +18,22 @@ void delete_message_and_warn(dpp::cluster& bot, const dpp::message_create_t ev, 
 	bot.message_delete(ev.msg.id, ev.msg.channel_id, [&bot, ev, attach, text](const auto& cc) {
 
 		if (cc.is_error()) {
-			bad_embed(bot, ev.msg.channel_id, "Failed to delete the message: " + ev.msg.id.str(), ev.msg);
+			bad_embed("Error", bot, ev.msg.channel_id, "Failed to delete the message: " + ev.msg.id.str(), ev.msg);
 			return;
 		}
 
-		db::resultset logchannel = db::query("SELECT log_channel FROM guild_config WHERE guild_id = '?'", { ev.msg.guild_id.str() });
-		bad_embed(bot, ev.msg.channel_id, "<@" + ev.msg.author.id.str() + ">, the picture you posted appears to contain program code, program output, or other program related text content. Please **DO NOT** share images of code, paste the code.\n\nIf you continue to send screenshots of code, you may be **muted**.\n\nFor further information, please see rule :regional_indicator_h: of the <#830548236157976617>", ev.msg);
+		db::resultset logchannel = db::query("SELECT log_channel, embed_title, embed_body FROM guild_config WHERE guild_id = '?'", { ev.msg.guild_id.str() });
 		if (logchannel.size()) {
+			std::string message_body = logchannel[0].at("embed_body");
+			std::string message_title = logchannel[0].at("embed_title");
+			if (message_body.empty()) {
+				message_body = "Please configure a message!";
+			}
+			if (message_title.empty()) {
+				message_title = "Yeet!";
+			}
+			message_body = replace_string(message_body, "@user", "<@" + ev.msg.author.id.str() + ">");
+			bad_embed(message_title, bot, ev.msg.channel_id, message_body, ev.msg);
 			good_embed(
 				bot, dpp::snowflake(logchannel[0].at("log_channel")), "Attachment: `" + attach.filename + "`\nSent by: `" +
 				ev.msg.author.format_username() + "`\nMatched pattern: `" + text + "`\n[Image link](" + attach.url +")"
