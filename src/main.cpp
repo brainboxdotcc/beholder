@@ -112,9 +112,9 @@ int main(int argc, char const *argv[]) {
 		    	/* Loop through all bypass roles, defined by config. */
 	    		for (const std::string& role : configdocument.at("bypassroles")) {
 				/* If the user has this role, set should_bypass to true, then kill the loop. */
-				if(std::find(guild_member.roles.begin(), guild_member.roles.end(), role) != guild_member.roles.end()) {
+				const auto& roles = guild_member.get_roles();
+				if(std::find(roles.begin(), roles.end(), role) != roles.end()) {
 					should_bypass = true;
-					std::cout << "Should bypass." << "\n";
 					break;
 				}
 		    	}
