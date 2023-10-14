@@ -42,22 +42,32 @@ void delete_message_and_warn(dpp::cluster& bot, const dpp::message_create_t ev, 
 	});
 }
 
+void cleanup(const std::string& temp_filename)
+{
+	unlink(temp_filename.c_str());
+	concurrent_images--;
+}
+
 void ocr_image(const std::string& temp_filename, const dpp::attachment attach, dpp::cluster& bot, const dpp::message_create_t ev) {
 	tesseract::TessBaseAPI *api = new tesseract::TessBaseAPI();
 	if (api->Init(NULL, "eng", tesseract::OcrEngineMode::OEM_DEFAULT)) {
 		bot.log(dpp::ll_error, "Could not initialise tesseract");
+		cleanup(temp_filename);
 		return;
 	}
 	api->SetPageSegMode(tesseract::PageSegMode::PSM_SINGLE_BLOCK);
 	Pix* image = pixRead(temp_filename.c_str());
 	if (!image) {
 		bot.log(dpp::ll_error, "Could not read image with pixRead");
+		cleanup(temp_filename);
 		return;
 	}
+	image = pixConvertRGBToGray(image, 0.5, 0.3, 0.2);
 	api->SetImage(image);
-	char* output = api->GetUTF8Text();
+	const char* output = api->GetUTF8Text();
 	if (!output) {
 		bot.log(dpp::ll_error, "GetUTF8Text() returned nullptr!!!");
+		cleanup(temp_filename);
 		return;
 	}
 	std::vector<std::string> lines = dpp::utility::tokenize(output, "\n");
@@ -67,15 +77,17 @@ void ocr_image(const std::string& temp_filename, const dpp::attachment attach, d
 			/* Tesseract puts random formdeeds in the output, skip them */
 			continue;
 		}
+		bot.log(dpp::ll_info, "Image content: " + line);
 		for (const std::string& pattern : configdocument.at("patterns")) {
 			std::string pattern_wild = "*" + pattern + "*";
 			if (line.length() && pattern.length() && match(line.c_str(), pattern_wild.c_str())) {
 				concurrent_images--;
 				delete_message_and_warn(bot, ev, attach, pattern);
+				cleanup(temp_filename);
 				return;
 			}
 		}
-		bot.log(dpp::ll_info, "Image content: " + line);
+		cleanup(temp_filename);
 	}
 }
 
@@ -114,11 +126,8 @@ void process_image(const dpp::attachment attach, dpp::cluster& bot, const dpp::m
 			fclose(content);
 			bot.log(dpp::ll_debug, "Downloaded and saved image of size: " + std::to_string(result.body.length()));
 			concurrent_images++;
-			dpp::utility::exec("../ocr.sh", {temp_filename}, [temp_filename, attach, ev, &bot](std::string output) {
-				ocr_image(temp_filename, attach, bot, ev);
-				unlink(temp_filename.c_str());
-				concurrent_images--;
-			});
+			std::thread hard_work(ocr_image, temp_filename, attach, std::ref(bot), ev);
+			hard_work.detach();
 		});
 	}
 }
