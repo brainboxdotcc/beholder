@@ -134,7 +134,7 @@ int main(int argc, char const *argv[])
 	bot.set_websocket_protocol(dpp::ws_etf);
 
 	/* Connect to SQL database */
-	json dbconf = configdocument["database"];
+	const json& dbconf = configdocument["database"];
 	if (!db::connect(dbconf["host"], dbconf["username"], dbconf["password"], dbconf["database"], dbconf["port"])) {
 		std::cerr << "Database connection failed\n";
 		exit(2);
