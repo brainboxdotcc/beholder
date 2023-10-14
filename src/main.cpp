@@ -126,7 +126,6 @@ int main(int argc, char const *argv[]) {
 
 			/* Are there any attachments? */
 			if (ev.msg.attachments.size() > 0) {
-				bot.log(dpp::ll_info, "Message with attached images");
 				for (const dpp::attachment& attach : ev.msg.attachments) {
 					process_image(attach, bot, ev);
 				}
@@ -137,7 +136,6 @@ int main(int argc, char const *argv[]) {
 
 			/* Go through the parts array */
 			for (const std::string& possibly_url : parts) {
-				bot.log(dpp::ll_info, "Message with hyperlinked images");
 				size_t size = possibly_url.length();
 				if ((size >= 9 && possibly_url.substr(0, 8) == "https://") || (size >= 8 && possibly_url.substr(0, 7) == "http://")) {
 					dpp::attachment attach((dpp::message*)&ev.msg);
