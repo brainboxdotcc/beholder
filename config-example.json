@@ -1,13 +1,11 @@
 {
 	"token": "token goes here", 
 	"logchannel": "1162147665753153707",
-	"bypassroles": [
-		"1006130853988016188",
-		"825412797630382121"
-	],
-	"patterns": [
-		"yeet",
-		"yeet*YEET",
-		"y?e?e?t"
-	]
+	"database": {
+		"host": "localhost",
+		"username": "mysql username",
+		"password": "mysql password",
+		"database": "mysql database",
+		"port": 3306
+	}
 }

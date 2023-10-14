@@ -2,8 +2,8 @@
 #include <tesseract/baseapi.h>
 #include <leptonica/allheaders.h>
 #include <yeet/yeet.h>
+#include <yeet/database.h>
 
-extern json configdocument;
 extern std::atomic<int> concurrent_images;
 
 void ocr_image(std::string file_content, const dpp::attachment attach, dpp::cluster& bot, const dpp::message_create_t ev) {
@@ -42,17 +42,20 @@ void ocr_image(std::string file_content, const dpp::attachment attach, dpp::clus
 	}
 	std::vector<std::string> lines = dpp::utility::tokenize(output, "\n");
 	bot.log(dpp::ll_debug, "Read " + std::to_string(lines.size()) + " lines of text from image with total size " + std::to_string(strlen(output)));
+	db::resultset patterns = db::query("SELECT * FROM guild_patterns WHERE guild_id = '?'", { ev.msg.guild_id.str() });
+	bot.log(dpp::ll_debug, "Checking image content against " + std::to_string(patterns.size()) + " patterns...");
 	for (const std::string& line : lines) {
 		if (line.length() && line[0] == 0x0C) {
 			/* Tesseract puts random formdeeds in the output, skip them */
 			continue;
 		}
 		bot.log(dpp::ll_info, "Image content: " + line);
-		for (const std::string& pattern : configdocument.at("patterns")) {
-			std::string pattern_wild = "*" + pattern + "*";
-			if (line.length() && pattern.length() && match(line.c_str(), pattern_wild.c_str())) {
+		for (const db::row& pattern : patterns) {
+			const std::string& p = pattern.at("pattern");
+			std::string pattern_wild = "*" + p + "*";
+			if (line.length() && p.length() && match(line.c_str(), pattern_wild.c_str())) {
 				concurrent_images--;
-				delete_message_and_warn(bot, ev, attach, pattern);
+				delete_message_and_warn(bot, ev, attach, p);
 				return;
 			}
 		}

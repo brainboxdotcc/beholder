@@ -2,6 +2,11 @@
 #include <dpp/json.h>
 #include <filesystem>
 #include <yeet/yeet.h>
+#include <spdlog/spdlog.h>
+#include <spdlog/async.h>
+#include <spdlog/sinks/stdout_color_sinks.h>
+#include <spdlog/sinks/rotating_file_sink.h>
+#include <yeet/database.h>
 
 namespace fs = std::filesystem;
 
@@ -31,6 +36,19 @@ int main(int argc, char const *argv[])
 	dpp::cluster bot(configdocument["token"], dpp::i_default_intents | dpp::i_message_content | dpp::i_guild_members, 1, 0, 1, true, dpp::cache_policy::cpol_none);
 	logchannel = dpp::snowflake_not_null(&configdocument, "logchannel");
 
+	/* Set up spdlog logger */
+	std::shared_ptr<spdlog::logger> log;
+	spdlog::init_thread_pool(8192, 2);
+	std::vector<spdlog::sink_ptr> sinks;
+	auto stdout_sink = std::make_shared<spdlog::sinks::stdout_color_sink_mt >();
+	auto rotating = std::make_shared<spdlog::sinks::rotating_file_sink_mt>("logs/yeet.log", 1024 * 1024 * 5, 10);
+	sinks.push_back(stdout_sink);
+	sinks.push_back(rotating);
+	log = std::make_shared<spdlog::async_logger>("test", sinks.begin(), sinks.end(), spdlog::thread_pool(), spdlog::async_overflow_policy::block);
+	spdlog::register_logger(log);
+	log->set_pattern("%^%Y-%m-%d %H:%M:%S.%e [%L] [th#%t]%$ : %v");
+	log->set_level(spdlog::level::level_enum::debug);
+
 	dpp::commandhandler command_handler(&bot);
 	command_handler.add_prefix(".").add_prefix("/");
 
@@ -44,12 +62,13 @@ int main(int argc, char const *argv[])
 		bool should_bypass = false;
 
 		/* Loop through all bypass roles, defined by config. */
-		for (const std::string& role : configdocument.at("bypassroles")) {
+		db::resultset bypass_roles = db::query("SELECT * FROM guild_bypass_roles WHERE guild_id = '?'", { ev.msg.guild_id.str() });
+		for (const db::row& role : bypass_roles) {
 			/* If the user has this role, set should_bypass to true, then kill the loop. */
 			const auto& roles = guild_member.get_roles();
-			if(std::find(roles.begin(), roles.end(), dpp::snowflake(role)) != roles.end()) {
+			if (std::find(roles.begin(), roles.end(), dpp::snowflake(role.at("role_id"))) != roles.end()) {
 				should_bypass = true;
-				bot.log(dpp::ll_info, "User " + ev.msg.author.format_username() + " is in exempt role " + role);
+				bot.log(dpp::ll_info, "User " + ev.msg.author.format_username() + " is in exempt role " + role.at("role_id"));
 				break;
 			}
 		}
@@ -85,9 +104,38 @@ int main(int argc, char const *argv[])
 		}
 	});
 
-	bot.on_log(dpp::utility::cout_logger());
+	bot.on_log([&bot, &log](const dpp::log_t & event) {
+		switch (event.severity) {
+			case dpp::ll_trace:
+				log->trace("{}", event.message);
+				break;
+			case dpp::ll_debug:
+				log->debug("{}", event.message);
+				break;
+			case dpp::ll_info:
+				log->info("{}", event.message);
+				break;
+			case dpp::ll_warning:
+				log->warn("{}", event.message);
+				break;
+			case dpp::ll_error:
+				log->error("{}", event.message);
+				break;
+			case dpp::ll_critical:
+			default:
+				log->critical("{}", event.message);
+				break;
+		}
+	});
 
 	bot.set_websocket_protocol(dpp::ws_etf);
+
+	/* Connect to SQL database */
+	json dbconf = configdocument["database"];
+	if (!db::connect(dbconf["host"], dbconf["username"], dbconf["password"], dbconf["database"], dbconf["port"])) {
+		std::cerr << "Database connection failed\n";
+		exit(2);
+	}
 
 	/* Start bot */
 	bot.start(dpp::st_wait);

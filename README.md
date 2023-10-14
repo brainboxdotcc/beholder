@@ -25,16 +25,16 @@ Create a config.json in the directory above the build directory:
 
 ```json
 {
-    "token": "your bot token here", 
-    "logchannel": "server id where logs go",
-    "bypassroles": [
-        "roles that will bypass checks",
-        "..."
-    ],
-    "patterns": [
-        "wildcard patterns",
-        "..."
-    ]
+	"token": "your bot token here", 
+	"logchannel": "server id where logs go",
+	"database": {
+		"host": "localhost",
+		"username": "mysql username",
+		"password": "mysql password",
+		"database": "mysql database",
+		"port": 3306
+	}
+
 }
 ```
 
@@ -45,6 +45,8 @@ Create a config.json in the directory above the build directory:
 * libmysqlclient
 * g++ 11.4 or later
 * cmake
+* fmtlib
+* spdlog
 * [D++](https://github.com/brainboxdotcc/dpp) v10.0.27 or later
 
 Start the bot:

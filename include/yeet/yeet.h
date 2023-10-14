@@ -2,7 +2,7 @@
 #include <dpp/dpp.h>
 
 constexpr size_t max_size = 8 * 1024 * 1024;
-constexpr int max_concurrency = 6;
+constexpr int max_concurrency = 64;
 
 using json = dpp::json;
 
