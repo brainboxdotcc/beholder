@@ -56,30 +56,45 @@ void process_image(const dpp::attachment attach, dpp::cluster& bot, const dpp::m
 		}
 		if (attach.width > 4096 || attach.height > 4096) {
 			bot.log(dpp::ll_info, "Image dimensions of " + std::to_string(attach.width) + "x" + std::to_string(attach.height) + " too large to be a screenshot");
+			return;
 		}
 		if (attach.size > max_size) {
 			bot.log(dpp::ll_info, "Image size of " + std::to_string(attach.size / 1024) + "KB is larger than maximum allowed scanning size");
+			return;
 		}
-		std::string temp_filename = ev.msg.id.str() + "_" + attach.filename;
-		concurrent_images++;
-		dpp::utility::exec("../ocr.sh", {temp_filename, attach.url}, [attach, ev, &bot](std::string output) {
-			std::vector<std::string> lines = dpp::utility::tokenize(output, "\n");
-			for (const std::string& line : lines) {
-				if (line.length() && line[0] == 0x0C) {
-					/* Tesseract puts random formdeeds in the output, skip them */
-					continue;
-				}
-				for (const std::string& pattern : configdocument.at("patterns")) {
-					std::string pattern_wild = "*" + pattern + "*";
-					if (line.length() && pattern.length() && match(line.c_str(), pattern_wild.c_str())) {
-						concurrent_images--;
-						delete_message_and_warn(bot, ev, attach, pattern);
-						return;
-					}
-				}
-				bot.log(dpp::ll_info, "Image content: " + line);
+		bot.request(attach.url, dpp::m_get, [attach, ev, &bot](const dpp::http_request_completion_t& result) {
+			if (result.body.size() > max_size) {
+				bot.log(dpp::ll_info, "Image size of " + std::to_string(attach.size / 1024) + "KB is larger than maximum allowed scanning size");
 			}
-			concurrent_images--;
+			std::string temp_filename = ev.msg.id.str() + "_" + attach.filename;
+			FILE* content = fopen(temp_filename.c_str(), "wb");
+			if (!content) {
+				bot.log(dpp::ll_info, "Unable to write downloaded file " + temp_filename);
+				return;
+			}
+			fwrite(result.body.data(), result.body.length(), 1, content);
+			fclose(content);
+			bot.log(dpp::ll_debug, "Downloaded and saved image of size: " + std::to_string(result.body.length()));
+			concurrent_images++;
+			dpp::utility::exec("../ocr.sh", {temp_filename}, [attach, ev, &bot](std::string output) {
+				std::vector<std::string> lines = dpp::utility::tokenize(output, "\n");
+				for (const std::string& line : lines) {
+					if (line.length() && line[0] == 0x0C) {
+						/* Tesseract puts random formdeeds in the output, skip them */
+						continue;
+					}
+					for (const std::string& pattern : configdocument.at("patterns")) {
+						std::string pattern_wild = "*" + pattern + "*";
+						if (line.length() && pattern.length() && match(line.c_str(), pattern_wild.c_str())) {
+							concurrent_images--;
+							delete_message_and_warn(bot, ev, attach, pattern);
+							return;
+						}
+					}
+					bot.log(dpp::ll_info, "Image content: " + line);
+				}
+				concurrent_images--;
+			});
 		});
 	}
 }
@@ -96,14 +111,12 @@ int main(int argc, char const *argv[]) {
 	dpp::commandhandler command_handler(&bot);
 	command_handler.add_prefix(".").add_prefix("/");
 
-	bot.on_ready([&](const dpp::ready_t &event) {
+	bot.on_ready([&bot](const dpp::ready_t &event) {
 	});
 
-	bot.on_message_create([&](const dpp::message_create_t &ev) {
-		/* Coro would be good use here :sob: */
-
+	bot.on_message_create([&bot, home_server](const dpp::message_create_t &ev) {
 		/* Use guild_get_member to gather the guild member due to cache being disabled. */
-		bot.guild_get_member(ev.msg.guild_id, ev.msg.author.id, [&](const dpp::confirmation_callback_t& callback) {
+		bot.guild_get_member(ev.msg.guild_id, ev.msg.author.id, [&bot, ev](const dpp::confirmation_callback_t& callback) {
 			auto guild_member = callback.get<dpp::guild_member>();
 
 			/* Of course, this could be changed to allow more than just a pre-defined role from config. */
@@ -115,6 +128,7 @@ int main(int argc, char const *argv[]) {
 				const auto& roles = guild_member.get_roles();
 				if(std::find(roles.begin(), roles.end(), dpp::snowflake(role)) != roles.end()) {
 					should_bypass = true;
+					bot.log(dpp::ll_info, "User " + ev.msg.author.format_username() + " is in exempt role " + role);
 					break;
 				}
 		    	}
