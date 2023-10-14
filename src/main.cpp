@@ -42,24 +42,24 @@ void delete_message_and_warn(dpp::cluster& bot, const dpp::message_create_t ev, 
 	});
 }
 
-void cleanup(const std::string& temp_filename)
-{
-	unlink(temp_filename.c_str());
-	concurrent_images--;
-}
-
-void ocr_image(const std::string& temp_filename, const dpp::attachment attach, dpp::cluster& bot, const dpp::message_create_t ev) {
+void ocr_image(std::string file_content, const dpp::attachment attach, dpp::cluster& bot, const dpp::message_create_t ev) {
 	tesseract::TessBaseAPI *api = new tesseract::TessBaseAPI();
 	if (api->Init(NULL, "eng", tesseract::OcrEngineMode::OEM_DEFAULT)) {
 		bot.log(dpp::ll_error, "Could not initialise tesseract");
-		cleanup(temp_filename);
 		return;
 	}
 	api->SetPageSegMode(tesseract::PageSegMode::PSM_SINGLE_BLOCK);
-	Pix* image = pixRead(temp_filename.c_str());
+	Pix* image = pixReadMem((l_uint8*)file_content.data(), file_content.length());
 	if (!image) {
 		bot.log(dpp::ll_error, "Could not read image with pixRead");
-		cleanup(temp_filename);
+		return;
+	}
+	/* We may have already checked this value if discord gave it us as attachment metadata.
+	 * Just to be sure, and also in case we're processing an image given in a raw url, we check the
+	 * width and height again here.
+	 */
+	if (image->w > 4096 || image->h > 4096) {
+		bot.log(dpp::ll_info, "Image dimensions of " + std::to_string(image->w) + "x" + std::to_string(image->h) + " too large to be a screenshot");
 		return;
 	}
 	image = pixConvertRGBToGray(image, 0.5, 0.3, 0.2);
@@ -67,7 +67,6 @@ void ocr_image(const std::string& temp_filename, const dpp::attachment attach, d
 	const char* output = api->GetUTF8Text();
 	if (!output) {
 		bot.log(dpp::ll_error, "GetUTF8Text() returned nullptr!!!");
-		cleanup(temp_filename);
 		return;
 	}
 	std::vector<std::string> lines = dpp::utility::tokenize(output, "\n");
@@ -83,11 +82,9 @@ void ocr_image(const std::string& temp_filename, const dpp::attachment attach, d
 			if (line.length() && pattern.length() && match(line.c_str(), pattern_wild.c_str())) {
 				concurrent_images--;
 				delete_message_and_warn(bot, ev, attach, pattern);
-				cleanup(temp_filename);
 				return;
 			}
 		}
-		cleanup(temp_filename);
 	}
 }
 
@@ -97,13 +94,19 @@ void ocr_image(const std::string& temp_filename, const dpp::attachment attach, d
  * @param bot Bot reference.
  * @param ev message_create_t reference.
  */
-void process_image(const dpp::attachment attach, dpp::cluster& bot, const dpp::message_create_t ev) {
+void download_image(const dpp::attachment attach, dpp::cluster& bot, const dpp::message_create_t ev) {
 	if (attach.url.find(".webp") != std::string::npos || attach.url.find(".jpg") != std::string::npos || attach.url.find(".png") != std::string::npos || attach.url.find(".gif") != std::string::npos) {
 		bot.log(dpp::ll_info, "Image: " + attach.url);
 		if (concurrent_images > max_concurrency) {
 			bot.log(dpp::ll_info, "Too many concurrent images, skipped");
 			return;
 		}
+		/**
+		 * NOTE: The width, height and size attributes given here are only valid if the image was uploaded as
+		 * an attachment. If the image we are processing came from a URL these can't be filled yet, and will
+		 * be checked after we have downloaded the image. Bandwidth is cheap, so this doesnt matter too much,
+		 * it's just the processing cost of running OCR on a massive image we would want to prevent.
+		 */
 		if (attach.width > 4096 || attach.height > 4096) {
 			bot.log(dpp::ll_info, "Image dimensions of " + std::to_string(attach.width) + "x" + std::to_string(attach.height) + " too large to be a screenshot");
 			return;
@@ -113,31 +116,28 @@ void process_image(const dpp::attachment attach, dpp::cluster& bot, const dpp::m
 			return;
 		}
 		bot.request(attach.url, dpp::m_get, [attach, ev, &bot](const dpp::http_request_completion_t& result) {
+			/**
+			 * Check size of downloaded file again here, because an attachment gives us the size
+			 * before we try to download it, a url does not. 
+			 */
 			if (result.body.size() > max_size) {
 				bot.log(dpp::ll_info, "Image size of " + std::to_string(attach.size / 1024) + "KB is larger than maximum allowed scanning size");
 			}
-			std::string temp_filename = ev.msg.id.str() + "_" + attach.filename;
-			FILE* content = fopen(temp_filename.c_str(), "wb");
-			if (!content) {
-				bot.log(dpp::ll_info, "Unable to write downloaded file " + temp_filename);
-				return;
-			}
-			fwrite(result.body.data(), result.body.length(), 1, content);
-			fclose(content);
-			bot.log(dpp::ll_debug, "Downloaded and saved image of size: " + std::to_string(result.body.length()));
+			bot.log(dpp::ll_debug, "Downloaded image of size: " + std::to_string(result.body.length()));
 			concurrent_images++;
-			std::thread hard_work(ocr_image, temp_filename, attach, std::ref(bot), ev);
+			std::thread hard_work(ocr_image, result.body, attach, std::ref(bot), ev);
 			hard_work.detach();
 		});
 	}
 }
 
 
-int main(int argc, char const *argv[]) {
+int main(int argc, char const *argv[])
+{
 	/* Setup the bot */
 	std::ifstream configfile("../config.json");
 	configfile >> configdocument;
-	dpp::cluster bot(configdocument["token"], dpp::i_default_intents | dpp::i_message_content, 1, 0, 1, true, dpp::cache_policy::cpol_none);
+	dpp::cluster bot(configdocument["token"], dpp::i_default_intents | dpp::i_message_content | dpp::i_guild_members, 1, 0, 1, true, dpp::cache_policy::cpol_none);
 	dpp::snowflake home_server = dpp::snowflake_not_null(&configdocument, "homeserver");
 	logchannel = dpp::snowflake_not_null(&configdocument, "logchannel");
 
@@ -148,54 +148,51 @@ int main(int argc, char const *argv[]) {
 	});
 
 	bot.on_message_create([&bot, home_server](const dpp::message_create_t &ev) {
-		/* Use guild_get_member to gather the guild member due to cache being disabled. */
-		bot.guild_get_member(ev.msg.guild_id, ev.msg.author.id, [&bot, ev](const dpp::confirmation_callback_t& callback) {
-			auto guild_member = callback.get<dpp::guild_member>();
+		auto guild_member = ev.msg.member;
 
-			/* Of course, this could be changed to allow more than just a pre-defined role from config. */
-			bool should_bypass = false;
+		/* Of course, this could be changed to allow more than just a pre-defined role from config. */
+		bool should_bypass = false;
 
-		    	/* Loop through all bypass roles, defined by config. */
-	    		for (const std::string& role : configdocument.at("bypassroles")) {
-				/* If the user has this role, set should_bypass to true, then kill the loop. */
-				const auto& roles = guild_member.get_roles();
-				if(std::find(roles.begin(), roles.end(), dpp::snowflake(role)) != roles.end()) {
-					should_bypass = true;
-					bot.log(dpp::ll_info, "User " + ev.msg.author.format_username() + " is in exempt role " + role);
-					break;
-				}
-		    	}
-
-			/* If the author is a bot, or should bypass this, stop the event (no checking). */
-			if (ev.msg.author.is_bot() || should_bypass) {
-				return;
+		/* Loop through all bypass roles, defined by config. */
+		for (const std::string& role : configdocument.at("bypassroles")) {
+			/* If the user has this role, set should_bypass to true, then kill the loop. */
+			const auto& roles = guild_member.get_roles();
+			if(std::find(roles.begin(), roles.end(), dpp::snowflake(role)) != roles.end()) {
+				should_bypass = true;
+				bot.log(dpp::ll_info, "User " + ev.msg.author.format_username() + " is in exempt role " + role);
+				break;
 			}
+		}
 
-			/* Are there any attachments? */
-			if (ev.msg.attachments.size() > 0) {
-				for (const dpp::attachment& attach : ev.msg.attachments) {
-					process_image(attach, bot, ev);
-				}
+		/* If the author is a bot, or should bypass this, stop the event (no checking). */
+		if (ev.msg.author.is_bot() || should_bypass) {
+			return;
+		}
+
+		/* Are there any attachments? */
+		if (ev.msg.attachments.size() > 0) {
+			for (const dpp::attachment& attach : ev.msg.attachments) {
+				download_image(attach, bot, ev);
 			}
+		}
 
-			/* Split the message by spaces. */
-			std::vector<std::string> parts = dpp::utility::tokenize(ev.msg.content, " ");
+		/* Split the message by spaces. */
+		std::vector<std::string> parts = dpp::utility::tokenize(ev.msg.content, " ");
 
-			/* Go through the parts array */
-			for (const std::string& possibly_url : parts) {
-				size_t size = possibly_url.length();
-				if ((size >= 9 && possibly_url.substr(0, 8) == "https://") || (size >= 8 && possibly_url.substr(0, 7) == "http://")) {
-					dpp::attachment attach((dpp::message*)&ev.msg);
-					attach.url = possibly_url;
-					auto pos = possibly_url.find('?');
-					if (pos != std::string::npos) {
-						possibly_url.substr(0, pos - 1);
-					}
-					attach.filename = fs::path(possibly_url).filename();
-					process_image(attach, bot, ev);
+		/* Go through the parts array */
+		for (const std::string& possibly_url : parts) {
+			size_t size = possibly_url.length();
+			if ((size >= 9 && possibly_url.substr(0, 8) == "https://") || (size >= 8 && possibly_url.substr(0, 7) == "http://")) {
+				dpp::attachment attach((dpp::message*)&ev.msg);
+				attach.url = possibly_url;
+				auto pos = possibly_url.find('?');
+				if (pos != std::string::npos) {
+					possibly_url.substr(0, pos - 1);
 				}
+				attach.filename = fs::path(possibly_url).filename();
+				download_image(attach, bot, ev);
 			}
-		});
+		}
 	});
 
 	bot.on_log(dpp::utility::cout_logger());
