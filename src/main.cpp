@@ -36,9 +36,10 @@ int main(int argc, char const *argv[])
 
 	bot.on_slashcommand([&bot](const dpp::slashcommand_t& event) {
 		/* Command to allow bypass roles */
-		if(event.command.get_command_name() == "add-roles") {
+		if (event.command.get_command_name() == "add-roles") {
+
 			/* Create a message */
-			dpp::message msg(event.command.channel_id, "Select which roles should bypass my scanners.");
+			dpp::message msg(event.command.channel_id, "Select which roles should bypass image scanning");
 
 			dpp::component select_menu;
 			select_menu.set_type(dpp::cot_role_selectmenu)
@@ -63,30 +64,34 @@ int main(int argc, char const *argv[])
 	});
 
 	bot.on_select_click([&bot](const dpp::select_click_t & event) {
+		event.reply();
 		db::query("START TRANSACTION");
 		db::query("DELETE FROM guild_bypass_roles WHERE guild_id = '?'", { event.command.guild_id.str() });
 
-		if(!db::error().empty()) {
+		if (!db::error().empty()) {
 			/* We get out the transaction in the event of a failure. */
 			db::query("ROLLBACK");
 		}
 
-		std::string sql_query;
-		db::paramlist sql_parameters = {};
+		if (!event.values.empty()) {
 
-		for(int i=0; i < event.values.size(); i++) {
-			sql_query += "VALUES(?, ?)";
-			if(i != event.values.size() - 1) {
-				sql_query += ", ";
+			std::string sql_query = "INSERT INTO guild_bypass_roles (guild_id, role_id) VALUES";
+			db::paramlist sql_parameters;
+
+			for (std::size_t i = 0; i < event.values.size(); ++i) {
+				sql_query += "(?, ?)";
+				if (i != event.values.size() - 1) {
+					sql_query += ", ";
+				}
+				sql_parameters.emplace_back(event.command.guild_id.str());
+				sql_parameters.emplace_back(event.values[i]);
 			}
-			sql_parameters.emplace_back(event.command.guild_id.str());
-			sql_parameters.emplace_back(event.values[i]);
-		}
 
-		db::query("INSERT INTO guild_bypass_roles (guild_id, role_id) " + sql_query, { sql_parameters });
+			db::query(sql_query, sql_parameters);
 
-		if(!db::error().empty()) {
-			db::query("ROLLBACK");
+			if (!db::error().empty()) {
+				db::query("ROLLBACK");
+			}
 		}
 
 		db::query("COMMIT");
@@ -95,9 +100,10 @@ int main(int argc, char const *argv[])
 	/* Todo: command handler here */
 	bot.on_ready([&bot](const dpp::ready_t &event) {
 		if (dpp::run_once<struct register_bot_commands>()) {
-			bot.global_command_create(
-				dpp::slashcommand("add-roles", "Add roles that should bypass my scanners.", bot.me.id)
-			);
+			bot.global_bulk_command_create({
+				dpp::slashcommand("add-roles", "Set roles that should bypass image scanning", bot.me.id)
+					.set_default_permissions(dpp::p_administrator | dpp::p_manage_guild)
+			});
 		}
 	});
 
