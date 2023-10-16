@@ -18,7 +18,7 @@ CREATE TABLE `guild_patterns` (
 
 CREATE TABLE `guild_config` (
   `guild_id` bigint UNSIGNED NOT NULL,
-  `log_channel` bigint UNSIGNED NOT NULL
+  `log_channel` bigint UNSIGNED NULL
   `embed_title` varchar(256) DEFAULT NULL,
   `embed_body` text NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;

@@ -12,14 +12,14 @@ void delete_message_and_warn(dpp::cluster& bot, const dpp::message_create_t ev, 
 		}
 
 		db::resultset logchannel = db::query("SELECT log_channel, embed_title, embed_body FROM guild_config WHERE guild_id = '?'", { ev.msg.guild_id.str() });
-		if (logchannel.size()) {
+		if (logchannel.size() && logchannel[0].at("log_channel").length()) {
 			std::string message_body = logchannel[0].at("embed_body");
 			std::string message_title = logchannel[0].at("embed_title");
 			if (message_body.empty()) {
-				message_body = "Please configure a message!";
+				message_body = "Please configure a message using /set-delete-message";
 			}
 			if (message_title.empty()) {
-				message_title = "Yeet!";
+				message_title = "Please set the title using /set-delete-message";
 			}
 			message_body = replace_string(message_body, "@user", "<@" + ev.msg.author.id.str() + ">");
 			bad_embed(message_title, bot, ev.msg.channel_id, message_body, ev.msg);

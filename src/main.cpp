@@ -36,7 +36,7 @@ int main(int argc, char const *argv[])
 
 	bot.on_slashcommand([&bot](const dpp::slashcommand_t& event) {
 		/* Command to allow bypass roles */
-		if (event.command.get_command_name() == "add-roles") {
+		if (event.command.get_command_name() == "set-roles") {
 
 			/* Create a message */
 			dpp::message msg(event.command.channel_id, "Select which roles should bypass image scanning");
@@ -87,7 +87,129 @@ int main(int argc, char const *argv[])
 			event.reply(msg);
 		}
 
+		if (event.command.get_command_name() == "set-patterns") {
 
+			std::string patterns;
+			db::resultset pattern_query = db::query("SELECT pattern FROM guild_patterns WHERE guild_id = '?' ORDER BY pattern", { event.command.guild_id });
+			for (const db::row& p : pattern_query) {
+				patterns += p.at("pattern") + "\n";
+			}
+
+			dpp::interaction_modal_response modal("set_patterns_modal", "Enter text patterns, one per line");
+			/* Add a text component */
+			modal.add_component(
+				dpp::component()
+					.set_label("Text to match in images")
+					.set_id("patterns")
+					.set_type(dpp::cot_text)
+					.set_placeholder("Enter one pattern per line. Images containing the patterns will be deleted.")
+					.set_default_value(patterns)
+					.set_max_length(4000)
+					.set_required(true)
+					.set_text_style(dpp::text_paragraph)
+			);
+			event.dialog(modal, [&bot](const dpp::confirmation_callback_t& cc) {
+				if (cc.is_error()) {
+					bot.log(dpp::ll_error, cc.http_info.body);
+				}
+			});
+		}
+
+		if (event.command.get_command_name() == "set-delete-message") {
+
+			db::resultset embed = db::query("SELECT embed_body, embed_title FROM guild_config WHERE guild_id = '?'", { event.command.guild_id });
+			std::string embed_body, embed_title;
+			if (!embed.empty()) {
+				embed_body = embed[0].at("embed_body");
+				embed_title = embed[0].at("embed_title");
+			}
+
+			dpp::interaction_modal_response modal("set_embed_modal", "Enter delete message details");
+			/* Add a text component */
+			modal.add_component(
+				dpp::component()
+					.set_label("Message Title")
+					.set_id("title")
+					.set_type(dpp::cot_text)
+					.set_placeholder("Enter the title of the message")
+					.set_default_value(embed_title)
+					.set_min_length(1)
+					.set_max_length(256)
+					.set_required(true)
+					.set_text_style(dpp::text_short)
+			);
+			modal.add_row();
+			modal.add_component(
+				dpp::component()
+					.set_label("Message Body")
+					.set_id("body")
+					.set_type(dpp::cot_text)
+					.set_placeholder("Enter body of message. You can use the word '@user' here which will be replaced with a mention of the user who triggered the message.")
+					.set_default_value(embed_body)
+					.set_min_length(1)
+					.set_max_length(3800)
+					.set_required(true)
+					.set_text_style(dpp::text_paragraph)
+			);
+			event.dialog(modal);
+		}
+	});
+
+	bot.on_form_submit([](const dpp::form_submit_t & event) {
+		if (event.custom_id == "set_embed_modal") {
+			std::string embed_title = std::get<std::string>(event.components[0].components[0].value);
+			std::string embed_body = std::get<std::string>(event.components[1].components[0].value);
+			db::query(
+				"INSERT INTO guild_config (guild_id, embed_title, embed_body) VALUES('?', '?', '?') ON DUPLICATE KEY UPDATE embed_title = '?', embed_body = '?'",
+				{ event.command.guild_id.str(), embed_title, embed_body, embed_title, embed_body }
+			);
+			/* Replace @user with the user's mention for preview */
+			embed_body = replace_string(embed_body, "@user", "<@" + event.command.usr.id.str() + ">");
+			event.reply(
+				dpp::message("✅ Delete message set.\n\n**__Preview:__**")
+				.set_flags(dpp::m_ephemeral)
+				.add_embed(dpp::embed().set_description(embed_body).set_title(embed_title).set_color(0xff7a7a))
+			);
+		}
+		if (event.custom_id == "set_patterns_modal") {
+			std::string pats = std::get<std::string>(event.components[0].components[0].value);
+			auto list = dpp::utility::tokenize(pats, "\n");
+			db::query("START TRANSACTION");
+			db::query("DELETE FROM guild_patterns WHERE guild_id = '?'", { event.command.guild_id.str() });
+
+			if (!db::error().empty()) {
+				/* We get out the transaction in the event of a failure. */
+				db::query("ROLLBACK");
+				event.reply(dpp::message("❌ Failed to set patterns").set_flags(dpp::m_ephemeral));
+				return;
+			}
+
+			if (!list.empty()) {
+
+				std::string sql_query = "INSERT INTO guild_patterns (guild_id, pattern) VALUES";
+				db::paramlist sql_parameters;
+
+				for (std::size_t i = 0; i < list.size(); ++i) {
+					sql_query += "(?,'?')";
+					if (i != list.size() - 1) {
+						sql_query += ",";
+					}
+					sql_parameters.emplace_back(event.command.guild_id.str());
+					sql_parameters.emplace_back(list[i]);
+				}
+
+				db::query(sql_query, sql_parameters);
+
+				if (!db::error().empty()) {
+					db::query("ROLLBACK");
+					event.reply(dpp::message("❌ Failed to set patterns").set_flags(dpp::m_ephemeral));
+					return;
+				}
+			}
+
+			db::query("COMMIT");
+			event.reply(dpp::message("✅ " + std::to_string(list.size()) + " Patterns set").set_flags(dpp::m_ephemeral));
+		}
 	});
 
 	bot.on_select_click([&bot](const dpp::select_click_t & event) {
@@ -148,8 +270,14 @@ int main(int argc, char const *argv[])
 		if (dpp::run_once<struct register_bot_commands>()) {
 			uint64_t default_permissions = dpp::p_administrator | dpp::p_manage_guild;
 			bot.global_bulk_command_create({
-				dpp::slashcommand("add-roles", "Set roles that should bypass image scanning", bot.me.id).set_default_permissions(default_permissions),
-				dpp::slashcommand("set-log-channel", "Set the channel logs should be sent to", bot.me.id).set_default_permissions(default_permissions),
+				dpp::slashcommand("set-roles", "Set roles that should bypass image scanning", bot.me.id)
+					.set_default_permissions(default_permissions),
+				dpp::slashcommand("set-log-channel", "Set the channel logs should be sent to", bot.me.id)
+					.set_default_permissions(default_permissions),
+				dpp::slashcommand("set-delete-message", "Set the details of the embed to send when images are deleted", bot.me.id)
+					.set_default_permissions(default_permissions),
+				dpp::slashcommand("set-patterns", "Set patterns to find in disallowed images", bot.me.id)
+					.set_default_permissions(default_permissions),
 			});
 		}
 	});
