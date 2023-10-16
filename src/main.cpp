@@ -43,7 +43,7 @@ int main(int argc, char const *argv[])
 
 			dpp::component select_menu;
 			select_menu.set_type(dpp::cot_role_selectmenu)
-				.set_min_values(1)
+				.set_min_values(0)
 				.set_max_values(25)
 				.set_id("add_roles_select_menu");
 
@@ -61,6 +61,33 @@ int main(int argc, char const *argv[])
 			/* Reply to the user with our message. */
 			event.reply(msg);
 		}
+
+		if (event.command.get_command_name() == "set-log-channel") {
+
+			/* Create a message */
+			dpp::message msg(event.command.channel_id, "Select which channel logs will be sent to");
+
+			dpp::component select_menu;
+			select_menu.set_type(dpp::cot_channel_selectmenu)
+				.set_min_values(1)
+				.set_max_values(1)
+				.add_channel_type(dpp::CHANNEL_TEXT)
+				.set_id("log_channel_select_menu");
+
+			/* Loop through all bypass roles in database */
+			db::resultset channels = db::query("SELECT * FROM guild_config WHERE guild_id = '?'", { event.command.guild_id });
+			if (!channels.empty()) {
+				/* Add the channel as a default value to the select menu. */
+				select_menu.add_default_value(dpp::snowflake(channels[0].at("log_channel")), dpp::cdt_channel);
+			}
+
+			msg.add_component(dpp::component().add_component(select_menu)).set_flags(dpp::m_ephemeral);
+
+			/* Reply to the user with our message. */
+			event.reply(msg);
+		}
+
+
 	});
 
 	bot.on_select_click([&bot](const dpp::select_click_t & event) {
@@ -103,14 +130,26 @@ int main(int argc, char const *argv[])
 			db::query("COMMIT");
 			event.reply(dpp::message("✅ Bypass roles set").set_flags(dpp::m_ephemeral));
 		}
+
+		if (event.custom_id == "log_channel_select_menu") {
+
+			if (event.values.empty()) {
+				event.reply(dpp::message("❌ You did not specify a log channel").set_flags(dpp::m_ephemeral));
+				return;
+			}
+
+			db::query("INSERT INTO guild_config (guild_id, log_channel) VALUES('?', '?') ON DUPLICATE KEY UPDATE log_channel = '?'", { event.command.guild_id.str(), event.values[0], event.values[0] });
+			event.reply(dpp::message("✅ Log channel set").set_flags(dpp::m_ephemeral));
+		}
+
 	});
 
-	/* Todo: command handler here */
 	bot.on_ready([&bot](const dpp::ready_t &event) {
 		if (dpp::run_once<struct register_bot_commands>()) {
+			uint64_t default_permissions = dpp::p_administrator | dpp::p_manage_guild;
 			bot.global_bulk_command_create({
-				dpp::slashcommand("add-roles", "Set roles that should bypass image scanning", bot.me.id)
-					.set_default_permissions(dpp::p_administrator | dpp::p_manage_guild)
+				dpp::slashcommand("add-roles", "Set roles that should bypass image scanning", bot.me.id).set_default_permissions(default_permissions),
+				dpp::slashcommand("set-log-channel", "Set the channel logs should be sent to", bot.me.id).set_default_permissions(default_permissions),
 			});
 		}
 	});
