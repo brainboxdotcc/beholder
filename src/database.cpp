@@ -43,13 +43,7 @@ namespace db {
 		std::lock_guard<std::mutex> db_lock(db_mutex);
 		if (mysql_init(&connection) != nullptr) {
 			mysql_options(&connection, MYSQL_INIT_COMMAND, CONNECT_STRING);
-			char reconnect = 1;
-			if (mysql_options(&connection, MYSQL_OPT_RECONNECT, &reconnect) == 0) {
-				return mysql_real_connect(&connection, host.c_str(), user.c_str(), pass.c_str(), db.c_str(), port, NULL, CLIENT_MULTI_RESULTS | CLIENT_MULTI_STATEMENTS);
-			} else {
-				_error = "Couldn't set mysql_options()";
-				return false;
-			}
+			return mysql_real_connect(&connection, host.c_str(), user.c_str(), pass.c_str(), db.c_str(), port, NULL, CLIENT_MULTI_RESULTS | CLIENT_MULTI_STATEMENTS);
 		} else {
 			_error = "mysql_init() failed";
 			return false;
