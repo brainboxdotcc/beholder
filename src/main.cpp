@@ -64,41 +64,45 @@ int main(int argc, char const *argv[])
 	});
 
 	bot.on_select_click([&bot](const dpp::select_click_t & event) {
-		db::query("START TRANSACTION");
-		db::query("DELETE FROM guild_bypass_roles WHERE guild_id = '?'", { event.command.guild_id.str() });
 
-		if (!db::error().empty()) {
-			/* We get out the transaction in the event of a failure. */
-			db::query("ROLLBACK");
-			event.reply(dpp::message("❌ Failed to set new bypass roles").set_flags(dpp::m_ephemeral));
-			return;
-		}
+		if (event.custom_id == "add_roles_select_menu") {
 
-		if (!event.values.empty()) {
-
-			std::string sql_query = "INSERT INTO guild_bypass_roles (guild_id, role_id) VALUES";
-			db::paramlist sql_parameters;
-
-			for (std::size_t i = 0; i < event.values.size(); ++i) {
-				sql_query += "(?, ?)";
-				if (i != event.values.size() - 1) {
-					sql_query += ", ";
-				}
-				sql_parameters.emplace_back(event.command.guild_id.str());
-				sql_parameters.emplace_back(event.values[i]);
-			}
-
-			db::query(sql_query, sql_parameters);
+			db::query("START TRANSACTION");
+			db::query("DELETE FROM guild_bypass_roles WHERE guild_id = '?'", { event.command.guild_id.str() });
 
 			if (!db::error().empty()) {
+				/* We get out the transaction in the event of a failure. */
 				db::query("ROLLBACK");
 				event.reply(dpp::message("❌ Failed to set new bypass roles").set_flags(dpp::m_ephemeral));
 				return;
 			}
-		}
 
-		db::query("COMMIT");
-		event.reply(dpp::message("✅ Bypass roles set").set_flags(dpp::m_ephemeral));
+			if (!event.values.empty()) {
+
+				std::string sql_query = "INSERT INTO guild_bypass_roles (guild_id, role_id) VALUES";
+				db::paramlist sql_parameters;
+
+				for (std::size_t i = 0; i < event.values.size(); ++i) {
+					sql_query += "(?, ?)";
+					if (i != event.values.size() - 1) {
+						sql_query += ", ";
+					}
+					sql_parameters.emplace_back(event.command.guild_id.str());
+					sql_parameters.emplace_back(event.values[i]);
+				}
+
+				db::query(sql_query, sql_parameters);
+
+				if (!db::error().empty()) {
+					db::query("ROLLBACK");
+					event.reply(dpp::message("❌ Failed to set new bypass roles").set_flags(dpp::m_ephemeral));
+					return;
+				}
+			}
+
+			db::query("COMMIT");
+			event.reply(dpp::message("✅ Bypass roles set").set_flags(dpp::m_ephemeral));
+		}
 	});
 
 	/* Todo: command handler here */
