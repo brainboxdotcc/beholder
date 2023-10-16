@@ -56,7 +56,7 @@ int main(int argc, char const *argv[])
 				select_menu.add_default_value(dpp::snowflake(role.at("role_id")), dpp::cdt_role);
 			}
 
-			msg.add_component(dpp::component().add_component(select_menu));
+			msg.add_component(dpp::component().add_component(select_menu)).set_flags(dpp::m_ephemeral);
 
 			/* Reply to the user with our message. */
 			event.reply(msg);
@@ -64,13 +64,14 @@ int main(int argc, char const *argv[])
 	});
 
 	bot.on_select_click([&bot](const dpp::select_click_t & event) {
-		event.reply();
 		db::query("START TRANSACTION");
 		db::query("DELETE FROM guild_bypass_roles WHERE guild_id = '?'", { event.command.guild_id.str() });
 
 		if (!db::error().empty()) {
 			/* We get out the transaction in the event of a failure. */
 			db::query("ROLLBACK");
+			event.reply(dpp::message("❌ Failed to set new bypass roles").set_flags(dpp::m_ephemeral));
+			return;
 		}
 
 		if (!event.values.empty()) {
@@ -91,10 +92,13 @@ int main(int argc, char const *argv[])
 
 			if (!db::error().empty()) {
 				db::query("ROLLBACK");
+				event.reply(dpp::message("❌ Failed to set new bypass roles").set_flags(dpp::m_ephemeral));
+				return;
 			}
 		}
 
 		db::query("COMMIT");
+		event.reply(dpp::message("✅ Bypass roles set").set_flags(dpp::m_ephemeral));
 	});
 
 	/* Todo: command handler here */
