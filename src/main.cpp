@@ -19,7 +19,7 @@ int main(int argc, char const *argv[])
 	/* Set up the bot cluster and read the configuration json */
 	std::ifstream configfile("../config.json");
 	configfile >> configdocument;
-	dpp::cluster bot(configdocument["token"], dpp::i_default_intents | dpp::i_message_content | dpp::i_guild_members, 1, 0, 1, true, dpp::cache_policy::cpol_none);
+	dpp::cluster bot(configdocument["token"], dpp::i_guild_messages | dpp::i_message_content | dpp::i_guild_members, 1, 0, 1, true, dpp::cache_policy::cpol_none);
 
 	/* Set up spdlog logger */
 	std::shared_ptr<spdlog::logger> log;

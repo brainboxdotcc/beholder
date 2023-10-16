@@ -1,5 +1,6 @@
 #include <dpp/dpp.h>
 #include <yeet/yeet.h>
+#include <yeet/database.h>
 
 extern std::atomic<int> concurrent_images;
 
@@ -24,6 +25,11 @@ void download_image(const dpp::attachment attach, dpp::cluster& bot, const dpp::
 		}
 		if (attach.size > max_size) {
 			bot.log(dpp::ll_info, "Image size of " + std::to_string(attach.size / 1024) + "KB is larger than maximum allowed scanning size");
+			return;
+		}
+		db::resultset pattern_count = db::query("SELECT COUNT(guild_id) AS total FROM guild_patterns WHERE guild_id = '?'", { ev.msg.guild_id.str() });
+		if (pattern_count.size() == 0 || atoi(pattern_count[0].at("total").c_str()) == 0) {
+			bot.log(dpp::ll_info, "No patterns defined for guild " + ev.msg.guild_id.str());
 			return;
 		}
 		bot.request(attach.url, dpp::m_get, [attach, ev, &bot](const dpp::http_request_completion_t& result) {
