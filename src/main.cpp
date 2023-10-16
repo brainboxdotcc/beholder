@@ -29,7 +29,7 @@ int main(int argc, char const *argv[])
 	auto rotating = std::make_shared<spdlog::sinks::rotating_file_sink_mt>("logs/yeet.log", 1024 * 1024 * 5, 10);
 	sinks.push_back(stdout_sink);
 	sinks.push_back(rotating);
-	log = std::make_shared<spdlog::async_logger>("test", sinks.begin(), sinks.end(), spdlog::thread_pool(), spdlog::async_overflow_policy::block);
+	log = std::make_shared<spdlog::async_logger>("file_and_console", sinks.begin(), sinks.end(), spdlog::thread_pool(), spdlog::async_overflow_policy::block);
 	spdlog::register_logger(log);
 	log->set_pattern("%^%Y-%m-%d %H:%M:%S.%e [%L] [th#%t]%$ : %v");
 	log->set_level(spdlog::level::level_enum::debug);
