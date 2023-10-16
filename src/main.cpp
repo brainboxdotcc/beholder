@@ -34,11 +34,71 @@ int main(int argc, char const *argv[])
 	log->set_pattern("%^%Y-%m-%d %H:%M:%S.%e [%L] [th#%t]%$ : %v");
 	log->set_level(spdlog::level::level_enum::debug);
 
-	dpp::commandhandler command_handler(&bot);
-	command_handler.add_prefix(".").add_prefix("/");
+	bot.on_slashcommand([&bot](const dpp::slashcommand_t& event) {
+		/* Command to allow bypass roles */
+		if(event.command.get_command_name() == "add-roles") {
+			/* Create a message */
+			dpp::message msg(event.command.channel_id, "Select which roles should bypass my scanners.");
+
+			dpp::component select_menu;
+			select_menu.set_type(dpp::cot_role_selectmenu)
+				.set_min_values(1)
+				.set_max_values(25)
+				.set_id("add_roles_select_menu");
+
+			/* Loop through all bypass roles in database */
+			db::resultset bypass_roles = db::query("SELECT * FROM guild_bypass_roles WHERE guild_id = '?'", { event.command.guild_id });
+			for (const db::row& role : bypass_roles) {
+				/* Add the role as a default value to the select menu,
+				 * letting people know that it's currently a bypass role.
+				 */
+				select_menu.add_default_value(dpp::snowflake(role.at("role_id")), dpp::cdt_role);
+			}
+
+			msg.add_component(dpp::component().add_component(select_menu));
+
+			/* Reply to the user with our message. */
+			event.reply(msg);
+		}
+	});
+
+	bot.on_select_click([&bot](const dpp::select_click_t & event) {
+		db::query("START TRANSACTION");
+		db::query("DELETE FROM guild_bypass_roles WHERE guild_id = '?'", { event.command.guild_id.str() });
+
+		if(!db::error().empty()) {
+			/* We get out the transaction in the event of a failure. */
+			db::query("ROLLBACK");
+		}
+
+		std::string sql_query;
+		db::paramlist sql_parameters = {};
+
+		for(int i=0; i < event.values.size(); i++) {
+			sql_query += "VALUES(?, ?)";
+			if(i != event.values.size() - 1) {
+				sql_query += ", ";
+			}
+			sql_parameters.emplace_back(event.command.guild_id.str());
+			sql_parameters.emplace_back(event.values[i]);
+		}
+
+		db::query("INSERT INTO guild_bypass_roles (guild_id, role_id) " + sql_query, { sql_parameters });
+
+		if(!db::error().empty()) {
+			db::query("ROLLBACK");
+		}
+
+		db::query("COMMIT");
+	});
 
 	/* Todo: command handler here */
 	bot.on_ready([&bot](const dpp::ready_t &event) {
+		if (dpp::run_once<struct register_bot_commands>()) {
+			bot.global_command_create(
+				dpp::slashcommand("add-roles", "Add roles that should bypass my scanners.", bot.me.id)
+			);
+		}
 	});
 
 	/* Handle guild member messages; requires message content intent */
