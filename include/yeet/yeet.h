@@ -57,3 +57,5 @@ void ocr_image(std::string file_content, const dpp::attachment attach, dpp::clus
 void delete_message_and_warn(dpp::cluster& bot, const dpp::message_create_t ev, const dpp::attachment attach, const std::string text);
 
 std::string replace_string(std::string subject, const std::string& search, const std::string& replace);
+
+bool find_banned_type(const json& response, const dpp::attachment attach, dpp::cluster& bot, const dpp::message_create_t ev);

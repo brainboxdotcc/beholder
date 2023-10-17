@@ -57,11 +57,12 @@ void download_image(const dpp::attachment attach, dpp::cluster& bot, const dpp::
 						if (premium_api.status == 200 && !premium_api.body.empty()) {
 							json answer = json::parse(premium_api.body);
 							bot.log(dpp::ll_debug, answer.dump());
+							if (find_banned_type(answer, attach, bot, ev)) {
+								return;
+							}
+
 						} else {
 							bot.log(dpp::ll_debug, "API Error: " + premium_api.body + " status: " + std::to_string(premium_api.status));
-						}
-						for (const auto& header : premium_api.headers) {
-							bot.log(dpp::ll_debug, "header: " + header.first + ": " + header.second);
 						}
 						concurrent_images++;
 						std::thread hard_work(ocr_image, result.body, attach, std::ref(bot), ev);
