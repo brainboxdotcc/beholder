@@ -5,7 +5,9 @@
 /* Maybe move this into yeet.h, so we only declare this in one place? */
 namespace fs = std::filesystem;
 
-void command_listener::on_slashcommand(const dpp::slashcommand_t &event) {
+namespace command_listener {
+
+void on_slashcommand(const dpp::slashcommand_t &event) {
 	/* Command to allow bypass roles */
 	if (event.command.get_command_name() == "set-roles") {
 
@@ -128,7 +130,11 @@ void command_listener::on_slashcommand(const dpp::slashcommand_t &event) {
 	}
 }
 
-void form_listener::on_form_submit(const dpp::form_submit_t &event) {
+}
+
+namespace form_listener {
+
+void on_form_submit(const dpp::form_submit_t &event) {
 	if (event.custom_id == "set_embed_modal") {
 		std::string embed_title = std::get<std::string>(event.components[0].components[0].value);
 		std::string embed_body = std::get<std::string>(event.components[1].components[0].value);
@@ -185,7 +191,11 @@ void form_listener::on_form_submit(const dpp::form_submit_t &event) {
 	}
 }
 
-void select_listener::on_select_click(const dpp::select_click_t &event) {
+}
+
+namespace select_listener {
+
+void on_select_click(const dpp::select_click_t &event) {
 	if (event.custom_id == "add_roles_select_menu") {
 
 		db::query("START TRANSACTION");
@@ -237,7 +247,11 @@ void select_listener::on_select_click(const dpp::select_click_t &event) {
 	}
 }
 
-void message_listener::on_message_create(const dpp::message_create_t &event) {
+}
+
+namespace message_listener {
+
+void on_message_create(const dpp::message_create_t &event) {
 	auto guild_member = event.msg.member;
 	bool should_bypass = false;
 
@@ -282,4 +296,6 @@ void message_listener::on_message_create(const dpp::message_create_t &event) {
 			download_image(attach, *event.from->creator, event);
 		}
 	}
+}
+
 }
