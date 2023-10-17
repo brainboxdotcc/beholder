@@ -90,7 +90,7 @@ int main(int argc, char const *argv[])
 		if (event.command.get_command_name() == "set-patterns") {
 
 			std::string patterns;
-			db::resultset pattern_query = db::query("SELECT pattern FROM guild_patterns WHERE guild_id = '?' ORDER BY pattern", { event.command.guild_id });
+			db::resultset pattern_query = db::query("SELECT pattern FROM guild_patterns WHERE guild_id = '?' ORDER BY pattern", { event.command.guild_id.str() });
 			for (const db::row& p : pattern_query) {
 				patterns += p.at("pattern") + "\n";
 			}
@@ -100,14 +100,16 @@ int main(int argc, char const *argv[])
 			modal.add_component(
 				dpp::component()
 					.set_label("Text to match in images")
-					.set_id("patterns")
+					.set_id("patterns" + std::to_string(time(nullptr)))
 					.set_type(dpp::cot_text)
 					.set_placeholder("Enter one pattern per line. Images containing the patterns will be deleted.")
-					.set_default_value(patterns)
 					.set_max_length(4000)
 					.set_required(true)
 					.set_text_style(dpp::text_paragraph)
 			);
+			if (!patterns.empty()) {
+				modal.components[0][0].set_default_value(patterns);
+			}
 			event.dialog(modal, [&bot](const dpp::confirmation_callback_t& cc) {
 				if (cc.is_error()) {
 					bot.log(dpp::ll_error, cc.http_info.body);
@@ -117,7 +119,7 @@ int main(int argc, char const *argv[])
 
 		if (event.command.get_command_name() == "set-delete-message") {
 
-			db::resultset embed = db::query("SELECT embed_body, embed_title FROM guild_config WHERE guild_id = '?'", { event.command.guild_id });
+			db::resultset embed = db::query("SELECT embed_body, embed_title FROM guild_config WHERE guild_id = '?'", { event.command.guild_id.str() });
 			std::string embed_body, embed_title;
 			if (!embed.empty()) {
 				embed_body = embed[0].at("embed_body");
