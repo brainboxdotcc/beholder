@@ -56,7 +56,7 @@ void ocr_image(std::string file_content, const dpp::attachment attach, dpp::clus
 			std::string pattern_wild = "*" + p + "*";
 			if (line.length() && p.length() && match(line.c_str(), pattern_wild.c_str())) {
 				concurrent_images--;
-				delete_message_and_warn(bot, ev, attach, p);
+				delete_message_and_warn(bot, ev, attach, p, false);
 				return;
 			}
 		}

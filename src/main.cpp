@@ -54,9 +54,11 @@ int main(int argc, char const *argv[])
 					.set_default_permissions(default_permissions),
 				dpp::slashcommand("set-log-channel", "Set the channel logs should be sent to", bot.me.id)
 					.set_default_permissions(default_permissions),
-				dpp::slashcommand("set-delete-message", "Set the details of the embed to send when images are deleted", bot.me.id)
+				dpp::slashcommand("set-delete-message", "Set the details of the embed to send when images are deleted for containing forbidden text", bot.me.id)
 					.set_default_permissions(default_permissions),
 				dpp::slashcommand("set-patterns", "Set patterns to find in disallowed images", bot.me.id)
+					.set_default_permissions(default_permissions),
+				dpp::slashcommand("set-premium-delete-message", "Set the details of the embed to send when images are deleted for containing forbidden imagery (premium only)", bot.me.id)
 					.set_default_permissions(default_permissions),
 			});
 		}

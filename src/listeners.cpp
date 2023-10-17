@@ -128,6 +128,50 @@ void on_slashcommand(const dpp::slashcommand_t &event) {
 		);
 		event.dialog(modal);
 	}
+
+	if (event.command.get_command_name() == "set-premium-delete-message") {
+
+		db::resultset embed = db::query("SELECT premium_subscription, premium_body, premium_title FROM guild_config WHERE guild_id = '?'", { event.command.guild_id.str() });
+
+		if (embed.empty() || embed[0].at("premium_subscription").empty()) {
+			event.reply("You don't appear to be a Beholder Premium subscriber!");
+		}
+
+		std::string embed_body, embed_title;
+		if (!embed.empty()) {
+			embed_body = embed[0].at("premium_body");
+			embed_title = embed[0].at("premium_title");
+		}
+
+		dpp::interaction_modal_response modal("set_premium_embed_modal", "Enter image recognition message details");
+		/* Add a text component */
+		modal.add_component(
+			dpp::component()
+				.set_label("Message Title")
+				.set_id("title")
+				.set_type(dpp::cot_text)
+				.set_placeholder("Enter the title of the message")
+				.set_default_value(embed_title)
+				.set_min_length(1)
+				.set_max_length(256)
+				.set_required(true)
+				.set_text_style(dpp::text_short)
+		);
+		modal.add_row();
+		modal.add_component(
+			dpp::component()
+				.set_label("Message Body")
+				.set_id("body")
+				.set_type(dpp::cot_text)
+				.set_placeholder("Enter body of message. You can use the word '@user' here which will be replaced with a mention of the user who triggered the message.")
+				.set_default_value(embed_body)
+				.set_min_length(1)
+				.set_max_length(3800)
+				.set_required(true)
+				.set_text_style(dpp::text_paragraph)
+		);
+		event.dialog(modal);
+	}
 }
 
 }
@@ -146,6 +190,21 @@ void on_form_submit(const dpp::form_submit_t &event) {
 		embed_body = replace_string(embed_body, "@user", "<@" + event.command.usr.id.str() + ">");
 		event.reply(
 			dpp::message("✅ Delete message set.\n\n**__Preview:__**")
+				.set_flags(dpp::m_ephemeral)
+				.add_embed(dpp::embed().set_description(embed_body).set_title(embed_title).set_color(0xff7a7a))
+		);
+	}
+	if (event.custom_id == "set_premium_embed_modal") {
+		std::string embed_title = std::get<std::string>(event.components[0].components[0].value);
+		std::string embed_body = std::get<std::string>(event.components[1].components[0].value);
+		db::query(
+			"INSERT INTO guild_config (guild_id, premium_title, premium_body) VALUES('?', '?', '?') ON DUPLICATE KEY UPDATE premium_title = '?', premium_body = '?'",
+			{ event.command.guild_id.str(), embed_title, embed_body, embed_title, embed_body }
+		);
+		/* Replace @user with the user's mention for preview */
+		embed_body = replace_string(embed_body, "@user", "<@" + event.command.usr.id.str() + ">");
+		event.reply(
+			dpp::message("✅ Premium image recognition message set.\n\n**__Preview:__**")
 				.set_flags(dpp::m_ephemeral)
 				.add_embed(dpp::embed().set_description(embed_body).set_title(embed_title).set_color(0xff7a7a))
 		);

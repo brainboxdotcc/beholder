@@ -2,7 +2,6 @@
 	"token": "token goes here", 
 	"ir": {
 		"endpoint": "image recognition endpoint",
-		"models": "*",
 		"credentials": {
 			"username": "username",
 			"password": "password"

@@ -14,23 +14,29 @@ bool find_banned_type(const json& response, const dpp::attachment attach, dpp::c
 		return false;
 	}
 
-	db::resultset premium_filters = db::query("SELECT * FROM premium_filters WHERE guild_id = '?'");
+	db::resultset premium_filters = db::query("SELECT * FROM premium_filters WHERE guild_id = '?'", { ev.msg.guild_id.str() });
+	bot.log(dpp::ll_debug, std::to_string(premium_filters.size()) + " premium filters to check");
 	for (const db::row& row : premium_filters) {
-		std::string filter_str = row.at("pattern");
-		std::vector<std::string> filter_data = dpp::utility::tokenize(filter_str, "=");
+		std::string filter_type = row.at("pattern");
 		double trigger_value = 0.8, found_value = 0;
-		if (filter_data.size() > 1) {
-			trigger_value = atof(filter_data[1].c_str());
+		if (row.at("score").length()) {
+			trigger_value = atof(row.at("score").c_str());
 		}
-		std::string filter_type = filter_data[0];
-		json::json_pointer p(filter_type);
-		if (!p.empty()) {
-			json value = p;
+		json::json_pointer ptr("/" + replace_string(filter_type, ".", "/"));
+		json value = response[ptr];
+		if (!value.empty()) {
 			if (value.is_number_float() || value.is_number_integer()) {
 				found_value = value.get<double>();
 			}
 		} else {
 			found_value = 0.0;
+		}
+		if (found_value >= trigger_value && found_value != 0.0) {
+			bot.log(dpp::ll_info, "Matched premium filter " + filter_type + " value " + std::to_string(found_value));
+			auto filter_name = db::query("SELECT description FROM premium_filter_model WHERE category = '?'", { filter_type });
+			std::string human_readable = filter_name[0].at("description");
+			delete_message_and_warn(bot, ev, attach, human_readable, true);
+			return true;
 		}
 	}
 

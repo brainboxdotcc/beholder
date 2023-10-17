@@ -53,8 +53,9 @@ void ocr_image(std::string file_content, const dpp::attachment attach, dpp::clus
  * @param ev message_create_t reference.
  * @param attach The attachment that was flagged as bad.
  * @param text What the attachment was flagged for.
+ * @param premium prefer premium message
  */
-void delete_message_and_warn(dpp::cluster& bot, const dpp::message_create_t ev, const dpp::attachment attach, const std::string text);
+void delete_message_and_warn(dpp::cluster& bot, const dpp::message_create_t ev, const dpp::attachment attach, const std::string text, bool premium);
 
 std::string replace_string(std::string subject, const std::string& search, const std::string& replace);
 

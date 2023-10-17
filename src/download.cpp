@@ -47,8 +47,11 @@ void download_image(const dpp::attachment attach, dpp::cluster& bot, const dpp::
 			if (settings.size() && settings[0].at("premium_subscription").length()) {
 				std::vector<std::string> fields = configdocument["ir"]["fields"];
 				std::string endpoint = configdocument["ir"]["endpoint"];
+				/* Only enable models the user has in their block list, to save on resources */
+				db::resultset m = db::query("SELECT GROUP_CONCAT(DISTINCT model) AS selected FROM premium_filter_model WHERE category IN (SELECT pattern FROM premium_filters WHERE guild_id = ?)", { ev.msg.guild_id.str() });
+				std::string active_models = m[0].at("selected");
 				std::string url = endpoint
-					+ "?" + fields[0] + "=" + dpp::utility::url_encode(configdocument["ir"]["models"])
+					+ "?" + fields[0] + "=" + dpp::utility::url_encode(active_models)
 					+ "&" + fields[1] + "=" + dpp::utility::url_encode(configdocument["ir"]["credentials"]["username"])
 					+ "&" + fields[2] + "=" + dpp::utility::url_encode(configdocument["ir"]["credentials"]["password"])
 					+ "&" + fields[3] + "=" + dpp::utility::url_encode(attach.url);
@@ -56,7 +59,6 @@ void download_image(const dpp::attachment attach, dpp::cluster& bot, const dpp::
 					[attach, ev, &bot, result, url](const dpp::http_request_completion_t& premium_api) {
 						if (premium_api.status == 200 && !premium_api.body.empty()) {
 							json answer = json::parse(premium_api.body);
-							bot.log(dpp::ll_debug, answer.dump());
 							if (find_banned_type(answer, attach, bot, ev)) {
 								return;
 							}
