@@ -1,5 +1,14 @@
 {
 	"token": "token goes here", 
+	"ir": {
+		"endpoint": "image recognition endpoint",
+		"models": "*",
+		"credentials": {
+			"username": "username",
+			"password": "password"
+		},
+		"fields": []
+	},
 	"database": {
 		"host": "localhost",
 		"username": "mysql username",

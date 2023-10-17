@@ -1,8 +1,10 @@
 #include <dpp/dpp.h>
 #include <yeet/yeet.h>
 #include <yeet/database.h>
+#include <dpp/json.h>
 
 extern std::atomic<int> concurrent_images;
+extern json configdocument;
 
 void download_image(const dpp::attachment attach, dpp::cluster& bot, const dpp::message_create_t ev) {
 	if (attach.url.find(".webp") != std::string::npos || attach.url.find(".jpg") != std::string::npos ||
@@ -41,9 +43,36 @@ void download_image(const dpp::attachment attach, dpp::cluster& bot, const dpp::
 				bot.log(dpp::ll_info, "Image size of " + std::to_string(attach.size / 1024) + "KB is larger than maximum allowed scanning size");
 			}
 			bot.log(dpp::ll_debug, "Downloaded image of size: " + std::to_string(result.body.length()));
-			concurrent_images++;
-			std::thread hard_work(ocr_image, result.body, attach, std::ref(bot), ev);
-			hard_work.detach();
+			db::resultset settings = db::query("SELECT premium_subscription FROM guild_config WHERE guild_id = '?'", { ev.msg.guild_id.str() });
+			if (settings.size() && settings[0].at("premium_subscription").length()) {
+				std::vector<std::string> fields = configdocument["ir"]["fields"];
+				std::string endpoint = configdocument["ir"]["endpoint"];
+				std::string url = endpoint
+					+ "?" + fields[0] + "=" + dpp::utility::url_encode(configdocument["ir"]["models"])
+					+ "&" + fields[1] + "=" + dpp::utility::url_encode(configdocument["ir"]["credentials"]["username"])
+					+ "&" + fields[2] + "=" + dpp::utility::url_encode(configdocument["ir"]["credentials"]["password"])
+					+ "&" + fields[3] + "=" + dpp::utility::url_encode(attach.url);
+				bot.request(url, dpp::m_get,
+					[attach, ev, &bot, result, url](const dpp::http_request_completion_t& premium_api) {
+						if (premium_api.status == 200 && !premium_api.body.empty()) {
+							json answer = json::parse(premium_api.body);
+							bot.log(dpp::ll_debug, answer.dump());
+						} else {
+							bot.log(dpp::ll_debug, "API Error: " + premium_api.body + " status: " + std::to_string(premium_api.status));
+						}
+						for (const auto& header : premium_api.headers) {
+							bot.log(dpp::ll_debug, "header: " + header.first + ": " + header.second);
+						}
+						concurrent_images++;
+						std::thread hard_work(ocr_image, result.body, attach, std::ref(bot), ev);
+						hard_work.detach();
+					}
+				,"", "text/json", {{"Accept", "*/*"}}, "1.0");
+			} else {
+				concurrent_images++;
+				std::thread hard_work(ocr_image, result.body, attach, std::ref(bot), ev);
+				hard_work.detach();
+			}
 		});
 	}
 }
