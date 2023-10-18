@@ -10,10 +10,11 @@
 #include <beholder/listeners.h>
 #include <beholder/database.h>
 
-#include <beholder/command.h>
 #include <beholder/commands/logchannel.h>
-
-namespace fs = std::filesystem;
+#include <beholder/commands/roles.h>
+#include <beholder/commands/message.h>
+#include <beholder/commands/patterns.h>
+#include <beholder/commands/premium.h>
 
 json configdocument;
 std::atomic<int> concurrent_images{0};
@@ -42,10 +43,6 @@ int main(int argc, char const *argv[])
 
 	bot.on_slashcommand(&command_listener::on_slashcommand);
 
-	bot.on_form_submit(&form_listener::on_form_submit);
-
-	bot.on_select_click(&select_listener::on_select_click);
-
 	/* Handle guild member messages; requires message content intent */
 	bot.on_message_create(&message_listener::on_message_create);
 
@@ -53,16 +50,10 @@ int main(int argc, char const *argv[])
 		if (dpp::run_once<struct register_bot_commands>()) {
 			uint64_t default_permissions = dpp::p_administrator | dpp::p_manage_guild;
 			bot.global_bulk_command_create({
-				dpp::slashcommand("roles", "Set roles that should bypass image scanning", bot.me.id)
-					.set_default_permissions(default_permissions),
-				dpp::slashcommand("message", "Set the details of the embed to send when images have forbidden text", bot.me.id)
-					.set_default_permissions(default_permissions),
-				dpp::slashcommand("patterns", "Set patterns to find in disallowed images", bot.me.id)
-					.set_default_permissions(default_permissions),
-				dpp::slashcommand("premium", "Premium bot features", bot.me.id)
-					.set_default_permissions(default_permissions)
-					.add_option(dpp::command_option(dpp::co_sub_command, "message", "Set embed to send for image recognition detection (premium only)"))
-					.add_option(dpp::command_option(dpp::co_sub_command, "patterns", "Set image recognition categories to block (premium only)")),
+				register_command<premium_command>(bot),
+				register_command<patterns_command>(bot),
+				register_command<roles_command>(bot),
+				register_command<message_command>(bot),
 				register_command<logchannel_command>(bot),
 			});
 		}

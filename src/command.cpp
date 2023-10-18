@@ -1,9 +1,12 @@
 #include <dpp/dpp.h>
 #include <beholder/command.h>
 
-static std::unordered_map<std::string_view, command_router> registered_commands;
+/**
+ * @brief Internal command map
+ */
+static registered_command_list registered_commands;
 
-std::unordered_map<std::string_view, command_router>& get_command_map()
+registered_command_list& get_command_map()
 {
 	return registered_commands;
 }

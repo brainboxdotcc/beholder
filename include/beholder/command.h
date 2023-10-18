@@ -2,23 +2,66 @@
 #include <dpp/dpp.h>
 #include <beholder/beholder.h>
 
-using command_router = auto (*)(const dpp::slashcommand_t&) -> void;
-
+/**
+ * @brief All commands derive from this struct. Note that these structs are never
+ * instantiated, all data witin them is static and constant.
+ */
 struct command {
+	/**
+	 * @brief Change the name to that of your command; this is used
+	 * to route your command in the on_slashcommand event.
+	 */
 	static constexpr std::string_view name{};
+
+	/**
+	 * @brief Register your command.
+	 * This function should set up any event handlers your command needs to
+	 * function, and return the dpp::slashcommand we should register.
+	 * 
+	 * @param bot Reference to the cluster registering the command
+	 * @return dpp::slashcommand slash command to register
+	 */
 	inline static dpp::slashcommand register_command(dpp::cluster& bot)
 	{
 		throw new std::runtime_error("Don't call the base command class!");
 	}
 
+	/**
+	 * @brief Handle slash command
+	 * This is called when a user issues your command.
+	 * 
+	 * @param event The slash command event data
+	 */
 	inline static void route(const dpp::slashcommand_t &event)
 	{
 		throw new std::runtime_error("Don't call the base command class!");
 	}
 };
 
-std::unordered_map<std::string_view, command_router>& get_command_map();
+/**
+ * @brief A function pointer to the static route() function of a command
+ */
+using command_router = auto (*)(const dpp::slashcommand_t&) -> void;
 
+/**
+ * @brief Represents a list of registered commands stored in an unordered_map
+ */
+using registered_command_list = std::unordered_map<std::string_view, command_router>;
+
+/**
+ * @brief Get the current map of registered commands
+ * 
+ * @return registered_command_list& the list
+ */
+registered_command_list& get_command_map();
+
+/**
+ * @brief Register a command and return its slashcommand object.
+ * 
+ * @tparam T command handler struct to register
+ * @param bot Reference to cluster registering the command
+ * @return dpp::slashcommand slashcommand object to register
+ */
 template <typename T> dpp::slashcommand register_command(dpp::cluster& bot)
 {
 	auto& command_map = get_command_map();
@@ -26,6 +69,10 @@ template <typename T> dpp::slashcommand register_command(dpp::cluster& bot)
 	return T::register_command(bot);
 }
 
-
-
+/**
+ * @brief Called by the on_slashcommand event to route a command by name
+ * to its handler.
+ * 
+ * @param event Slash command interaction event
+ */
 void route_command(const dpp::slashcommand_t &event);

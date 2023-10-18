@@ -1,6 +1,8 @@
 #pragma once
 #include <dpp/dpp.h>
 
+namespace fs = std::filesystem;
+
 constexpr size_t max_size = 8 * 1024 * 1024;
 constexpr int max_concurrency = 64;
 

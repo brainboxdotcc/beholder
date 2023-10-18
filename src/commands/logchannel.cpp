@@ -1,6 +1,5 @@
 #include <beholder/beholder.h>
 #include <beholder/database.h>
-#include <beholder/command.h>
 #include <beholder/commands/logchannel.h>
 #include <beholder/database.h>
 
