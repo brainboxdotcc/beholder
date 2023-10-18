@@ -62,7 +62,7 @@ void ocr_image(std::string file_content, const dpp::attachment attach, dpp::clus
 		}
 	}
 
-	db::resultset settings = db::query("SELECT premium_subscription FROM guild_config WHERE guild_id = '?'", { ev.msg.guild_id.str() });
+	db::resultset settings = db::query("SELECT premium_subscription FROM guild_config WHERE guild_id = ? AND calls_this_month <= calls_limit", { ev.msg.guild_id.str() });
 	if (settings.size() && settings[0].at("premium_subscription").length()) {
 		std::vector<std::string> fields = configdocument["ir"]["fields"];
 		std::string endpoint = configdocument["ir"]["endpoint"];
@@ -74,6 +74,7 @@ void ocr_image(std::string file_content, const dpp::attachment attach, dpp::clus
 			+ "&" + fields[1] + "=" + dpp::utility::url_encode(configdocument["ir"]["credentials"]["username"])
 			+ "&" + fields[2] + "=" + dpp::utility::url_encode(configdocument["ir"]["credentials"]["password"])
 			+ "&" + fields[3] + "=" + dpp::utility::url_encode(attach.url);
+		db::query("UPDATE guild_config SET calls_this_month = calls_this_month + 1 WHERE guild_id = ?", {ev.msg.guild_id.str() });
 		bot.request(url, dpp::m_get,
 			[attach, ev, &bot, url](const dpp::http_request_completion_t& premium_api) {
 				if (premium_api.status == 200 && !premium_api.body.empty()) {

@@ -14,7 +14,7 @@ bool find_banned_type(const json& response, const dpp::attachment attach, dpp::c
 		return false;
 	}
 
-	db::resultset premium_filters = db::query("SELECT * FROM premium_filters WHERE guild_id = '?'", { ev.msg.guild_id.str() });
+	db::resultset premium_filters = db::query("SELECT * FROM premium_filters WHERE guild_id = ?", { ev.msg.guild_id.str() });
 	bot.log(dpp::ll_debug, std::to_string(premium_filters.size()) + " premium filters to check");
 	for (const db::row& row : premium_filters) {
 		std::string filter_type = row.at("pattern");
