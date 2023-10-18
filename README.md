@@ -1,4 +1,4 @@
-# D++ Yeet Bot
+# D++ Beholder Bot
 
 This is a bot powered by the [D++ library](https://dpp.dev) which runs images on public channels through OCR and uses pattern matching to determine if they might be images of code or code output. If they are, it deletes them and tells the user off.
 
@@ -25,7 +25,15 @@ Create a config.json in the directory above the build directory:
 
 ```json
 {
-	"token": "your bot token here", 
+	"token": "your bot token here",
+	"ir": {
+		"endpoint": "",
+		"credentials": {
+			"username": "",
+			"password": ""
+		},
+		"fields": []
+	},
 	"database": {
 		"host": "localhost",
 		"username": "mysql username",
@@ -36,6 +44,8 @@ Create a config.json in the directory above the build directory:
 
 }
 ```
+
+**Note**: Self-hosting the premium image recognition API is not supported at this time.
 
 Import the base mysql schema:
 
