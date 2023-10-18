@@ -172,6 +172,45 @@ void on_slashcommand(const dpp::slashcommand_t &event) {
 		);
 		event.dialog(modal);
 	}
+	if (event.command.get_command_name() == "set-premium-patterns") {
+
+		db::resultset embed = db::query("SELECT premium_subscription FROM guild_config WHERE guild_id = '?'", { event.command.guild_id.str() });
+
+		if (embed.empty() || embed[0].at("premium_subscription").empty()) {
+			event.reply("You don't appear to be a Beholder Premium subscriber!");
+		}
+
+		dpp::message msg(event.command.channel_id, "Select which channel logs will be sent to");
+
+		dpp::component select_menu;
+		select_menu.set_type(dpp::cot_selectmenu)
+			.set_min_values(0)
+			.set_max_values(25)
+			.set_id("premium_patterns_select_menu");
+
+		db::resultset rows = db::query("SELECT * FROM premium_filter_model LEFT JOIN premium_filters ON guild_id = ? AND category = pattern", { event.command.guild_id.str() });
+		for (const auto& row : rows) {
+			auto opt = dpp::select_option(row.at("description"), row.at("category"), row.at("detail"));
+			if (!row.at("pattern").empty()) {
+				opt.set_default(true);
+			}
+			select_menu.add_select_option(opt);
+		}
+
+		/* Loop through all bypass roles in database */
+		db::resultset channels = db::query("SELECT * FROM guild_config WHERE guild_id = '?'", { event.command.guild_id });
+		if (!channels.empty()) {
+			/* Add the channel as a default value to the select menu. */
+			select_menu.add_default_value(dpp::snowflake(channels[0].at("log_channel")), dpp::cdt_channel);
+		}
+
+		msg.add_component(dpp::component().add_component(select_menu)).set_flags(dpp::m_ephemeral);
+
+		/* Reply to the user with our message. */
+		event.reply(msg);
+
+	}
+
 }
 
 }
@@ -303,6 +342,44 @@ void on_select_click(const dpp::select_click_t &event) {
 
 		db::query("INSERT INTO guild_config (guild_id, log_channel) VALUES('?', '?') ON DUPLICATE KEY UPDATE log_channel = '?'", { event.command.guild_id.str(), event.values[0], event.values[0] });
 		event.reply(dpp::message("✅ Log channel set").set_flags(dpp::m_ephemeral));
+	}
+
+	if (event.custom_id == "premium_patterns_select_menu") {
+		db::query("START TRANSACTION");
+		db::query("DELETE FROM premium_filters WHERE guild_id = '?'", { event.command.guild_id.str() });
+
+		if (!db::error().empty()) {
+			/* We get out the transaction in the event of a failure. */
+			db::query("ROLLBACK");
+			event.reply(dpp::message("❌ Failed to set new image recognition filters").set_flags(dpp::m_ephemeral));
+			return;
+		}
+
+		if (!event.values.empty()) {
+
+			std::string sql_query = "INSERT INTO premium_filters (guild_id, pattern, score) VALUES";
+			db::paramlist sql_parameters;
+
+			for (std::size_t i = 0; i < event.values.size(); ++i) {
+				sql_query += "(?, '?', 0.7)";
+				if (i != event.values.size() - 1) {
+					sql_query += ", ";
+				}
+				sql_parameters.emplace_back(event.command.guild_id.str());
+				sql_parameters.emplace_back(event.values[i]);
+			}
+
+			db::query(sql_query, sql_parameters);
+
+			if (!db::error().empty()) {
+				db::query("ROLLBACK");
+				event.reply(dpp::message("❌ Failed to set new image recognition filters").set_flags(dpp::m_ephemeral));
+				return;
+			}
+		}
+
+		db::query("COMMIT");
+		event.reply(dpp::message("✅ Image recogntition filters set").set_flags(dpp::m_ephemeral));
 	}
 }
 

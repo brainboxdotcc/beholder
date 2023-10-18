@@ -60,6 +60,8 @@ int main(int argc, char const *argv[])
 					.set_default_permissions(default_permissions),
 				dpp::slashcommand("set-premium-delete-message", "Set the details of the embed to send when images are deleted for containing forbidden imagery (premium only)", bot.me.id)
 					.set_default_permissions(default_permissions),
+				dpp::slashcommand("set-premium-patterns", "Set image recognition categories to block (premium only)", bot.me.id)
+					.set_default_permissions(default_permissions),
 			});
 		}
 	});
