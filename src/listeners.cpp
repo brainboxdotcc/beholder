@@ -1,12 +1,7 @@
 #include <beholder/listeners.h>
 #include <beholder/database.h>
 #include <beholder/beholder.h>
-
-#include <beholder/commands/logchannel.h>
-#include <beholder/commands/roles.h>
-#include <beholder/commands/message.h>
-#include <beholder/commands/patterns.h>
-#include <beholder/commands/premium.h>
+#include <beholder/command.h>
 
 namespace command_listener {
 	void on_slashcommand(const dpp::slashcommand_t &event) {

@@ -15,6 +15,7 @@
 #include <beholder/commands/message.h>
 #include <beholder/commands/patterns.h>
 #include <beholder/commands/premium.h>
+#include <beholder/commands/info.h>
 
 json configdocument;
 std::atomic<int> concurrent_images{0};
@@ -50,6 +51,7 @@ int main(int argc, char const *argv[])
 		if (dpp::run_once<struct register_bot_commands>()) {
 			uint64_t default_permissions = dpp::p_administrator | dpp::p_manage_guild;
 			bot.global_bulk_command_create({
+				register_command<info_command>(bot),
 				register_command<premium_command>(bot),
 				register_command<patterns_command>(bot),
 				register_command<roles_command>(bot),
