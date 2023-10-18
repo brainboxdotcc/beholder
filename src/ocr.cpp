@@ -5,6 +5,7 @@
 #include <beholder/database.h>
 
 extern std::atomic<int> concurrent_images;
+extern json configdocument;
 
 void ocr_image(std::string file_content, const dpp::attachment attach, dpp::cluster& bot, const dpp::message_create_t ev) {
 	tesseract::TessBaseAPI api;
@@ -25,7 +26,7 @@ void ocr_image(std::string file_content, const dpp::attachment attach, dpp::clus
 	 * Just to be sure, and also in case we're processing an image given in a raw url, we check the
 	 * width and height again here.
 	 */
-	if (image->w > 4096 || image->h > 4096) {
+	if (image->w * image->h > 33554432) {
 		bot.log(dpp::ll_info, "Image dimensions of " + std::to_string(image->w) + "x" + std::to_string(image->h) + " too large to be a screenshot");
 		pixFreeData(image);
 		concurrent_images--;
@@ -60,5 +61,29 @@ void ocr_image(std::string file_content, const dpp::attachment attach, dpp::clus
 				return;
 			}
 		}
+	}
+
+	db::resultset settings = db::query("SELECT premium_subscription FROM guild_config WHERE guild_id = '?'", { ev.msg.guild_id.str() });
+	if (settings.size() && settings[0].at("premium_subscription").length()) {
+		std::vector<std::string> fields = configdocument["ir"]["fields"];
+		std::string endpoint = configdocument["ir"]["endpoint"];
+		/* Only enable models the user has in their block list, to save on resources */
+		db::resultset m = db::query("SELECT GROUP_CONCAT(DISTINCT model) AS selected FROM premium_filter_model WHERE category IN (SELECT pattern FROM premium_filters WHERE guild_id = ?)", { ev.msg.guild_id.str() });
+		std::string active_models = m[0].at("selected");
+		std::string url = endpoint
+			+ "?" + fields[0] + "=" + dpp::utility::url_encode(active_models)
+			+ "&" + fields[1] + "=" + dpp::utility::url_encode(configdocument["ir"]["credentials"]["username"])
+			+ "&" + fields[2] + "=" + dpp::utility::url_encode(configdocument["ir"]["credentials"]["password"])
+			+ "&" + fields[3] + "=" + dpp::utility::url_encode(attach.url);
+		bot.request(url, dpp::m_get,
+			[attach, ev, &bot, url](const dpp::http_request_completion_t& premium_api) {
+				if (premium_api.status == 200 && !premium_api.body.empty()) {
+					json answer = json::parse(premium_api.body);
+					find_banned_type(answer, attach, bot, ev);
+				} else {
+					bot.log(dpp::ll_debug, "API Error: '" + premium_api.body + "' status: " + std::to_string(premium_api.status));
+				}
+			}
+		,"", "text/json", {{"Accept", "*/*"}}, "1.0");
 	}
 }
