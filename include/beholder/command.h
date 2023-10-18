@@ -4,7 +4,13 @@
 
 /**
  * @brief All commands derive from this struct. Note that these structs are never
- * instantiated, all data witin them is static and constant.
+ * instantiated, all data witin them is static and constant. Register your commands
+ * by calling the register_command function to get a dpp::slashcommand you can then
+ * pass to global_bulk_command_create:
+ * 
+ * bot.global_bulk_command_create({
+ * 	register_command<my_command>(bot),
+ * });
  */
 struct command {
 	/**
@@ -21,10 +27,7 @@ struct command {
 	 * @param bot Reference to the cluster registering the command
 	 * @return dpp::slashcommand slash command to register
 	 */
-	inline static dpp::slashcommand register_command(dpp::cluster& bot)
-	{
-		throw new std::runtime_error("Don't call the base command class!");
-	}
+	static dpp::slashcommand register_command(dpp::cluster& bot);
 
 	/**
 	 * @brief Handle slash command
@@ -32,10 +35,7 @@ struct command {
 	 * 
 	 * @param event The slash command event data
 	 */
-	inline static void route(const dpp::slashcommand_t &event)
-	{
-		throw new std::runtime_error("Don't call the base command class!");
-	}
+	static void route(const dpp::slashcommand_t &event);
 };
 
 /**
