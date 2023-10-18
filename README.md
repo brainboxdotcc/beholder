@@ -67,5 +67,5 @@ Start the bot:
 
 ```bash
 cd build
-./yeet
+./beholder
 ```
