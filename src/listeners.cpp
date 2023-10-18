@@ -2,6 +2,9 @@
 #include <beholder/database.h>
 #include <beholder/beholder.h>
 
+#include <beholder/command.h>
+#include <beholder/commands/logchannel.h>
+
 /* Maybe move this into beholder.h, so we only declare this in one place? */
 namespace fs = std::filesystem;
 
@@ -9,7 +12,10 @@ namespace command_listener {
 
 void on_slashcommand(const dpp::slashcommand_t &event) {
 	/* Command to allow bypass roles */
-	if (event.command.get_command_name() == "set-roles") {
+
+	route_command(event);
+
+	if (event.command.get_command_name() == "roles") {
 
 		/* Create a message */
 		dpp::message msg(event.command.channel_id, "Select which roles should bypass image scanning");
@@ -35,32 +41,7 @@ void on_slashcommand(const dpp::slashcommand_t &event) {
 		event.reply(msg);
 	}
 
-	if (event.command.get_command_name() == "set-log-channel") {
-
-		/* Create a message */
-		dpp::message msg(event.command.channel_id, "Select which channel logs will be sent to");
-
-		dpp::component select_menu;
-		select_menu.set_type(dpp::cot_channel_selectmenu)
-			.set_min_values(1)
-			.set_max_values(1)
-			.add_channel_type(dpp::CHANNEL_TEXT)
-			.set_id("log_channel_select_menu");
-
-		/* Loop through all bypass roles in database */
-		db::resultset channels = db::query("SELECT * FROM guild_config WHERE guild_id = '?'", { event.command.guild_id });
-		if (!channels.empty()) {
-			/* Add the channel as a default value to the select menu. */
-			select_menu.add_default_value(dpp::snowflake(channels[0].at("log_channel")), dpp::cdt_channel);
-		}
-
-		msg.add_component(dpp::component().add_component(select_menu)).set_flags(dpp::m_ephemeral);
-
-		/* Reply to the user with our message. */
-		event.reply(msg);
-	}
-
-	if (event.command.get_command_name() == "set-patterns") {
+	if (event.command.get_command_name() == "patterns") {
 
 		std::string patterns;
 		db::resultset pattern_query = db::query("SELECT pattern FROM guild_patterns WHERE guild_id = '?' ORDER BY pattern", { event.command.guild_id.str() });
@@ -90,7 +71,7 @@ void on_slashcommand(const dpp::slashcommand_t &event) {
 		});
 	}
 
-	if (event.command.get_command_name() == "set-delete-message") {
+	if (event.command.get_command_name() == "message") {
 
 		db::resultset embed = db::query("SELECT embed_body, embed_title FROM guild_config WHERE guild_id = '?'", { event.command.guild_id.str() });
 		std::string embed_body, embed_title;
@@ -129,85 +110,84 @@ void on_slashcommand(const dpp::slashcommand_t &event) {
 		event.dialog(modal);
 	}
 
-	if (event.command.get_command_name() == "set-premium-delete-message") {
+	if (event.command.get_command_name() == "premium") {
 
+		dpp::command_interaction cmd_data = event.command.get_command_interaction();
+		auto subcommand = cmd_data.options[0];
 		db::resultset embed = db::query("SELECT premium_subscription, premium_body, premium_title FROM guild_config WHERE guild_id = '?'", { event.command.guild_id.str() });
-
 		if (embed.empty() || embed[0].at("premium_subscription").empty()) {
 			event.reply("You don't appear to be a Beholder Premium subscriber!");
 		}
 
-		std::string embed_body, embed_title;
-		if (!embed.empty()) {
-			embed_body = embed[0].at("premium_body");
-			embed_title = embed[0].at("premium_title");
-		}
+		if (subcommand.name == "message") { // premium
 
-		dpp::interaction_modal_response modal("set_premium_embed_modal", "Enter image recognition message details");
-		/* Add a text component */
-		modal.add_component(
-			dpp::component()
-				.set_label("Message Title")
-				.set_id("title")
-				.set_type(dpp::cot_text)
-				.set_placeholder("Enter the title of the message")
-				.set_default_value(embed_title)
-				.set_min_length(1)
-				.set_max_length(256)
-				.set_required(true)
-				.set_text_style(dpp::text_short)
-		);
-		modal.add_row();
-		modal.add_component(
-			dpp::component()
-				.set_label("Message Body")
-				.set_id("body")
-				.set_type(dpp::cot_text)
-				.set_placeholder("Enter body of message. You can use the word '@user' here which will be replaced with a mention of the user who triggered the message.")
-				.set_default_value(embed_body)
-				.set_min_length(1)
-				.set_max_length(3800)
-				.set_required(true)
-				.set_text_style(dpp::text_paragraph)
-		);
-		event.dialog(modal);
-	}
-	if (event.command.get_command_name() == "set-premium-patterns") {
-
-		db::resultset embed = db::query("SELECT premium_subscription FROM guild_config WHERE guild_id = '?'", { event.command.guild_id.str() });
-
-		if (embed.empty() || embed[0].at("premium_subscription").empty()) {
-			event.reply("You don't appear to be a Beholder Premium subscriber!");
-		}
-
-		dpp::message msg(event.command.channel_id, "Select which channel logs will be sent to");
-
-		dpp::component select_menu;
-		select_menu.set_type(dpp::cot_selectmenu)
-			.set_min_values(0)
-			.set_max_values(25)
-			.set_id("premium_patterns_select_menu");
-
-		db::resultset rows = db::query("SELECT * FROM premium_filter_model LEFT JOIN premium_filters ON guild_id = ? AND category = pattern", { event.command.guild_id.str() });
-		for (const auto& row : rows) {
-			auto opt = dpp::select_option(row.at("description"), row.at("category"), row.at("detail"));
-			if (!row.at("pattern").empty()) {
-				opt.set_default(true);
+			std::string embed_body, embed_title;
+			if (!embed.empty()) {
+				embed_body = embed[0].at("premium_body");
+				embed_title = embed[0].at("premium_title");
 			}
-			select_menu.add_select_option(opt);
+
+			dpp::interaction_modal_response modal("set_premium_embed_modal", "Enter image recognition message details");
+			/* Add a text component */
+			modal.add_component(
+				dpp::component()
+					.set_label("Message Title")
+					.set_id("title")
+					.set_type(dpp::cot_text)
+					.set_placeholder("Enter the title of the message")
+					.set_default_value(embed_title)
+					.set_min_length(1)
+					.set_max_length(256)
+					.set_required(true)
+					.set_text_style(dpp::text_short)
+			);
+			modal.add_row();
+			modal.add_component(
+				dpp::component()
+					.set_label("Message Body")
+					.set_id("body")
+					.set_type(dpp::cot_text)
+					.set_placeholder("Enter body of message. You can use the word '@user' here which will be replaced with a mention of the user who triggered the message.")
+					.set_default_value(embed_body)
+					.set_min_length(1)
+					.set_max_length(3800)
+					.set_required(true)
+					.set_text_style(dpp::text_paragraph)
+			);
+			event.dialog(modal);
 		}
+		if (subcommand.name == "patterns") { // premium
 
-		/* Loop through all bypass roles in database */
-		db::resultset channels = db::query("SELECT * FROM guild_config WHERE guild_id = '?'", { event.command.guild_id });
-		if (!channels.empty()) {
-			/* Add the channel as a default value to the select menu. */
-			select_menu.add_default_value(dpp::snowflake(channels[0].at("log_channel")), dpp::cdt_channel);
+			dpp::message msg(event.command.channel_id, "Select which channel logs will be sent to");
+
+			dpp::component select_menu;
+			select_menu.set_type(dpp::cot_selectmenu)
+				.set_min_values(0)
+				.set_max_values(25)
+				.set_id("premium_patterns_select_menu");
+
+			db::resultset rows = db::query("SELECT * FROM premium_filter_model LEFT JOIN premium_filters ON guild_id = ? AND category = pattern", { event.command.guild_id.str() });
+			for (const auto& row : rows) {
+				auto opt = dpp::select_option(row.at("description"), row.at("category"), row.at("detail"));
+				if (!row.at("pattern").empty()) {
+					opt.set_default(true);
+				}
+				select_menu.add_select_option(opt);
+			}
+
+			/* Loop through all bypass roles in database */
+			db::resultset channels = db::query("SELECT * FROM guild_config WHERE guild_id = '?'", { event.command.guild_id });
+			if (!channels.empty()) {
+				/* Add the channel as a default value to the select menu. */
+				select_menu.add_default_value(dpp::snowflake(channels[0].at("log_channel")), dpp::cdt_channel);
+			}
+
+			msg.add_component(dpp::component().add_component(select_menu)).set_flags(dpp::m_ephemeral);
+
+			/* Reply to the user with our message. */
+			event.reply(msg);
+
 		}
-
-		msg.add_component(dpp::component().add_component(select_menu)).set_flags(dpp::m_ephemeral);
-
-		/* Reply to the user with our message. */
-		event.reply(msg);
 
 	}
 
@@ -331,17 +311,6 @@ void on_select_click(const dpp::select_click_t &event) {
 
 		db::query("COMMIT");
 		event.reply(dpp::message("✅ Bypass roles set").set_flags(dpp::m_ephemeral));
-	}
-
-	if (event.custom_id == "log_channel_select_menu") {
-
-		if (event.values.empty()) {
-			event.reply(dpp::message("❌ You did not specify a log channel").set_flags(dpp::m_ephemeral));
-			return;
-		}
-
-		db::query("INSERT INTO guild_config (guild_id, log_channel) VALUES('?', '?') ON DUPLICATE KEY UPDATE log_channel = '?'", { event.command.guild_id.str(), event.values[0], event.values[0] });
-		event.reply(dpp::message("✅ Log channel set").set_flags(dpp::m_ephemeral));
 	}
 
 	if (event.custom_id == "premium_patterns_select_menu") {
