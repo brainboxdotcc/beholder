@@ -2,7 +2,9 @@
 
 This is a bot powered by the [D++ library](https://dpp.dev) which runs images on public channels through OCR and uses pattern matching to determine if they might be images of code or code output. If they are, it deletes them and tells the user off.
 
-![image](https://github.com/brainboxdotcc/yeet/assets/1556794/1366d2c3-9c4f-46ac-82d0-ad698d994487) ![image](https://github.com/brainboxdotcc/yeet/assets/1556794/8b4b0173-db2e-4489-a50f-a4582c7de228)
+![image](https://github.com/brainboxdotcc/yeet/assets/1556794/2e12e40e-1a01-4689-bcf7-707ae167505f)
+![image](https://github.com/brainboxdotcc/yeet/assets/1556794/b62d9713-8c74-43c1-9b2b-a0f44ae3851f)
+
 
 ## Compilation
 
@@ -11,12 +13,6 @@ mkdir build
 cd build
 cmake ..
 make -j
-```
-
-If DPP is installed in a different location you can specify the root directory to look in while running cmake 
-
-```bash
-cmake .. -DDPP_ROOT_DIR=<your-path>
 ```
 
 ## Configuring the bot
@@ -45,7 +41,7 @@ Create a config.json in the directory above the build directory:
 }
 ```
 
-**Note**: Self-hosting the premium image recognition API is not supported at this time.
+**Note**: Leave the values under the `ir` key as empty strings. Self-hosting the premium image recognition API is not supported at this time.
 
 Import the base mysql schema:
 
