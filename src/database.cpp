@@ -18,7 +18,7 @@
  *
  ************************************************************************************/
 
-#include <yeet/database.h>
+#include <beholder/database.h>
 #include <mysql/mysql.h>
 #include <iostream>
 #include <mutex>

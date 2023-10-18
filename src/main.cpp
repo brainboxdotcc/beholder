@@ -1,14 +1,14 @@
 #include <dpp/dpp.h>
 #include <dpp/json.h>
 #include <filesystem>
-#include <yeet/yeet.h>
+#include <beholder/beholder.h>
 #include <fmt/format.h>
 #include <spdlog/spdlog.h>
 #include <spdlog/async.h>
 #include <spdlog/sinks/stdout_color_sinks.h>
 #include <spdlog/sinks/rotating_file_sink.h>
-#include <yeet/listeners.h>
-#include <yeet/database.h>
+#include <beholder/listeners.h>
+#include <beholder/database.h>
 
 namespace fs = std::filesystem;
 
@@ -27,7 +27,7 @@ int main(int argc, char const *argv[])
 	spdlog::init_thread_pool(8192, 2);
 	std::vector<spdlog::sink_ptr> sinks;
 	auto stdout_sink = std::make_shared<spdlog::sinks::stdout_color_sink_mt >();
-	auto rotating = std::make_shared<spdlog::sinks::rotating_file_sink_mt>("logs/yeet.log", 1024 * 1024 * 5, 10);
+	auto rotating = std::make_shared<spdlog::sinks::rotating_file_sink_mt>("logs/beholder.log", 1024 * 1024 * 5, 10);
 	sinks.push_back(stdout_sink);
 	sinks.push_back(rotating);
 	log = std::make_shared<spdlog::async_logger>("file_and_console", sinks.begin(), sinks.end(), spdlog::thread_pool(), spdlog::async_overflow_policy::block);

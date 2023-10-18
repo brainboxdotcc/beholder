@@ -1,8 +1,8 @@
-#include <yeet/listeners.h>
-#include <yeet/database.h>
-#include <yeet/yeet.h>
+#include <beholder/listeners.h>
+#include <beholder/database.h>
+#include <beholder/beholder.h>
 
-/* Maybe move this into yeet.h, so we only declare this in one place? */
+/* Maybe move this into beholder.h, so we only declare this in one place? */
 namespace fs = std::filesystem;
 
 namespace command_listener {

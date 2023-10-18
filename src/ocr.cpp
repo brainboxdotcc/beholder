@@ -1,8 +1,8 @@
 #include <dpp/dpp.h>
 #include <tesseract/baseapi.h>
 #include <leptonica/allheaders.h>
-#include <yeet/yeet.h>
-#include <yeet/database.h>
+#include <beholder/beholder.h>
+#include <beholder/database.h>
 
 extern std::atomic<int> concurrent_images;
 

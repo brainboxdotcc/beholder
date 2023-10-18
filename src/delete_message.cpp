@@ -1,6 +1,6 @@
 #include <dpp/dpp.h>
-#include <yeet/yeet.h>
-#include <yeet/database.h>
+#include <beholder/beholder.h>
+#include <beholder/database.h>
 
 void delete_message_and_warn(dpp::cluster& bot, const dpp::message_create_t ev, const dpp::attachment attach, const std::string text, bool premium)
 {

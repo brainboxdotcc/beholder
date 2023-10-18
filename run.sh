@@ -5,6 +5,6 @@ ulimit -c unlimited
 # run repeatedly until ctrl+c
 while true;
 do
-	 ./yeet
+	 ./beholder
 done
 

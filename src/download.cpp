@@ -1,6 +1,6 @@
 #include <dpp/dpp.h>
-#include <yeet/yeet.h>
-#include <yeet/database.h>
+#include <beholder/beholder.h>
+#include <beholder/database.h>
 #include <dpp/json.h>
 
 extern std::atomic<int> concurrent_images;
