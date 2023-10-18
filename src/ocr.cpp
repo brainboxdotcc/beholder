@@ -18,7 +18,6 @@ void ocr_image(std::string file_content, const dpp::attachment attach, dpp::clus
 	Pix* image = pixReadMem((l_uint8*)file_content.data(), file_content.length());
 	if (!image) {
 		bot.log(dpp::ll_error, "Could not read image with pixRead");
-		pixFreeData(image);
 		concurrent_images--;
 		return;
 	}
@@ -28,14 +27,14 @@ void ocr_image(std::string file_content, const dpp::attachment attach, dpp::clus
 	 */
 	if (image->w * image->h > 33554432) {
 		bot.log(dpp::ll_info, "Image dimensions of " + std::to_string(image->w) + "x" + std::to_string(image->h) + " too large to be a screenshot");
-		pixFreeData(image);
+		pixDestroy(&image);
 		concurrent_images--;
 		return;
 	}
-	image = pixConvertRGBToGray(image, 0.5, 0.3, 0.2);
+	image = pixConvertRGBToGrayFast(image);
 	api.SetImage(image);
 	const char* output = api.GetUTF8Text();
-	pixFreeData(image);
+	pixDestroy(&image);
 	if (!output) {
 		bot.log(dpp::ll_error, "GetUTF8Text() returned nullptr!!!");
 		concurrent_images--;
