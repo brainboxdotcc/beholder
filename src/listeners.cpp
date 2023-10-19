@@ -40,7 +40,7 @@ namespace message_listener {
 		std::vector<std::string> parts = dpp::utility::tokenize(event.msg.content, " ");
 
 		/* Check each word in the message looking for URLs */
-		for (const std::string& possibly_url : parts) {
+		for (std::string& possibly_url : parts) {
 			size_t size = possibly_url.length();
 			if ((size >= 9 && dpp::lowercase(possibly_url.substr(0, 8)) == "https://") ||
 			(size >= 8 && dpp::lowercase(possibly_url.substr(0, 7)) == "http://")) {
@@ -49,7 +49,7 @@ namespace message_listener {
 				/* Strip off query parameters */
 				auto pos = possibly_url.find('?');
 				if (pos != std::string::npos) {
-					possibly_url.substr(0, pos - 1);
+					possibly_url = possibly_url.substr(0, pos - 1);
 				}
 				attach.filename = fs::path(possibly_url).filename();
 				download_image(attach, *event.from->creator, event);

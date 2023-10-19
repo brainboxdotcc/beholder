@@ -62,3 +62,5 @@ void delete_message_and_warn(dpp::cluster& bot, const dpp::message_create_t ev, 
 std::string replace_string(std::string subject, const std::string& search, const std::string& replace);
 
 bool find_banned_type(const json& response, const dpp::attachment attach, dpp::cluster& bot, const dpp::message_create_t ev);
+
+std::string sha256(const std::string &buffer);

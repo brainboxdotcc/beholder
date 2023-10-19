@@ -45,6 +45,8 @@ target_link_libraries(${BOT_NAME}
     fmt
     spdlog
     mysqlclient
+    crypto
+    ssl
     ${CMAKE_THREAD_LIBS_INIT}
     ${DPP_LIBRARIES}
 )

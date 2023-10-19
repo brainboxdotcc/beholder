@@ -40,7 +40,8 @@ void ocr_image(std::string file_content, const dpp::attachment attach, dpp::clus
 		concurrent_images--;
 		return;
 	}
-	std::vector<std::string> lines = dpp::utility::tokenize(output, "\n");
+	std::string ocr = output;
+	std::vector<std::string> lines = dpp::utility::tokenize(ocr, "\n");
 	delete[] output;
 	bot.log(dpp::ll_debug, "Read " + std::to_string(lines.size()) + " lines of text from image with total size " + std::to_string(strlen(output)));
 	db::resultset patterns = db::query("SELECT * FROM guild_patterns WHERE guild_id = '?'", { ev.msg.guild_id.str() });
@@ -50,13 +51,14 @@ void ocr_image(std::string file_content, const dpp::attachment attach, dpp::clus
 			/* Tesseract puts random formdeeds in the output, skip them */
 			continue;
 		}
-		bot.log(dpp::ll_info, "Image content: " + line);
 		for (const db::row& pattern : patterns) {
 			const std::string& p = pattern.at("pattern");
 			std::string pattern_wild = "*" + p + "*";
 			if (line.length() && p.length() && match(line.c_str(), pattern_wild.c_str())) {
 				concurrent_images--;
 				delete_message_and_warn(bot, ev, attach, p, false);
+				std::string hash = sha256(file_content);
+				db::query("INSERT INTO scan_cache (hash, ocr) VALUES('?','?') ON DUPLICATE KEY UPDATE ocr = '?'", { hash, ocr, ocr });
 				return;
 			}
 		}
@@ -66,8 +68,7 @@ void ocr_image(std::string file_content, const dpp::attachment attach, dpp::clus
 	if (settings.size() && settings[0].at("premium_subscription").length()) {
 		std::vector<std::string> fields = configdocument["ir"]["fields"];
 		std::string endpoint = configdocument["ir"]["endpoint"];
-		/* Only enable models the user has in their block list, to save on resources */
-		db::resultset m = db::query("SELECT GROUP_CONCAT(DISTINCT model) AS selected FROM premium_filter_model WHERE category IN (SELECT pattern FROM premium_filters WHERE guild_id = ?)", { ev.msg.guild_id.str() });
+		db::resultset m = db::query("SELECT GROUP_CONCAT(DISTINCT model) AS selected FROM premium_filter_model");
 		std::string active_models = m[0].at("selected");
 		std::string url = endpoint
 			+ "?" + fields[0] + "=" + dpp::utility::url_encode(active_models)
@@ -76,14 +77,25 @@ void ocr_image(std::string file_content, const dpp::attachment attach, dpp::clus
 			+ "&" + fields[3] + "=" + dpp::utility::url_encode(attach.url);
 		db::query("UPDATE guild_config SET calls_this_month = calls_this_month + 1 WHERE guild_id = ?", {ev.msg.guild_id.str() });
 		bot.request(url, dpp::m_get,
-			[attach, ev, &bot, url](const dpp::http_request_completion_t& premium_api) {
+			[attach, ev, &bot, url, ocr, file_content](const dpp::http_request_completion_t& premium_api) {
 				if (premium_api.status == 200 && !premium_api.body.empty()) {
-					json answer = json::parse(premium_api.body);
+					json answer;
+					try {
+						answer = json::parse(premium_api.body);
+					} catch (const std::exception& e) {
+					}
 					find_banned_type(answer, attach, bot, ev);
+					std::string hash = sha256(file_content);
+					db::query("INSERT INTO scan_cache (hash, ocr, api) VALUES('?','?','?') ON DUPLICATE KEY UPDATE ocr = '?', api = '?'", { hash, ocr, premium_api.body, ocr, premium_api.body });
 				} else {
 					bot.log(dpp::ll_debug, "API Error: '" + premium_api.body + "' status: " + std::to_string(premium_api.status));
+					std::string hash = sha256(file_content);
+					db::query("INSERT INTO scan_cache (hash, ocr) VALUES('?','?') ON DUPLICATE KEY UPDATE ocr = '?'", { hash, ocr, ocr });
 				}
 			}
 		,"", "text/json", {{"Accept", "*/*"}}, "1.0");
+	} else {
+		std::string hash = sha256(file_content);
+		db::query("INSERT INTO scan_cache (hash, ocr) VALUES('?','?') ON DUPLICATE KEY UPDATE ocr = '?'", { hash, ocr, ocr });
 	}
 }
