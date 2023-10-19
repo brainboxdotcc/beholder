@@ -112,6 +112,11 @@ int main(int argc, char const *argv[])
 	}
 	bot.log(dpp::ll_info, fmt::format("Connected to database: {}", dbconf["database"]));
 
+	/* This shuts up libleptonica, who tf logs errors to stdout in a lib?! */
+	int fd = ::open("/dev/null", O_WRONLY);
+	::dup2(fd, 2);
+	::close(fd);
+
 	/* Start bot */
 	bot.start(dpp::st_wait);
 }
