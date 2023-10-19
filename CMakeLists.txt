@@ -8,6 +8,7 @@ set(BOT_NAME "beholder")
 project(${BOT_NAME})
 aux_source_directory("src" coresrc)
 aux_source_directory("src/commands" coresrc)
+aux_source_directory("src/3rdparty" coresrc)
 add_executable(${BOT_NAME} ${coresrc})
 
 string(ASCII 27 Esc)
@@ -47,6 +48,7 @@ target_link_libraries(${BOT_NAME}
     mysqlclient
     crypto
     ssl
+    gif
     ${CMAKE_THREAD_LIBS_INIT}
     ${DPP_LIBRARIES}
 )

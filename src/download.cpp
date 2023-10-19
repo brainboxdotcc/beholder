@@ -3,6 +3,7 @@
 #include <beholder/database.h>
 #include <dpp/json.h>
 #include <openssl/evp.h>
+#include <beholder/whitelist.h>
 
 extern std::atomic<int> concurrent_images;
 
@@ -77,6 +78,12 @@ void download_image(const dpp::attachment attach, dpp::cluster& bot, const dpp::
 		if (concurrent_images > max_concurrency) {
 			bot.log(dpp::ll_info, "Too many concurrent images, skipped");
 			return;
+		}
+		for (int index = 0; whitelist[index] != nullptr; ++index) {
+			if (match(attach.url.c_str(), whitelist[index])) {
+				bot.log(dpp::ll_info, "Image " + attach.url + " is whitelisted by " + std::string(whitelist[index]) + "; not scanning");
+				return;
+			}
 		}
 		/**
 		 * NOTE: The width, height and size attributes given here are only valid if the image was uploaded as
