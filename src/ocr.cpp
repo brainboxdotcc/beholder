@@ -43,7 +43,7 @@ void ocr_image(std::string file_content, const dpp::attachment attach, dpp::clus
 	std::string ocr = output;
 	std::vector<std::string> lines = dpp::utility::tokenize(ocr, "\n");
 	delete[] output;
-	bot.log(dpp::ll_debug, "Read " + std::to_string(lines.size()) + " lines of text from image with total size " + std::to_string(strlen(output)));
+	bot.log(dpp::ll_debug, "Read " + std::to_string(lines.size()) + " lines of text from image with total size " + std::to_string(ocr.length()));
 	db::resultset patterns = db::query("SELECT * FROM guild_patterns WHERE guild_id = '?'", { ev.msg.guild_id.str() });
 	bot.log(dpp::ll_debug, "Checking image content against " + std::to_string(patterns.size()) + " patterns...");
 	for (const std::string& line : lines) {
