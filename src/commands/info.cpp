@@ -31,8 +31,7 @@ void info_command::route(const dpp::slashcommand_t &event)
 		uint64_t guild_count = 0;
 		if (!v.is_error()) {
 			app = std::get<dpp::application>(v.value);
-			json raw = json::parse(v.http_info.body);
-			guild_count = raw["approximate_guild_count"];
+			guild_count = app.approximate_guild_count;
 		}
 		std::string pattern_count{"0"}, prem_count{"0"}, log_channel;
 		bool has_premium = false;

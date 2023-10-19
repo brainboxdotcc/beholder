@@ -20,6 +20,17 @@
 json configdocument;
 std::atomic<int> concurrent_images{0};
 
+void set_presence(dpp::cluster& bot)
+{
+	bot.current_application_get([&bot](const dpp::confirmation_callback_t& v) {
+		if (!v.is_error()) {
+			dpp::application app = std::get<dpp::application>(v.value);
+			uint64_t guild_count = app.approximate_guild_count;
+			bot.set_presence(dpp::presence(dpp::ps_online, dpp::at_watching, fmt::format("images on {} servers", guild_count)));
+		}
+	});
+}
+
 int main(int argc, char const *argv[])
 {
 	/* Set up the bot cluster and read the configuration json */
@@ -58,6 +69,11 @@ int main(int argc, char const *argv[])
 				register_command<message_command>(bot),
 				register_command<logchannel_command>(bot),
 			});
+
+			bot.start_timer([&bot](dpp::timer t) {
+				set_presence(bot);
+			}, 240);
+			set_presence(bot);
 		}
 	});
 
