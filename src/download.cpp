@@ -104,10 +104,6 @@ void download_image(const dpp::attachment attach, dpp::cluster& bot, const dpp::
 			bot.log(dpp::ll_info, "Image dimensions of " + std::to_string(attach.width) + "x" + std::to_string(attach.height) + " too large to be a screenshot");
 			return;
 		}
-		if (attach.size > max_size) {
-			bot.log(dpp::ll_info, "Image size of " + std::to_string(attach.size / 1024) + "KB is larger than maximum allowed scanning size");
-			return;
-		}
 		db::resultset pattern_count = db::query("SELECT COUNT(guild_id) AS total FROM guild_patterns WHERE guild_id = '?'", { ev.msg.guild_id.str() });
 		if (pattern_count.size() == 0 || atoi(pattern_count[0].at("total").c_str()) == 0) {
 			bot.log(dpp::ll_info, "No patterns defined for guild " + ev.msg.guild_id.str());
@@ -119,9 +115,6 @@ void download_image(const dpp::attachment attach, dpp::cluster& bot, const dpp::
 			 * Check size of downloaded file again here, because an attachment gives us the size
 			 * before we try to download it, a url does not. 
 			 */
-			if (result.body.length() > max_size) {
-				bot.log(dpp::ll_info, "Image size of " + std::to_string(result.body.length() / 1024) + "KB is larger than maximum allowed scanning size");
-			}
 			if (check_cached_search(result.body, attach, bot, ev)) {
 				return;
 			}
