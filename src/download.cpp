@@ -25,9 +25,10 @@ std::string sha256(const std::string &buffer) {
 	return out.str();
 }
 
-bool check_cached_search(const std::string& url, const dpp::attachment attach, dpp::cluster& bot, const dpp::message_create_t ev) {
-	std::string hash = sha256(url);
+bool check_cached_search(const std::string& content, const dpp::attachment attach, dpp::cluster& bot, const dpp::message_create_t ev) {
+	std::string hash = sha256(content);
 	db::resultset rs = db::query("SELECT * FROM scan_cache WHERE hash = '?'", { hash });
+	bot.log(dpp::ll_debug, "Checking cache, content hash: " + hash + " file: " + attach.filename + " found: " + std::to_string(rs.size()));
 	if (rs.empty()) {
 		return false;
 	}
@@ -56,18 +57,26 @@ bool check_cached_search(const std::string& url, const dpp::attachment attach, d
 		}
 	}
 
+	bool prem = false;
 	/* Check cached API content if guild is premium */
 	db::resultset settings = db::query("SELECT premium_subscription FROM guild_config WHERE guild_id = ?", { ev.msg.guild_id.str() });
 	if (api.length() && settings.size() && !settings[0].at("premium_subscription").empty()) {
+		prem = true;
 		json answer;
 		try {
 			answer = json::parse(api);
 		} catch (const std::exception& e) {
 		}
-		return find_banned_type(answer, attach, bot, ev);
+		find_banned_type(answer, attach, bot, ev);
+		return true;
 	}
 
-	return false;
+	if (prem) {
+		/* If theyre premium and api result in cache is empty, this returns false for a new IR scan to occur */
+		return !api.empty();
+	} else {
+		return false;
+	}
 }
 
 void download_image(const dpp::attachment attach, dpp::cluster& bot, const dpp::message_create_t ev) {
