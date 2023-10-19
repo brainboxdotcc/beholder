@@ -3,7 +3,11 @@
 #include <vector>
 
 inline constexpr const char* whitelist[] = {
-	"https://*.tenor.com/*",
+	"https://ssod.org/*",
+	"https://ssod.org/*",
+	"https://triviabot.co.uk/*",
+	"https://brainbox.cc/*",
+	"https://*.brainbox.cc/*",
 	"https://beholder.cc/*",
 	nullptr,
 };
