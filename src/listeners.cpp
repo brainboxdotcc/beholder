@@ -1,9 +1,47 @@
+#include <fmt/format.h>
 #include <beholder/listeners.h>
 #include <beholder/database.h>
 #include <beholder/beholder.h>
 #include <beholder/command.h>
 
+#include <beholder/commands/logchannel.h>
+#include <beholder/commands/roles.h>
+#include <beholder/commands/message.h>
+#include <beholder/commands/patterns.h>
+#include <beholder/commands/premium.h>
+#include <beholder/commands/info.h>
+
 namespace listeners {
+
+	void on_ready(const dpp::ready_t &event) {
+		dpp::cluster& bot = *event.from->creator;
+		if (dpp::run_once<struct register_bot_commands>()) {
+			uint64_t default_permissions = dpp::p_administrator | dpp::p_manage_guild;
+			bot.global_bulk_command_create({
+				register_command<info_command>(bot),
+				register_command<premium_command>(bot),
+				register_command<patterns_command>(bot),
+				register_command<roles_command>(bot),
+				register_command<message_command>(bot),
+				register_command<logchannel_command>(bot),
+			});
+
+			auto set_presence = [&bot]() {
+				bot.current_application_get([&bot](const dpp::confirmation_callback_t& v) {
+					if (!v.is_error()) {
+						dpp::application app = std::get<dpp::application>(v.value);
+						bot.set_presence(dpp::presence(dpp::ps_online, dpp::at_watching, fmt::format("images on {} servers", app.approximate_guild_count)));
+					}
+				});
+			};
+
+			bot.start_timer([&bot, set_presence](dpp::timer t) {
+				set_presence();
+			}, 240);
+			set_presence();
+		}
+	}
+
 
 	void on_slashcommand(const dpp::slashcommand_t &event) {
 		route_command(event);

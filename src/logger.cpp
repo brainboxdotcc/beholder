@@ -14,17 +14,23 @@ namespace logger {
 
 	static std::shared_ptr<spdlog::logger> async_logger;
 
-	void init()
-	{
+	void init() {
+		/* This shuts up libleptonica, who tf logs errors to stderr in a lib?! */
+		int fd = ::open("/dev/null", O_WRONLY);
+		::dup2(fd, 2);
+		::close(fd);
+
 		/* Set up spdlog logger */
 		spdlog::init_thread_pool(8192, 2);
 		std::vector<spdlog::sink_ptr> sinks = {
 			std::make_shared<spdlog::sinks::stdout_color_sink_mt >(),
 			std::make_shared<spdlog::sinks::rotating_file_sink_mt>(log_file, max_log_size, 10)
 		};
+
 		async_logger = std::make_shared<spdlog::async_logger>("file_and_console", sinks.begin(), sinks.end(), spdlog::thread_pool(), spdlog::async_overflow_policy::block);
 		async_logger->set_pattern("%^%Y-%m-%d %H:%M:%S.%e [%L] [th#%t]%$ : %v");
 		async_logger->set_level(spdlog_level::debug);
+		
 		spdlog::register_logger(async_logger);
 	}
 
