@@ -1,10 +1,13 @@
 #pragma once
 #include <dpp/dpp.h>
+#include <atomic>
 
 namespace fs = std::filesystem;
 
 constexpr size_t max_size = 8 * 1024 * 1024;
 constexpr int max_concurrency = 64;
+
+extern std::atomic<int> concurrent_images;
 
 using json = dpp::json;
 
@@ -64,3 +67,5 @@ std::string replace_string(std::string subject, const std::string& search, const
 bool find_banned_type(const json& response, const dpp::attachment attach, dpp::cluster& bot, const dpp::message_create_t ev);
 
 std::string sha256(const std::string &buffer);
+
+void on_thread_exit(std::function<void()> func);

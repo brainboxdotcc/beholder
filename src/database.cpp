@@ -18,8 +18,11 @@
  *
  ************************************************************************************/
 
+#include <beholder/beholder.h>
 #include <beholder/database.h>
+#include <beholder/config.h>
 #include <mysql/mysql.h>
+#include <fmt/format.h>
 #include <iostream>
 #include <mutex>
 #include <sstream>
@@ -48,6 +51,16 @@ namespace db {
 			_error = "mysql_init() failed";
 			return false;
 		}
+	}
+
+	void init (dpp::cluster& bot)
+	{
+		const json& dbconf = config::get("database");
+		if (!db::connect(dbconf["host"], dbconf["username"], dbconf["password"], dbconf["database"], dbconf["port"])) {
+			bot.log(dpp::ll_critical, fmt::format("Database connection error connecting to {}", dbconf["database"]));
+			exit(2);
+		}
+		bot.log(dpp::ll_info, fmt::format("Connected to database: {}", dbconf["database"]));
 	}
 
 	/**

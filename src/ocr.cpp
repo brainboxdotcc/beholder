@@ -5,15 +5,17 @@
 #include <beholder/beholder.h>
 #include <beholder/database.h>
 #include "3rdparty/EasyGifReader.h"
-
-extern std::atomic<int> concurrent_images;
-
 void ocr_image(std::string file_content, const dpp::attachment attach, dpp::cluster& bot, const dpp::message_create_t ev) {
 	tesseract::TessBaseAPI api;
 	std::string ocr;
+
+	on_thread_exit([&bot]() {
+		concurrent_images--;
+		bot.log(dpp::ll_info, "Scanning thread completed");
+	});
+
 	if (api.Init(NULL, "eng", tesseract::OcrEngineMode::OEM_DEFAULT)) {
 		bot.log(dpp::ll_error, "Could not initialise tesseract");
-		concurrent_images--;
 		return;
 	}
 	api.SetPageSegMode(tesseract::PageSegMode::PSM_SINGLE_BLOCK);
@@ -31,7 +33,6 @@ void ocr_image(std::string file_content, const dpp::attachment attach, dpp::clus
 		if (image->w * image->h > 33554432) {
 			bot.log(dpp::ll_info, "Image dimensions of " + std::to_string(image->w) + "x" + std::to_string(image->h) + " too large to be a screenshot");
 			pixDestroy(&image);
-			concurrent_images--;
 			return;
 		}
 		image = pixConvertRGBToGrayFast(image);
@@ -62,7 +63,6 @@ void ocr_image(std::string file_content, const dpp::attachment attach, dpp::clus
 						delete_message_and_warn(bot, ev, attach, p, false);
 						std::string hash = sha256(file_content);
 						db::query("INSERT INTO scan_cache (hash, ocr) VALUES('?','?') ON DUPLICATE KEY UPDATE ocr = '?'", { hash, ocr, ocr });
-						concurrent_images--;
 						return;
 					}
 				}
@@ -79,7 +79,6 @@ void ocr_image(std::string file_content, const dpp::attachment attach, dpp::clus
 				bot.log(dpp::ll_debug, "Detected animated gif with " + std::to_string(frame_count) + " frames, name: " + attach.filename + "; not scanning with IR");
 				std::string hash = sha256(file_content);
 				db::query("INSERT INTO scan_cache (hash, ocr) VALUES('?','?') ON DUPLICATE KEY UPDATE ocr = '?'", { hash, ocr, ocr });
-				concurrent_images--;
 				return;
 			}
 		} catch (const EasyGifReader::Error& error) {
@@ -118,5 +117,4 @@ void ocr_image(std::string file_content, const dpp::attachment attach, dpp::clus
 		std::string hash = sha256(file_content);
 		db::query("INSERT INTO scan_cache (hash, ocr) VALUES('?','?') ON DUPLICATE KEY UPDATE ocr = '?'", { hash, ocr, ocr });
 	}
-	concurrent_images--;
 }

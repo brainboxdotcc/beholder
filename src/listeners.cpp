@@ -86,7 +86,7 @@ namespace listeners {
 				/* Strip off query parameters */
 				auto pos = possibly_url.find('?');
 				if (pos != std::string::npos) {
-					possibly_url = possibly_url.substr(0, pos - 1);
+					possibly_url = possibly_url.substr(0, pos);
 				}
 				attach.filename = fs::path(possibly_url).filename();
 				download_image(attach, *event.from->creator, event);

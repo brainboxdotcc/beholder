@@ -1,5 +1,6 @@
 {
 	"token": "token goes here", 
+	"log": "log path goes here",
 	"ir": {
 		"endpoint": "image recognition endpoint",
 		"credentials": {

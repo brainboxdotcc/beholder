@@ -41,6 +41,8 @@ namespace db {
 
 	typedef std::vector<std::variant<float, std::string, uint64_t, int64_t, bool, int32_t, uint32_t, double>> paramlist;
 
+	/* Initialise database */
+	void init (dpp::cluster& bot);
 	/* Connect to database */
 	bool connect(const std::string &host, const std::string &user, const std::string &pass, const std::string &db, int port);
 	/* Disconnect from database */

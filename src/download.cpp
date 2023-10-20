@@ -4,7 +4,7 @@
 #include <dpp/json.h>
 #include <beholder/whitelist.h>
 
-extern std::atomic<int> concurrent_images;
+std::atomic<int> concurrent_images{0};
 
 bool check_cached_search(const std::string& content, const dpp::attachment attach, dpp::cluster& bot, const dpp::message_create_t ev) {
 	std::string hash = sha256(content);

@@ -7,9 +7,9 @@ namespace config {
 
 	static json configdocument;
 
-	void init() {
+	void init(const std::string& config_file) {
 		/* Set up the bot cluster and read the configuration json */
-		std::ifstream configfile("../config.json");
+		std::ifstream configfile(config_file);
 		configfile >> configdocument;
 	}
 
