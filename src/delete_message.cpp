@@ -7,7 +7,7 @@ void delete_message_and_warn(dpp::cluster& bot, const dpp::message_create_t ev, 
 	bot.message_delete(ev.msg.id, ev.msg.channel_id, [&bot, ev, attach, text, premium](const auto& cc) {
 
 		if (cc.is_error()) {
-			bad_embed("Error", bot, ev.msg.channel_id, "Failed to delete the message: " + ev.msg.id.str(), ev.msg);
+			bot.message_create(dpp::message(ev.msg.channel_id, "Failed to delete this message! Please check bot permissions.").set_reference(ev.msg.id, ev.msg.guild_id, ev.msg.channel_id));
 			return;
 		}
 
@@ -20,6 +20,7 @@ void delete_message_and_warn(dpp::cluster& bot, const dpp::message_create_t ev, 
 		if (logchannel.size() && logchannel[0].at("log_channel").length()) {
 			std::string message_body = logchannel[0].at("embed_body");
 			std::string message_title = logchannel[0].at("embed_title");
+
 			if (message_body.empty()) {
 				message_body = "Please set a message using " + std::string(premium ? "/set-premium-delete-message" : "/set-delete-message");
 			}
@@ -27,10 +28,36 @@ void delete_message_and_warn(dpp::cluster& bot, const dpp::message_create_t ev, 
 				message_title = "Please set a title using " + std::string(premium ? "/set-premium-delete-message" : "/set-delete-message");
 			}
 			message_body = replace_string(message_body, "@user", "<@" + ev.msg.author.id.str() + ">");
-			bad_embed(message_title, bot, ev.msg.channel_id, message_body, ev.msg);
-			good_embed(
-				bot, dpp::snowflake(logchannel[0].at("log_channel")), "Attachment: `" + attach.filename + "`\nSent by: `" +
-				ev.msg.author.format_username() + "`\nMatched pattern: `" + text + "`\n[Image link](" + attach.url +")"
+
+			bot.message_create(
+				dpp::message(ev.msg.channel_id, "")
+				.add_embed(
+					dpp::embed()
+					.set_description(message_body)
+					.set_title(message_title)
+					.set_color(colours::bad)
+					.set_url("https://beholder.cc/")
+					.set_thumbnail(bot.me.get_avatar_url())
+					.set_footer("Powered by Beholder", bot.me.get_avatar_url())
+				)
+			);
+
+			bot.message_create(
+				dpp::message(dpp::snowflake(logchannel[0].at("log_channel")), "")
+				.add_embed(
+					dpp::embed()
+					.set_description(
+						"Attachment: `" + attach.filename + "`\nSent by: `" +
+						ev.msg.author.format_username() + "`\nMatched pattern: `" +
+						text + "`\n[Image link](" + attach.url +")"
+					)
+					.set_title("Bad Image Deleted")
+					.set_color(colours::good)
+					.set_image(attach.url)
+					.set_url("https://beholder.cc/")
+					.set_thumbnail(bot.me.get_avatar_url())
+					.set_footer("Powered by Beholder", bot.me.get_avatar_url())
+				)
 			);
 		}
 	});

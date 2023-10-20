@@ -1,11 +1,17 @@
 #pragma once
 #include <dpp/dpp.h>
 #include <atomic>
+#include <cstdint>
 
 namespace fs = std::filesystem;
 
 constexpr size_t max_size = 8 * 1024 * 1024;
 constexpr int max_concurrency = 64;
+
+namespace colours {
+	constexpr uint32_t bad = 0xff7a7a;
+	constexpr uint32_t good = 0x7aff7a;
+};
 
 extern std::atomic<int> concurrent_images;
 
@@ -38,9 +44,6 @@ inline std::string trim(std::string s)
 {
 	return ltrim(rtrim(s));
 }
-
-void good_embed(dpp::cluster &bot, dpp::snowflake channel_id, const std::string &message, const std::string& url = "");
-void bad_embed(const std::string& title, dpp::cluster &bot, dpp::snowflake channel_id, const std::string &message, dpp::message ref = {});
 
 /**
  * @brief Processes an attachment into text, then checks to see if it matches a certain pattern. If it matches then it called delete_message_and_warn.
