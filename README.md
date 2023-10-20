@@ -1,10 +1,9 @@
 # D++ Beholder Bot
 
-This is a bot powered by the [D++ library](https://dpp.dev) which runs images on public channels through OCR and uses pattern matching to determine if they might be images of code or code output. If they are, it deletes them and tells the user off.
+This is a bot powered by the [D++ library](https://dpp.dev) which scans images posted on public channels through OCR and AI Image Recognition and uses pattern matching to determine what is in the images. If they match the admin's defined ruleset, it deletes the message and tells the user off with a customisable message.
 
-![image](https://github.com/brainboxdotcc/yeet/assets/1556794/2e12e40e-1a01-4689-bcf7-707ae167505f)
-![image](https://github.com/brainboxdotcc/yeet/assets/1556794/b62d9713-8c74-43c1-9b2b-a0f44ae3851f)
-
+![Screenshot_20231020-193744](https://github.com/brainboxdotcc/beholder/assets/1556794/692c11d1-181f-4d58-a95b-35c8fa831bac)
+![Screenshot_20231020-193722](https://github.com/brainboxdotcc/beholder/assets/1556794/6b96883d-152a-4706-9a72-3301705d1659)
 
 ## Compilation
 
@@ -21,12 +20,13 @@ Create a config.json in the directory above the build directory:
 
 ```json
 {
-	"token": "your bot token here",
+	"token": "token goes here", 
+	"log": "log path goes here",
 	"ir": {
-		"endpoint": "",
+		"endpoint": "image recognition endpoint",
 		"credentials": {
-			"username": "",
-			"password": ""
+			"username": "username",
+			"password": "password"
 		},
 		"fields": []
 	},
@@ -37,7 +37,6 @@ Create a config.json in the directory above the build directory:
 		"database": "mysql database",
 		"port": 3306
 	}
-
 }
 ```
 
