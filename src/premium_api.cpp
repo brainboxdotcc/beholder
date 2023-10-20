@@ -15,6 +15,7 @@ bool find_banned_type(const json& response, const dpp::attachment attach, dpp::c
 	bot.log(dpp::ll_debug, std::to_string(premium_filters.size()) + " premium filters to check");
 	for (const db::row& row : premium_filters) {
 		std::string filter_type = row.at("pattern");
+		bot.log(dpp::ll_debug, "check filter " + filter_type);
 		double trigger_value = 0.8, found_value = 0;
 		if (row.at("score").length()) {
 			trigger_value = atof(row.at("score").c_str());
@@ -24,8 +25,10 @@ bool find_banned_type(const json& response, const dpp::attachment attach, dpp::c
 		if (!value.empty()) {
 			if (value.is_number_float() || value.is_number_integer()) {
 				found_value = value.get<double>();
+				bot.log(dpp::ll_debug, "found value " + std::to_string(found_value));
 			}
 		} else {
+			bot.log(dpp::ll_debug, "not found value");
 			found_value = 0.0;
 		}
 		if (found_value >= trigger_value && found_value != 0.0) {

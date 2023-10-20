@@ -31,7 +31,7 @@ else()
 	find_package(OpenSSL REQUIRED)
 endif()
 
-target_compile_definitions(${BOT_NAME} PUBLIC DPP_CORO=ON)
+target_compile_definitions(${BOT_NAME} PUBLIC DPP_CORO=ON CPPHTTPLIB_OPENSSL_SUPPORT)
 
 target_include_directories(${BOT_NAME} PUBLIC
     ${CMAKE_CURRENT_SOURCE_DIR}/include

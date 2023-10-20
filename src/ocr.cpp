@@ -5,6 +5,8 @@
 #include <beholder/beholder.h>
 #include <beholder/database.h>
 #include "3rdparty/EasyGifReader.h"
+#include "3rdparty/httplib.h"
+
 void ocr_image(std::string file_content, const dpp::attachment attach, dpp::cluster& bot, const dpp::message_create_t ev) {
 	tesseract::TessBaseAPI api;
 	std::string ocr;
@@ -86,33 +88,44 @@ void ocr_image(std::string file_content, const dpp::attachment attach, dpp::clus
 		}
 		json& irconf = config::get("ir");
 		std::vector<std::string> fields = irconf["fields"];
-		std::string endpoint = irconf["endpoint"];
+		std::string endpoint = irconf["host"];
 		db::resultset m = db::query("SELECT GROUP_CONCAT(DISTINCT model) AS selected FROM premium_filter_model");
 		std::string active_models = m[0].at("selected");
-		std::string url = endpoint
+		std::string url = irconf["path"].get<std::string>()
 			+ "?" + fields[0] + "=" + dpp::utility::url_encode(active_models)
 			+ "&" + fields[1] + "=" + dpp::utility::url_encode(irconf["credentials"]["username"])
 			+ "&" + fields[2] + "=" + dpp::utility::url_encode(irconf["credentials"]["password"])
 			+ "&" + fields[3] + "=" + dpp::utility::url_encode(attach.url);
 		db::query("UPDATE guild_config SET calls_this_month = calls_this_month + 1 WHERE guild_id = ?", {ev.msg.guild_id.str() });
-		bot.request(url, dpp::m_get,
-			[attach, ev, &bot, url, ocr, file_content](const dpp::http_request_completion_t& premium_api) {
-				if (premium_api.status == 200 && !premium_api.body.empty()) {
-					json answer;
-					try {
-						answer = json::parse(premium_api.body);
-					} catch (const std::exception& e) {
-					}
-					find_banned_type(answer, attach, bot, ev);
-					std::string hash = sha256(file_content);
-					db::query("INSERT INTO scan_cache (hash, ocr, api) VALUES('?','?','?') ON DUPLICATE KEY UPDATE ocr = '?', api = '?'", { hash, ocr, premium_api.body, ocr, premium_api.body });
-				} else {
-					bot.log(dpp::ll_debug, "API Error: '" + premium_api.body + "' status: " + std::to_string(premium_api.status));
-					std::string hash = sha256(file_content);
-					db::query("INSERT INTO scan_cache (hash, ocr) VALUES('?','?') ON DUPLICATE KEY UPDATE ocr = '?'", { hash, ocr, ocr });
+
+		/* Build httplib client */
+		bot.log(dpp::ll_debug, "Host: " + endpoint + " url: " + url);
+		httplib::Client cli(endpoint.c_str());
+		cli.enable_server_certificate_verification(false);
+		std::string rv;
+		int code = 0;
+		auto res = cli.Get(url.c_str());
+		if (res) {
+			url = endpoint + url;
+			if (res->status < 400) {
+				json answer;
+				try {
+					answer = json::parse(res->body);
+				} catch (const std::exception& e) {
 				}
+				find_banned_type(answer, attach, bot, ev);
+				std::string hash = sha256(file_content);
+				db::query("INSERT INTO scan_cache (hash, ocr, api) VALUES('?','?','?') ON DUPLICATE KEY UPDATE ocr = '?', api = '?'", { hash, ocr, res->body, ocr, res->body });
+			} else {
+				bot.log(dpp::ll_debug, "API Error: '" + res->body + "' status: " + std::to_string(res->status));
+				std::string hash = sha256(file_content);
+				db::query("INSERT INTO scan_cache (hash, ocr) VALUES('?','?') ON DUPLICATE KEY UPDATE ocr = '?'", { hash, ocr, ocr });
 			}
-		,"", "text/json", {{"Accept", "*/*"}}, "1.0");
+		} else {
+			bot.log(dpp::ll_debug, "API Error(2) " + res->body + " " + std::to_string(res->status));
+			std::string hash = sha256(file_content);
+			db::query("INSERT INTO scan_cache (hash, ocr) VALUES('?','?') ON DUPLICATE KEY UPDATE ocr = '?'", { hash, ocr, ocr });
+		}
 	} else {
 		std::string hash = sha256(file_content);
 		db::query("INSERT INTO scan_cache (hash, ocr) VALUES('?','?') ON DUPLICATE KEY UPDATE ocr = '?'", { hash, ocr, ocr });

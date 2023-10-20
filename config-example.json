@@ -2,7 +2,8 @@
 	"token": "token goes here", 
 	"log": "log path goes here",
 	"ir": {
-		"endpoint": "image recognition endpoint",
+		"host": "image recognition endpoint",
+		"path": "image recognition endpoint",
 		"credentials": {
 			"username": "username",
 			"password": "password"

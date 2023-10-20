@@ -69,7 +69,8 @@
 		"cinttypes": "cpp",
 		"typeinfo": "cpp",
 		"valarray": "cpp",
-		"variant": "cpp"
+		"variant": "cpp",
+		"bitset": "cpp"
 	},
 	"C_Cpp.errorSquiggles": "disabled"
 }
