@@ -4,7 +4,6 @@
 #include <dpp/json.h>
 
 extern std::atomic<int> concurrent_images;
-extern json configdocument;
 
 bool find_banned_type(const json& response, const dpp::attachment attach, dpp::cluster& bot, const dpp::message_create_t ev)
 {

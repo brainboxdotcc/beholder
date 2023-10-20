@@ -3,13 +3,12 @@
 #include <beholder/beholder.h>
 #include <beholder/command.h>
 
-namespace command_listener {
+namespace listeners {
+
 	void on_slashcommand(const dpp::slashcommand_t &event) {
 		route_command(event);
 	}
-}
 
-namespace message_listener {
 	void on_message_create(const dpp::message_create_t &event) {
 		auto guild_member = event.msg.member;
 		bool should_bypass = false;

@@ -1,4 +1,5 @@
 #include <dpp/dpp.h>
+#include <beholder/config.h>
 #include <tesseract/baseapi.h>
 #include <leptonica/allheaders.h>
 #include <beholder/beholder.h>
@@ -6,7 +7,6 @@
 #include "3rdparty/EasyGifReader.h"
 
 extern std::atomic<int> concurrent_images;
-extern json configdocument;
 
 void ocr_image(std::string file_content, const dpp::attachment attach, dpp::cluster& bot, const dpp::message_create_t ev) {
 	tesseract::TessBaseAPI api;
@@ -85,14 +85,15 @@ void ocr_image(std::string file_content, const dpp::attachment attach, dpp::clus
 		} catch (const EasyGifReader::Error& error) {
 			/* Not a gif, this is not a fatal error */
 		}
-		std::vector<std::string> fields = configdocument["ir"]["fields"];
-		std::string endpoint = configdocument["ir"]["endpoint"];
+		json& irconf = config::get("ir");
+		std::vector<std::string> fields = irconf["fields"];
+		std::string endpoint = irconf["endpoint"];
 		db::resultset m = db::query("SELECT GROUP_CONCAT(DISTINCT model) AS selected FROM premium_filter_model");
 		std::string active_models = m[0].at("selected");
 		std::string url = endpoint
 			+ "?" + fields[0] + "=" + dpp::utility::url_encode(active_models)
-			+ "&" + fields[1] + "=" + dpp::utility::url_encode(configdocument["ir"]["credentials"]["username"])
-			+ "&" + fields[2] + "=" + dpp::utility::url_encode(configdocument["ir"]["credentials"]["password"])
+			+ "&" + fields[1] + "=" + dpp::utility::url_encode(irconf["credentials"]["username"])
+			+ "&" + fields[2] + "=" + dpp::utility::url_encode(irconf["credentials"]["password"])
 			+ "&" + fields[3] + "=" + dpp::utility::url_encode(attach.url);
 		db::query("UPDATE guild_config SET calls_this_month = calls_this_month + 1 WHERE guild_id = ?", {ev.msg.guild_id.str() });
 		bot.request(url, dpp::m_get,

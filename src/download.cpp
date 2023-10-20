@@ -2,28 +2,9 @@
 #include <beholder/beholder.h>
 #include <beholder/database.h>
 #include <dpp/json.h>
-#include <openssl/evp.h>
 #include <beholder/whitelist.h>
 
 extern std::atomic<int> concurrent_images;
-
-std::string sha256(const std::string &buffer) {
-	std::vector<unsigned char> hash;
-	std::unique_ptr<EVP_MD_CTX, void (*)(EVP_MD_CTX *)> evpCtx(EVP_MD_CTX_new(), EVP_MD_CTX_free);
-	EVP_DigestInit_ex(evpCtx.get(), EVP_sha256(), nullptr);
-	EVP_DigestUpdate(evpCtx.get(), buffer.data(), buffer.length());
-	hash.resize(32);
-	std::fill(hash.begin(), hash.end(), 0);
-	unsigned int len{0};
-	EVP_DigestFinal_ex(evpCtx.get(), hash.data(), &len);
-
-	std::stringstream out;
-	for (size_t i = 0; i < hash.size(); i++) {
-		out << std::setfill('0') << std::setw(2) << std::hex << int(hash[i]);
-	}
-
-	return out.str();
-}
 
 bool check_cached_search(const std::string& content, const dpp::attachment attach, dpp::cluster& bot, const dpp::message_create_t ev) {
 	std::string hash = sha256(content);
