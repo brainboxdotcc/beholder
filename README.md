@@ -2,8 +2,8 @@
 
 This is a bot powered by the [D++ library](https://dpp.dev) which scans images posted on public channels through OCR and AI Image Recognition and uses pattern matching to determine what is in the images. If they match the admin's defined ruleset, it deletes the message and tells the user off with a customisable message.
 
-![image](https://github.com/brainboxdotcc/beholder/assets/1556794/cfeecfb3-0a4d-4d23-bc1c-55c1c924ff6a)
-![image](https://github.com/brainboxdotcc/beholder/assets/1556794/0bd8e6d3-1bcf-458b-af8f-c3243b916b2a)
+![Screenshot_20231020-193744](https://github.com/brainboxdotcc/beholder/assets/1556794/692c11d1-181f-4d58-a95b-35c8fa831bac)
+![Screenshot_20231020-193722](https://github.com/brainboxdotcc/beholder/assets/1556794/6b96883d-152a-4706-9a72-3301705d1659)
 
 ## Compilation
 
