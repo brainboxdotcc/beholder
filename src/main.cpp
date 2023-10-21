@@ -24,7 +24,6 @@ int main(int argc, char const *argv[])
 	bot.on_ready(&listeners::on_ready);
 
 	db::init(bot);
-	ocr::init(bot);
 
 	/* Start bot */
 	bot.set_websocket_protocol(dpp::ws_etf);

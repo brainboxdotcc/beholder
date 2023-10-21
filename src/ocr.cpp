@@ -1,105 +1,129 @@
 #include <dpp/dpp.h>
 #include <beholder/config.h>
-#include <tesseract/baseapi.h>
-#include <leptonica/allheaders.h>
 #include <beholder/beholder.h>
 #include <beholder/database.h>
 #include "3rdparty/EasyGifReader.h"
 #include "3rdparty/httplib.h"
+#include <ext/stdio_filebuf.h> // NB: Specific to libstdc++
+#include <sys/wait.h>
 
+// Wrapping pipe in a class makes sure they are closed when we leave scope
+class cpipe {
+private:
+	int fd[2];
+public:
+	const inline int read_fd() const {
+		return fd[0];
+	}
+
+	const inline int write_fd() const {
+		return fd[1];
+	}
+
+	cpipe() {
+		if (pipe(fd)) throw std::runtime_error("Failed to create pipe");
+	}
+
+	void close() {
+		::close(fd[0]); ::close(fd[1]);
+	}
+
+	~cpipe() {
+		close();
+	}
+};
+
+class spawn {
+private:
+	cpipe write_pipe;
+	cpipe read_pipe;
+public:
+	int child_pid = -1;
+	std::unique_ptr<__gnu_cxx::stdio_filebuf<char> > write_buf = NULL; 
+	std::unique_ptr<__gnu_cxx::stdio_filebuf<char> > read_buf = NULL;
+	std::ostream stdin;
+	std::istream stdout;
+    
+	spawn(const char* const argv[], bool with_path = false, const char* const envp[] = 0): stdin(NULL), stdout(NULL) {
+		child_pid = fork();
+		if (child_pid == -1) throw std::runtime_error("Failed to start child process"); 
+		if (child_pid == 0) {   // In child process
+			dup2(write_pipe.read_fd(), STDIN_FILENO);
+			dup2(read_pipe.write_fd(), STDOUT_FILENO);
+			write_pipe.close(); read_pipe.close();
+			int result;
+			if (with_path) {
+				if (envp != 0) result = execvpe(argv[0], const_cast<char* const*>(argv), const_cast<char* const*>(envp));
+				else result = execvp(argv[0], const_cast<char* const*>(argv));
+			}
+			else {
+				if (envp != 0) result = execve(argv[0], const_cast<char* const*>(argv), const_cast<char* const*>(envp));
+				else result = execv(argv[0], const_cast<char* const*>(argv));
+			}
+			if (result == -1) {
+				// Note: no point writing to stdout here, it has been redirected
+				std::cerr << "Error: Failed to launch program" << std::endl;
+				exit(1);
+			}
+		} else {
+			close(write_pipe.read_fd());
+			close(read_pipe.write_fd());
+			write_buf = std::unique_ptr<__gnu_cxx::stdio_filebuf<char> >(new __gnu_cxx::stdio_filebuf<char>(write_pipe.write_fd(), std::ios::out|std::ios::binary));
+			read_buf = std::unique_ptr<__gnu_cxx::stdio_filebuf<char> >(new __gnu_cxx::stdio_filebuf<char>(read_pipe.read_fd(), std::ios::in|std::ios::binary));
+			stdin.rdbuf(write_buf.get());
+			stdout.rdbuf(read_buf.get());
+		}
+	}
+    
+	void send_eof() {
+		write_buf->close();
+	}
+    
+	int wait() {
+		int status;
+		waitpid(child_pid, &status, 0);
+		return status;
+	}
+};
 
 namespace ocr {
-
-	tesseract::TessBaseAPI apis[max_concurrency];
-	std::atomic<bool> api_busy[max_concurrency];
-
-	void init(dpp::cluster& bot)
-	{
-		bot.log(dpp::ll_info, "Initialising OCR...");
-		for(int z = 0; z < max_concurrency; ++z) {
-			if (apis[z].Init(NULL, "eng", tesseract::OcrEngineMode::OEM_DEFAULT)) {
-				bot.log(dpp::ll_error, "Could not initialise tesseract #" + std::to_string(z));
-				return;
-			}
-		}
-		bot.log(dpp::ll_info, "OCR initialised.");
-	}
-
-	tesseract::TessBaseAPI& get_tess_api(int& id)
-	{
-		for(int z = 0; z < max_concurrency; ++z) {
-			if (api_busy[z] == false) {
-				api_busy[z] = true;
-				id = z;
-				return apis[z];
-			}
-		}
-		throw std::runtime_error("No free apis, this shouldnt happen!");
-	}
-
-	void free_tess_api(int id)
-	{
-		api_busy[id] = 0;
-	}
 
 	void image(std::string file_content, const dpp::attachment attach, dpp::cluster& bot, const dpp::message_create_t ev) {
 		std::string ocr;
 
-		int id;
-		tesseract::TessBaseAPI& api = get_tess_api(id);
-		dpp::utility::set_thread_name("img-scan/" + std::to_string(id));
+		dpp::utility::set_thread_name("img-scan/" + std::to_string(concurrent_images));
 
-		on_thread_exit([&bot, id]() {
+		on_thread_exit([&bot]() {
+			bot.log(dpp::ll_info, "Scanning thread completed");
 			concurrent_images--;
-			free_tess_api(id);
-			bot.log(dpp::ll_info, "Scanning thread " + std::to_string(id) + " completed");
 		});
 
-		api.SetPageSegMode(tesseract::PageSegMode::PSM_SINGLE_BLOCK);
-		Pix* image = pixReadMem((l_uint8*)file_content.data(), file_content.length());
-		if (!image || !image->data || image->w == 0 || image->h == 0) {
-			bot.log(dpp::ll_error, "Could not read image with pixRead, skipping OCR");
-			if (image) {
-				pixDestroy(&image);
+		/* This loop is not redundant - it ensures the spawn class is scoped */
+		do {
+			const char* const argv[] = {"./tessd", (const char*)0};
+			spawn tessd(argv);
+			tessd.stdin.write(file_content.data(), file_content.length());
+			tessd.send_eof();
+			std::string l;
+			while (std::getline(tessd.stdout, l)) {
+				ocr.append(l + "\n");
 			}
-		} else {
-			/* We may have already checked this value if discord gave it us as attachment metadata.
-			* Just to be sure, and also in case we're processing an image given in a raw url, we check the
-			* width and height again here.
-			*/
-			if (image->w * image->h > 33554432) {
-				bot.log(dpp::ll_info, "Image dimensions of " + std::to_string(image->w) + "x" + std::to_string(image->h) + " too large to be a screenshot");
-				pixDestroy(&image);
-				return;
-			}
-			api.SetImage(image);
-			pixDestroy(&image);
-			const char* output = api.GetUTF8Text();
-			api.Clear();
- 			if (!output) {
-				bot.log(dpp::ll_warning, "GetUTF8Text() returned nullptr!!! Skipping OCR");
-			} else {
-				ocr = output;
-				delete[] output;
-				std::vector<std::string> lines = dpp::utility::tokenize(ocr, "\n");
-				bot.log(dpp::ll_debug, "Read " + std::to_string(lines.size()) + " lines of text from image with total size " + std::to_string(ocr.length()));
-				db::resultset patterns = db::query("SELECT * FROM guild_patterns WHERE guild_id = '?'", { ev.msg.guild_id.str() });
-				bot.log(dpp::ll_debug, "Checking image content against " + std::to_string(patterns.size()) + " patterns...");
-				for (const std::string& line : lines) {
-					if (line.length() && line[0] == 0x0C) {
-						/* Tesseract puts random formdeeds in the output, skip them */
-						continue;
-					}
-					for (const db::row& pattern : patterns) {
-						const std::string& p = pattern.at("pattern");
-						std::string pattern_wild = "*" + p + "*";
-						if (line.length() && p.length() && match(line.c_str(), pattern_wild.c_str())) {
-							delete_message_and_warn(file_content, bot, ev, attach, p, false);
-							std::string hash = sha256(file_content);
-							db::query("INSERT INTO scan_cache (hash, ocr) VALUES('?','?') ON DUPLICATE KEY UPDATE ocr = '?'", { hash, ocr, ocr });
-							return;
-						}
-					}
+			tessd.wait();
+		} while (0);
+
+		std::vector<std::string> lines = dpp::utility::tokenize(ocr, "\n");
+		bot.log(dpp::ll_debug, "Read " + std::to_string(lines.size()) + " lines of text from image with total size " + std::to_string(ocr.length()));
+		db::resultset patterns = db::query("SELECT * FROM guild_patterns WHERE guild_id = '?'", { ev.msg.guild_id.str() });
+		bot.log(dpp::ll_debug, "Checking image content against " + std::to_string(patterns.size()) + " patterns...");
+		for (const std::string& line : lines) {
+			for (const db::row& pattern : patterns) {
+				const std::string& p = pattern.at("pattern");
+				std::string pattern_wild = "*" + p + "*";
+				if (line.length() && p.length() && match(line.c_str(), pattern_wild.c_str())) {
+					delete_message_and_warn(file_content, bot, ev, attach, p, false);
+					std::string hash = sha256(file_content);
+					db::query("INSERT INTO scan_cache (hash, ocr) VALUES('?','?') ON DUPLICATE KEY UPDATE ocr = '?'", { hash, ocr, ocr });
+					return;
 				}
 			}
 		}

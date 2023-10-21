@@ -54,7 +54,6 @@ inline std::string trim(std::string s)
 void download_image(const dpp::attachment attach, dpp::cluster& bot, const dpp::message_create_t ev);
 
 namespace ocr {
-	void init(dpp::cluster& bot);
 	void image(std::string file_content, const dpp::attachment attach, dpp::cluster& bot, const dpp::message_create_t ev);
 }
 

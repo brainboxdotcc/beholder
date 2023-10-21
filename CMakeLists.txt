@@ -11,6 +11,9 @@ aux_source_directory("src/commands" coresrc)
 aux_source_directory("src/3rdparty" coresrc)
 add_executable(${BOT_NAME} ${coresrc})
 
+aux_source_directory("tessd" tessdsrc)
+add_executable("tessd" ${tessdsrc})
+
 string(ASCII 27 Esc)
 
 set(CMAKE_POSITION_INDEPENDENT_CODE ON)
@@ -40,10 +43,14 @@ target_include_directories(${BOT_NAME} PUBLIC
 
 )
 
-target_link_libraries(${BOT_NAME}
-    dl
+target_link_libraries("tessd"
     tesseract
     leptonica
+    ${CMAKE_THREAD_LIBS_INIT}
+)
+
+
+target_link_libraries(${BOT_NAME}
     fmt
     spdlog
     mysqlclient

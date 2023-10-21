@@ -7,6 +7,7 @@
 std::atomic<int> concurrent_images{0};
 
 bool check_cached_search(const std::string& content, const dpp::attachment attach, dpp::cluster& bot, const dpp::message_create_t ev) {
+	return false;
 	std::string hash = sha256(content);
 	db::resultset rs = db::query("SELECT * FROM scan_cache WHERE hash = '?'", { hash });
 	bot.log(dpp::ll_debug, "Checking cache, content hash: " + hash + " file: " + attach.filename + " found: " + std::to_string(rs.size()));
