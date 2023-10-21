@@ -27,7 +27,7 @@ void delete_message_and_warn(const std::string& image, dpp::cluster& bot, const 
 			if (message_title.empty()) {
 				message_title = "Please set a title using " + std::string(premium ? "/set-premium-delete-message" : "/set-delete-message");
 			}
-			message_body = replace_string(message_body, "@user", "<@" + ev.msg.author.id.str() + ">");
+			message_body = replace_string(message_body, "@user", ev.msg.author.get_mention());
 
 			bot.message_create(
 				dpp::message(ev.msg.channel_id, "")
@@ -48,7 +48,8 @@ void delete_message_and_warn(const std::string& image, dpp::cluster& bot, const 
 					dpp::embed()
 					.set_description(
 						"Attachment: `" + attach.filename + "`\nSent by: `" +
-						ev.msg.author.format_username() + "`\nMatched pattern: `" +
+						ev.msg.author.format_username() + "` " + ev.msg.author.get_mention() +
+						"\nMatched pattern: `" +
 						text + "`\n[Image link](" + attach.url +")"
 					)
 					.set_title("Bad Image Deleted")
@@ -56,7 +57,7 @@ void delete_message_and_warn(const std::string& image, dpp::cluster& bot, const 
 					.set_image("attachment://" + attach.filename)
 					.set_url("https://beholder.cc/")
 					.set_thumbnail(bot.me.get_avatar_url())
-					.set_footer("Powered by Beholder", bot.me.get_avatar_url())
+					.set_footer("Powered by Beholder - Message ID " + std::to_string(ev.msg.id), bot.me.get_avatar_url())
 				).add_file(attach.filename, image)
 			);
 		}
