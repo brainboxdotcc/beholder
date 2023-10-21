@@ -31,7 +31,7 @@ bool check_cached_search(const std::string& content, const dpp::attachment attac
 				const std::string& p = pattern.at("pattern");
 				std::string pattern_wild = "*" + p + "*";
 				if (line.length() && p.length() && match(line.c_str(), pattern_wild.c_str())) {
-					delete_message_and_warn(bot, ev, attach, p, false);
+					delete_message_and_warn(content, bot, ev, attach, p, false);
 					return true;
 				}
 			}
@@ -48,7 +48,7 @@ bool check_cached_search(const std::string& content, const dpp::attachment attac
 			answer = json::parse(api);
 		} catch (const std::exception& e) {
 		}
-		find_banned_type(answer, attach, bot, ev);
+		find_banned_type(answer, attach, bot, ev, content);
 		return true;
 	}
 
@@ -100,7 +100,7 @@ void download_image(const dpp::attachment attach, dpp::cluster& bot, const dpp::
 				return;
 			}
 			concurrent_images++;
-			std::thread hard_work(ocr_image, result.body, attach, std::ref(bot), ev);
+			std::thread hard_work(ocr::image, result.body, attach, std::ref(bot), ev);
 			hard_work.detach();
 		});
 	}

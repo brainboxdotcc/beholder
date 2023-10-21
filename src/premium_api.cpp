@@ -3,7 +3,7 @@
 #include <beholder/database.h>
 #include <dpp/json.h>
 
-bool find_banned_type(const json& response, const dpp::attachment attach, dpp::cluster& bot, const dpp::message_create_t ev)
+bool find_banned_type(const json& response, const dpp::attachment attach, dpp::cluster& bot, const dpp::message_create_t ev, const std::string& content)
 {
 	std::string status = response.at("status");
 	if (status != "success") {
@@ -35,7 +35,7 @@ bool find_banned_type(const json& response, const dpp::attachment attach, dpp::c
 			bot.log(dpp::ll_info, "Matched premium filter " + filter_type + " value " + std::to_string(found_value));
 			auto filter_name = db::query("SELECT description FROM premium_filter_model WHERE category = '?'", { filter_type });
 			std::string human_readable = filter_name[0].at("description");
-			delete_message_and_warn(bot, ev, attach, human_readable, true);
+			delete_message_and_warn(content, bot, ev, attach, human_readable, true);
 			return true;
 		}
 	}

@@ -31,6 +31,7 @@ else()
 	find_package(OpenSSL REQUIRED)
 endif()
 
+set(CMAKE_CXX_FLAGS "-g -O0")
 target_compile_definitions(${BOT_NAME} PUBLIC DPP_CORO=ON CPPHTTPLIB_OPENSSL_SUPPORT)
 
 target_include_directories(${BOT_NAME} PUBLIC

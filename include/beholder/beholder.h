@@ -6,7 +6,7 @@
 namespace fs = std::filesystem;
 
 constexpr size_t max_size = 8 * 1024 * 1024;
-constexpr int max_concurrency = 64;
+constexpr int max_concurrency = 12;
 
 namespace colours {
 	constexpr uint32_t bad = 0xff7a7a;
@@ -53,7 +53,10 @@ inline std::string trim(std::string s)
  */
 void download_image(const dpp::attachment attach, dpp::cluster& bot, const dpp::message_create_t ev);
 
-void ocr_image(std::string file_content, const dpp::attachment attach, dpp::cluster& bot, const dpp::message_create_t ev);
+namespace ocr {
+	void init(dpp::cluster& bot);
+	void image(std::string file_content, const dpp::attachment attach, dpp::cluster& bot, const dpp::message_create_t ev);
+}
 
 /**
  * @brief Delete a message and send a warning.
@@ -63,11 +66,11 @@ void ocr_image(std::string file_content, const dpp::attachment attach, dpp::clus
  * @param text What the attachment was flagged for.
  * @param premium prefer premium message
  */
-void delete_message_and_warn(dpp::cluster& bot, const dpp::message_create_t ev, const dpp::attachment attach, const std::string text, bool premium);
+void delete_message_and_warn(const std::string& image, dpp::cluster& bot, const dpp::message_create_t ev, const dpp::attachment attach, const std::string text, bool premium);
 
 std::string replace_string(std::string subject, const std::string& search, const std::string& replace);
 
-bool find_banned_type(const json& response, const dpp::attachment attach, dpp::cluster& bot, const dpp::message_create_t ev);
+bool find_banned_type(const json& response, const dpp::attachment attach, dpp::cluster& bot, const dpp::message_create_t ev, const std::string& content);
 
 std::string sha256(const std::string &buffer);
 

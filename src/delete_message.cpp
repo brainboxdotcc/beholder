@@ -2,9 +2,9 @@
 #include <beholder/beholder.h>
 #include <beholder/database.h>
 
-void delete_message_and_warn(dpp::cluster& bot, const dpp::message_create_t ev, const dpp::attachment attach, const std::string text, bool premium)
+void delete_message_and_warn(const std::string& image, dpp::cluster& bot, const dpp::message_create_t ev, const dpp::attachment attach, const std::string text, bool premium)
 {
-	bot.message_delete(ev.msg.id, ev.msg.channel_id, [&bot, ev, attach, text, premium](const auto& cc) {
+	bot.message_delete(ev.msg.id, ev.msg.channel_id, [&bot, ev, attach, text, premium, image](const auto& cc) {
 
 		if (cc.is_error()) {
 			bot.message_create(dpp::message(ev.msg.channel_id, "Failed to delete this message! Please check bot permissions.").set_reference(ev.msg.id, ev.msg.guild_id, ev.msg.channel_id));
@@ -53,11 +53,11 @@ void delete_message_and_warn(dpp::cluster& bot, const dpp::message_create_t ev, 
 					)
 					.set_title("Bad Image Deleted")
 					.set_color(colours::good)
-					.set_image(attach.url)
+					.set_image("attach://" + attach.filename)
 					.set_url("https://beholder.cc/")
 					.set_thumbnail(bot.me.get_avatar_url())
 					.set_footer("Powered by Beholder", bot.me.get_avatar_url())
-				)
+				).add_file(attach.filename, image)
 			);
 		}
 	});
