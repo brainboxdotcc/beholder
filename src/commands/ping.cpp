@@ -18,7 +18,7 @@ void ping_command::route(const dpp::slashcommand_t &event)
 		.set_url("https://beholder.cc/")
 		.set_title("Beholder - Ping")
 		.set_colour(0x7aff7a)
-		.set_thumbnail(bot->me.get_default_avatar_url())
+		.set_thumbnail(bot->me.get_avatar_url())
 		.set_description(":ping_pong: Ping information:");
 
 	/* Get the rest ping from discord. */
