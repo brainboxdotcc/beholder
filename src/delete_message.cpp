@@ -53,7 +53,7 @@ void delete_message_and_warn(const std::string& image, dpp::cluster& bot, const 
 					)
 					.set_title("Bad Image Deleted")
 					.set_color(colours::good)
-					.set_image("attach://" + attach.filename)
+					.set_image("attachment://" + attach.filename)
 					.set_url("https://beholder.cc/")
 					.set_thumbnail(bot.me.get_avatar_url())
 					.set_footer("Powered by Beholder", bot.me.get_avatar_url())
