@@ -10,6 +10,7 @@
 #include <beholder/commands/patterns.h>
 #include <beholder/commands/premium.h>
 #include <beholder/commands/info.h>
+#include <beholder/commands/ping.h>
 
 namespace listeners {
 
@@ -24,6 +25,7 @@ namespace listeners {
 				register_command<roles_command>(bot),
 				register_command<message_command>(bot),
 				register_command<logchannel_command>(bot),
+				register_command<ping_command>(bot),
 			});
 
 			auto set_presence = [&bot]() {
