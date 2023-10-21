@@ -6,59 +6,112 @@
 #include "3rdparty/httplib.h"
 #include <ext/stdio_filebuf.h> // NB: Specific to libstdc++
 #include <sys/wait.h>
+#include <fmt/format.h>
 
-// Wrapping pipe in a class makes sure they are closed when we leave scope
+/**
+ * @brief RAII representation of a pair of pipe fds
+ */
 class cpipe {
 private:
+	/**
+	 * @brief File descriptors
+	 */
 	int fd[2];
 public:
+	/**
+	 * @brief Get the read side of the pipe fds
+	 * 
+	 * @return const int 
+	 */
 	const inline int read_fd() const {
 		return fd[0];
 	}
 
+	/**
+	 * @brief Get the write side of the pipe fds
+	 * 
+	 * @return const int 
+	 */
 	const inline int write_fd() const {
 		return fd[1];
 	}
 
+	/**
+	 * @brief Construct a new cpipe object
+	 */
 	cpipe() {
-		if (pipe(fd)) throw std::runtime_error("Failed to create pipe");
+		if (pipe(fd)) {
+			throw std::runtime_error("Failed to create pipe");
+		}
 	}
 
+	/**
+	 * @brief Close both file desciptors of the pipe
+	 */
 	void close() {
-		::close(fd[0]); ::close(fd[1]);
+		::close(fd[0]);
+		::close(fd[1]);
 	}
 
+	/**
+	 * @brief Destroy the cpipe object
+	 */
 	~cpipe() {
 		close();
 	}
 };
 
+/**
+ * @brief Allows two way communication with a child process via stdin/stdout
+ */
 class spawn {
 private:
+	/**
+	 * @brief Child stdin pipe
+	 */
 	cpipe write_pipe;
+	/**
+	 * @brief Child stdout pipe
+	 */
 	cpipe read_pipe;
 public:
-	int child_pid = -1;
-	std::unique_ptr<__gnu_cxx::stdio_filebuf<char> > write_buf = NULL; 
-	std::unique_ptr<__gnu_cxx::stdio_filebuf<char> > read_buf = NULL;
+	int child_pid{-1};
+	std::unique_ptr<__gnu_cxx::stdio_filebuf<char> > write_buf{nullptr};
+	std::unique_ptr<__gnu_cxx::stdio_filebuf<char> > read_buf{nullptr};
 	std::ostream stdin;
 	std::istream stdout;
-    
-	spawn(const char* const argv[], bool with_path = false, const char* const envp[] = 0): stdin(NULL), stdout(NULL) {
+
+	/**
+	 * @brief Construct a new spawn object
+	 * 
+	 * @param argv Name and arguments to pass to child program
+	 * @param with_path inherit environment
+	 * @param envp environment to pass to child program
+	 */
+	spawn(const char* const argv[], bool with_path = false, const char* const envp[] = 0): stdin(nullptr), stdout(nullptr) {
 		child_pid = fork();
-		if (child_pid == -1) throw std::runtime_error("Failed to start child process"); 
+		if (child_pid == -1) {
+			throw std::runtime_error("Failed to start child process"); 
+		}
 		if (child_pid == 0) {   // In child process
 			dup2(write_pipe.read_fd(), STDIN_FILENO);
 			dup2(read_pipe.write_fd(), STDOUT_FILENO);
-			write_pipe.close(); read_pipe.close();
+			write_pipe.close();
+			read_pipe.close();
 			int result;
 			if (with_path) {
-				if (envp != 0) result = execvpe(argv[0], const_cast<char* const*>(argv), const_cast<char* const*>(envp));
-				else result = execvp(argv[0], const_cast<char* const*>(argv));
+				if (envp != 0) {
+					result = execvpe(argv[0], const_cast<char* const*>(argv), const_cast<char* const*>(envp));
+				} else {
+					result = execvp(argv[0], const_cast<char* const*>(argv));
+				}
 			}
 			else {
-				if (envp != 0) result = execve(argv[0], const_cast<char* const*>(argv), const_cast<char* const*>(envp));
-				else result = execv(argv[0], const_cast<char* const*>(argv));
+				if (envp != 0) {
+					result = execve(argv[0], const_cast<char* const*>(argv), const_cast<char* const*>(envp));
+				} else {
+					result = execv(argv[0], const_cast<char* const*>(argv));
+				}
 			}
 			if (result == -1) {
 				// Note: no point writing to stdout here, it has been redirected
@@ -74,11 +127,19 @@ public:
 			stdout.rdbuf(read_buf.get());
 		}
 	}
-    
+
+	/**
+	 * @brief Send EOF to stdin on child program
+	 */
 	void send_eof() {
 		write_buf->close();
 	}
     
+	/**
+	 * @brief Wait and reap child process
+	 * 
+	 * @return int return code of child program
+	 */
 	int wait() {
 		int status;
 		waitpid(child_pid, &status, 0);
@@ -99,17 +160,22 @@ namespace ocr {
 		});
 
 		/* This loop is not redundant - it ensures the spawn class is scoped */
-		do {
+		try {
 			const char* const argv[] = {"./tessd", (const char*)0};
 			spawn tessd(argv);
 			tessd.stdin.write(file_content.data(), file_content.length());
 			tessd.send_eof();
 			std::string l;
 			while (std::getline(tessd.stdout, l)) {
-				ocr.append(l + "\n");
+				ocr.append(l).append("\n");
 			}
-			tessd.wait();
-		} while (0);
+			int ret = tessd.wait();
+			if (ret != 0) {
+				bot.log(dpp::ll_error, fmt::format("tessd returned nonzero exit code {}", ret));
+			}
+		} catch (const std::runtime_error& e) {
+			bot.log(dpp::ll_error, e.what());
+		}
 
 		std::vector<std::string> lines = dpp::utility::tokenize(ocr, "\n");
 		bot.log(dpp::ll_debug, "Read " + std::to_string(lines.size()) + " lines of text from image with total size " + std::to_string(ocr.length()));
