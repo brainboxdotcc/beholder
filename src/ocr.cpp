@@ -97,7 +97,6 @@ namespace ocr {
 							delete_message_and_warn(file_content, bot, ev, attach, p, false);
 							std::string hash = sha256(file_content);
 							db::query("INSERT INTO scan_cache (hash, ocr) VALUES('?','?') ON DUPLICATE KEY UPDATE ocr = '?'", { hash, ocr, ocr });
-							bot.log(dpp::ll_error, "done 1");
 							return;
 						}
 					}
@@ -108,11 +107,8 @@ namespace ocr {
 		db::resultset settings = db::query("SELECT premium_subscription FROM guild_config WHERE guild_id = ? AND calls_this_month <= calls_limit", { ev.msg.guild_id.str() });
 		if (settings.size() && settings[0].at("premium_subscription").length()) {
 			try {
-				bot.log(dpp::ll_error, "ezgifreader");
 				EasyGifReader gif_reader = EasyGifReader::openMemory(file_content.data(), file_content.length());
-				bot.log(dpp::ll_error, "ezg 1");
 				int frame_count = gif_reader.frameCount();
-				bot.log(dpp::ll_error, "ezg 2");
 				if (frame_count > 1) {
 					bot.log(dpp::ll_debug, "Detected animated gif with " + std::to_string(frame_count) + " frames, name: " + attach.filename + "; not scanning with IR");
 					std::string hash = sha256(file_content);
@@ -121,7 +117,6 @@ namespace ocr {
 				}
 			} catch (const EasyGifReader::Error& error) {
 				/* Not a gif, this is not a fatal error */
-				bot.log(dpp::ll_error, "not gif");
 			}
 			json& irconf = config::get("ir");
 			std::vector<std::string> fields = irconf["fields"];
