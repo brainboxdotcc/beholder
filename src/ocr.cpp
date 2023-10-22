@@ -195,7 +195,11 @@ namespace ocr {
 		}
 
 		db::resultset settings = db::query("SELECT premium_subscription FROM guild_config WHERE guild_id = ? AND calls_this_month <= calls_limit", { ev.msg.guild_id.str() });
-		if (settings.size() && settings[0].at("premium_subscription").length()) {
+		/* Only images of >= 50 pixels in both dimension are supported by the API. Anything else we dont scan. 
+		 * In the event we dont have the dimensions, scan it anyway.
+		 */
+		if ((attach.width == 0 || attach.width >= 50) && (attach.height == 0 || attach.height >= 50)
+			&& settings.size() && settings[0].at("premium_subscription").length()) {
 			try {
 				EasyGifReader gif_reader = EasyGifReader::openMemory(file_content.data(), file_content.length());
 				int frame_count = gif_reader.frameCount();
