@@ -141,8 +141,11 @@ public:
 	 * @return int return code of child program
 	 */
 	int wait() {
-		int status;
-		waitpid(child_pid, &status, 0);
+		int status{0};
+		if (waitpid(child_pid, &status, 0) == -1) {
+			/* waitpid errored */
+			return -1;
+		}
 		return status;
 	}
 };
