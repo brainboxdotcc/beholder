@@ -40,7 +40,7 @@ int main()
 	alarm(60);
 
 	/* Set process memory limit to 1gb */
-	rlimit64 r{0, 1073741824};
+	const rlimit64 r{1073741824, 1073741824};
 	setrlimit64(RLIMIT_DATA, &r);	// Total memory usage
 	setrlimit64(RLIMIT_RSS, &r);	// RSS memory usage
 	
