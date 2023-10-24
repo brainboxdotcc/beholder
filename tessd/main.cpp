@@ -33,6 +33,17 @@ void tessd_timeout(int sig)
 	tessd::status(tessd::exit_code::timeout);
 }
 
+void set_limit(int type, uint64_t max)
+{
+	rlimit64 r;
+	if (getrlimit64(type, &r) != -1) {
+		if (r.rlim_cur > max || r.rlim_max > max || r.rlim_max == 0) {
+			r.rlim_cur = r.rlim_max = max;
+			setrlimit64(type, &r);
+		}
+	}
+}
+
 int main()
 {
 	/* Program has a hard coded maximum runtime of 1 minute */
@@ -40,9 +51,9 @@ int main()
 	alarm(60);
 
 	/* Set process memory limit to 1gb */
-	const rlimit64 r{1073741824, 1073741824};
-	setrlimit64(RLIMIT_DATA, &r);	// Total memory usage
-	setrlimit64(RLIMIT_RSS, &r);	// RSS memory usage
+	const uint64_t ONE_GIGABYTE = 1073741824;
+	set_limit(RLIMIT_DATA, ONE_GIGABYTE);
+	set_limit(RLIMIT_RSS, ONE_GIGABYTE);
 	
 	/* Tesseract outputs errors to terminal instead of letting us capture them via
 	 * an error code. This is supremely dumb, but we can't do anything with these
