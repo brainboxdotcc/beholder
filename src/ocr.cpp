@@ -141,10 +141,7 @@ public:
 	 */
 	int wait() {
 		int status{0};
-		if (waitpid(child_pid, &status, 0) == -1) {
-			/* waitpid errored */
-			return -1;
-		}
+		waitpid(child_pid, &status, 0);
 		return status;
 	}
 };
