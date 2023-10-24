@@ -41,7 +41,10 @@ target_compile_definitions(${BOT_NAME} PUBLIC DPP_CORO=ON CPPHTTPLIB_OPENSSL_SUP
 target_include_directories(${BOT_NAME} PUBLIC
     ${CMAKE_CURRENT_SOURCE_DIR}/include
     ${DPP_INCLUDE_DIR}
+)
 
+target_include_directories("tessd" PUBLIC
+    ${CMAKE_CURRENT_SOURCE_DIR}/include
 )
 
 target_link_libraries("tessd"

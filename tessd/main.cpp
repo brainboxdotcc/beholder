@@ -2,6 +2,8 @@
 #include <leptonica/allheaders.h>
 #include <iostream>
 #include <array>
+#include <signal.h>
+#include <beholder/tessd.h>
 
 /**
  * @brief Tesseract Daemon
@@ -23,8 +25,17 @@
  * in a similar way to how fastcgi works. This would improve performance if needed.
  */
 
+void tessd_timeout(int sig)
+{
+	tessd::status(tessd::exit_code::timeout);
+}
+
 int main()
 {
+	/* Program has a hard coded maximum runtime of 1 minute */
+	signal(SIGALRM, tessd_timeout);
+	alarm(60);
+
 	/* Tesseract outputs errors to terminal instead of letting us capture them via
 	 * an error code. This is supremely dumb, but we can't do anything with these
 	 * errors and they pollute our OCR output. So, we silence them.
@@ -42,7 +53,7 @@ int main()
 	 */
 	while((len = std::fread(buf.data(), sizeof(buf[0]), buf.size(), stdin)) > 0) {
 		if(std::ferror(stdin) && !std::feof(stdin)) {
-			exit(1);
+			tessd::status(tessd::exit_code::read);
 		}
 		input.insert(input.end(), buf.data(), buf.data() + len);
 	}
@@ -55,7 +66,7 @@ int main()
 	tesseract::TessBaseAPI* api = new tesseract::TessBaseAPI();
 	if (api->Init(NULL, "eng", tesseract::OcrEngineMode::OEM_DEFAULT)) {
 		delete api;
-		exit(2);
+		tessd::status(tessd::exit_code::tess_init);
 	}
 
 	/**
@@ -72,7 +83,7 @@ int main()
 	Pix* image = pixReadMem((l_uint8*)input.data(), input.size());
 	if (!image) {
 		delete api;
-		exit(3);
+		tessd::status(tessd::exit_code::pix_read_mem);
 	}
 
 	/**
@@ -83,7 +94,7 @@ int main()
 	if (image->w * image->h > 33554432) {
 		delete api;
 		pixDestroy(&image);
-		exit(4);
+		tessd::status(tessd::exit_code::image_size);
 	}
 
 	api->SetImage(image);
@@ -101,7 +112,7 @@ int main()
 	 */
 	api->Clear();
 	if (!output) {
-		exit(5);
+		tessd::status(tessd::exit_code::no_output);
 	}
 
 	/**
@@ -114,4 +125,6 @@ int main()
 	 * a std::string? i dont know...
 	 */
 	delete[] output;
+
+	tessd::status(tessd::exit_code::no_error);
 }

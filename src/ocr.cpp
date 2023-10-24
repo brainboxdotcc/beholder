@@ -6,6 +6,7 @@
 #include <fmt/format.h>
 #include <beholder/proc/cpipe.h>
 #include <beholder/proc/spawn.h>
+#include <beholder/tessd.h>
 
 namespace ocr {
 
@@ -23,7 +24,7 @@ namespace ocr {
 
 		/* This loop is not redundant - it ensures the spawn class is scoped */
 		try {
-			const char* const argv[] = {"./tessd", (const char*)0};
+			const char* const argv[] = {"./tessd", nullptr};
 			spawn tessd(argv);
 			bot.log(dpp::ll_info, fmt::format("spawned tessd; pid={}", tessd.get_pid()));
 			tessd.stdin.write(file_content.data(), file_content.length());
@@ -33,34 +34,39 @@ namespace ocr {
 				ocr.append(l).append("\n");
 			}
 			int ret = tessd.wait();
-			if (ret != 0) {
-				bot.log(dpp::ll_error, fmt::format("tessd returned nonzero exit code {}", ret));
+			if (ret > static_cast<int>(tessd::exit_code::no_error) && ret < static_cast<int>(tessd::exit_code::max)) {
+				bot.log(dpp::ll_error, fmt::format("tessd returned error {}: {}", ret, tessd::tessd_error[ret]));
 			}
 		} catch (const std::runtime_error& e) {
 			bot.log(dpp::ll_error, e.what());
 		}
 
-		std::vector<std::string> lines = dpp::utility::tokenize(ocr, "\n");
-		bot.log(dpp::ll_debug, "Read " + std::to_string(lines.size()) + " lines of text from image with total size " + std::to_string(ocr.length()));
-		db::resultset patterns = db::query("SELECT * FROM guild_patterns WHERE guild_id = '?'", { ev.msg.guild_id.str() });
-		bot.log(dpp::ll_debug, "Checking image content against " + std::to_string(patterns.size()) + " patterns...");
-		for (const std::string& line : lines) {
-			for (const db::row& pattern : patterns) {
-				const std::string& p = pattern.at("pattern");
-				std::string pattern_wild = "*" + p + "*";
-				if (line.length() && p.length() && match(line.c_str(), pattern_wild.c_str())) {
-					delete_message_and_warn(file_content, bot, ev, attach, p, false);
-					db::query("INSERT INTO scan_cache (hash, ocr) VALUES('?','?') ON DUPLICATE KEY UPDATE ocr = '?'", { hash, ocr, ocr });
-					return;
+		if (!ocr.empty()) {
+			std::vector<std::string> lines = dpp::utility::tokenize(ocr, "\n");
+			bot.log(dpp::ll_debug, "Read " + std::to_string(lines.size()) + " lines of text from image with total size " + std::to_string(ocr.length()));
+			db::resultset patterns = db::query("SELECT * FROM guild_patterns WHERE guild_id = '?'", { ev.msg.guild_id.str() });
+			bot.log(dpp::ll_debug, "Checking image content against " + std::to_string(patterns.size()) + " patterns...");
+			for (const std::string& line : lines) {
+				for (const db::row& pattern : patterns) {
+					const std::string& p = pattern.at("pattern");
+					std::string pattern_wild = "*" + p + "*";
+					if (line.length() && p.length() && match(line.c_str(), pattern_wild.c_str())) {
+						delete_message_and_warn(file_content, bot, ev, attach, p, false);
+						db::query("INSERT INTO scan_cache (hash, ocr) VALUES('?','?') ON DUPLICATE KEY UPDATE ocr = '?'", { hash, ocr, ocr });
+						return;
+					}
 				}
 			}
+		} else {
+			bot.log(dpp::ll_debug, "No OCR content in image");
 		}
 
 		db::resultset settings = db::query("SELECT premium_subscription FROM guild_config WHERE guild_id = ? AND calls_this_month <= calls_limit", { ev.msg.guild_id.str() });
-		/* Only images of >= 50 pixels in both dimension are supported by the API. Anything else we dont scan. 
+		/* Only images of >= 50 pixels in both dimensions and smaller than 12mb are supported by the API. Anything else we dont scan. 
 		 * In the event we dont have the dimensions, scan it anyway.
 		 */
-		if ((attach.width == 0 || attach.width >= 50) && (attach.height == 0 || attach.height >= 50) && settings.size() && settings[0].at("premium_subscription").length()) {
+		if (attach.size < 1024 * 1024 * 12 &&
+			(attach.width == 0 || attach.width >= 50) && (attach.height == 0 || attach.height >= 50) && settings.size() && settings[0].at("premium_subscription").length()) {
 			/* Animated gifs require a control structure only available in GIF89a, GIF87a is fine and anything that is
 			 * neither is not a GIF file.
 			 * By the way, it's pronounced GIF, as in GOLF, not JIF, as in JUMP! 🤣
