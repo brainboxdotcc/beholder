@@ -2,7 +2,6 @@
 #include <beholder/config.h>
 #include <beholder/beholder.h>
 #include <beholder/database.h>
-#include "3rdparty/EasyGifReader.h"
 #include "3rdparty/httplib.h"
 #include <ext/stdio_filebuf.h> // NB: Specific to libstdc++
 #include <sys/wait.h>
@@ -203,17 +202,19 @@ namespace ocr {
 		 */
 		if ((attach.width == 0 || attach.width >= 50) && (attach.height == 0 || attach.height >= 50)
 			&& settings.size() && settings[0].at("premium_subscription").length()) {
-			try {
-				EasyGifReader gif_reader = EasyGifReader::openMemory(file_content.data(), file_content.length());
-				int frame_count = gif_reader.frameCount();
-				if (frame_count > 1) {
-					bot.log(dpp::ll_debug, "Detected animated gif with " + std::to_string(frame_count) + " frames, name: " + attach.filename + "; not scanning with IR");
-					std::string hash = sha256(file_content);
-					db::query("INSERT INTO scan_cache (hash, ocr) VALUES('?','?') ON DUPLICATE KEY UPDATE ocr = '?'", { hash, ocr, ocr });
-					return;
+			/* Animated gifs require a control structure only available in GIF89a */
+			if (file_content[0] == 'G' && file_content[1] == 'I' && file_content[2] == 'F' && file_content[3] == '8' && file_content[4] == '9' && file_content[5] == 'a') {
+				/* If control structure is found, sequence 21 F9 04, we dont pass the gif to the API as it is likely animated
+				 * This is a much faster, more lightweight check than using a GIF library.
+				 */
+				for (size_t x = 0; x < file_content.length() - 3; ++x) {
+					if (file_content[x] == 0x21 && file_content[x + 1] == 0xF9 && file_content[x + 2] == 0x04) {
+						bot.log(dpp::ll_debug, "Detected animated gif, name: " + attach.filename + "; not scanning with IR");
+						std::string hash = sha256(file_content);
+						db::query("INSERT INTO scan_cache (hash, ocr) VALUES('?','?') ON DUPLICATE KEY UPDATE ocr = '?'", { hash, ocr, ocr });
+						return;
+					}
 				}
-			} catch (const EasyGifReader::Error& error) {
-				/* Not a gif, this is not a fatal error */
 			}
 			json& irconf = config::get("ir");
 			std::vector<std::string> fields = irconf["fields"];
