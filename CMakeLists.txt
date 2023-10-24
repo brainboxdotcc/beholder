@@ -9,6 +9,7 @@ project(${BOT_NAME})
 aux_source_directory("src" coresrc)
 aux_source_directory("src/commands" coresrc)
 aux_source_directory("src/3rdparty" coresrc)
+aux_source_directory("src/proc" coresrc)
 add_executable(${BOT_NAME} ${coresrc})
 
 aux_source_directory("tessd" tessdsrc)
@@ -56,7 +57,6 @@ target_link_libraries(${BOT_NAME}
     mysqlclient
     crypto
     ssl
-    gif
     ${CMAKE_THREAD_LIBS_INIT}
     ${DPP_LIBRARIES}
 )

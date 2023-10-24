@@ -3,148 +3,9 @@
 #include <beholder/beholder.h>
 #include <beholder/database.h>
 #include "3rdparty/httplib.h"
-#include <ext/stdio_filebuf.h> // NB: Specific to libstdc++
-#include <sys/wait.h>
 #include <fmt/format.h>
-
-/**
- * @brief RAII representation of a pair of pipe fds
- */
-class cpipe {
-private:
-	/**
-	 * @brief File descriptors
-	 */
-	int fd[2];
-public:
-	/**
-	 * @brief Get the read side of the pipe fds
-	 * 
-	 * @return const int 
-	 */
-	const inline int read_fd() const {
-		return fd[0];
-	}
-
-	/**
-	 * @brief Get the write side of the pipe fds
-	 * 
-	 * @return const int 
-	 */
-	const inline int write_fd() const {
-		return fd[1];
-	}
-
-	/**
-	 * @brief Construct a new cpipe object
-	 */
-	cpipe() {
-		if (pipe(fd)) {
-			throw std::runtime_error("Failed to create pipe");
-		}
-	}
-
-	/**
-	 * @brief Close both file desciptors of the pipe
-	 */
-	void close() {
-		::close(fd[0]);
-		::close(fd[1]);
-	}
-
-	/**
-	 * @brief Destroy the cpipe object
-	 */
-	~cpipe() {
-		close();
-	}
-};
-
-/**
- * @brief Allows two way communication with a child process via stdin/stdout
- */
-class spawn {
-private:
-	/**
-	 * @brief Child stdin pipe
-	 */
-	cpipe write_pipe;
-	/**
-	 * @brief Child stdout pipe
-	 */
-	cpipe read_pipe;
-public:
-	int child_pid{-1};
-	std::unique_ptr<__gnu_cxx::stdio_filebuf<char> > write_buf{nullptr};
-	std::unique_ptr<__gnu_cxx::stdio_filebuf<char> > read_buf{nullptr};
-	std::ostream stdin;
-	std::istream stdout;
-
-	/**
-	 * @brief Construct a new spawn object
-	 * 
-	 * @param argv Name and arguments to pass to child program
-	 * @param with_path inherit environment
-	 * @param envp environment to pass to child program
-	 */
-	spawn(const char* const argv[], bool with_path = false, const char* const envp[] = 0): stdin(nullptr), stdout(nullptr) {
-		child_pid = fork();
-		if (child_pid == -1) {
-			throw std::runtime_error("Failed to start child process"); 
-		}
-		if (child_pid == 0) {   // In child process
-			dup2(write_pipe.read_fd(), STDIN_FILENO);
-			dup2(read_pipe.write_fd(), STDOUT_FILENO);
-			write_pipe.close();
-			read_pipe.close();
-			int result;
-			if (with_path) {
-				if (envp != 0) {
-					result = execvpe(argv[0], const_cast<char* const*>(argv), const_cast<char* const*>(envp));
-				} else {
-					result = execvp(argv[0], const_cast<char* const*>(argv));
-				}
-			}
-			else {
-				if (envp != 0) {
-					result = execve(argv[0], const_cast<char* const*>(argv), const_cast<char* const*>(envp));
-				} else {
-					result = execv(argv[0], const_cast<char* const*>(argv));
-				}
-			}
-			if (result == -1) {
-				// Note: no point writing to stdout here, it has been redirected
-				std::cerr << "Error: Failed to launch program" << std::endl;
-				exit(1);
-			}
-		} else {
-			close(write_pipe.read_fd());
-			close(read_pipe.write_fd());
-			write_buf = std::unique_ptr<__gnu_cxx::stdio_filebuf<char> >(new __gnu_cxx::stdio_filebuf<char>(write_pipe.write_fd(), std::ios::out|std::ios::binary));
-			read_buf = std::unique_ptr<__gnu_cxx::stdio_filebuf<char> >(new __gnu_cxx::stdio_filebuf<char>(read_pipe.read_fd(), std::ios::in|std::ios::binary));
-			stdin.rdbuf(write_buf.get());
-			stdout.rdbuf(read_buf.get());
-		}
-	}
-
-	/**
-	 * @brief Send EOF to stdin on child program
-	 */
-	void send_eof() {
-		write_buf->close();
-	}
-    
-	/**
-	 * @brief Wait and reap child process
-	 * 
-	 * @return int return code of child program
-	 */
-	int wait() {
-		int status{0};
-		waitpid(child_pid, &status, 0);
-		return status;
-	}
-};
+#include <beholder/proc/cpipe.h>
+#include <beholder/proc/spawn.h>
 
 namespace ocr {
 
@@ -158,10 +19,13 @@ namespace ocr {
 			concurrent_images--;
 		});
 
+		std::string hash = sha256(file_content);
+
 		/* This loop is not redundant - it ensures the spawn class is scoped */
 		try {
 			const char* const argv[] = {"./tessd", (const char*)0};
 			spawn tessd(argv);
+			bot.log(dpp::ll_info, fmt::format("spawned tessd; pid={}", tessd.get_pid()));
 			tessd.stdin.write(file_content.data(), file_content.length());
 			tessd.send_eof();
 			std::string l;
@@ -186,7 +50,6 @@ namespace ocr {
 				std::string pattern_wild = "*" + p + "*";
 				if (line.length() && p.length() && match(line.c_str(), pattern_wild.c_str())) {
 					delete_message_and_warn(file_content, bot, ev, attach, p, false);
-					std::string hash = sha256(file_content);
 					db::query("INSERT INTO scan_cache (hash, ocr) VALUES('?','?') ON DUPLICATE KEY UPDATE ocr = '?'", { hash, ocr, ocr });
 					return;
 				}
@@ -197,17 +60,19 @@ namespace ocr {
 		/* Only images of >= 50 pixels in both dimension are supported by the API. Anything else we dont scan. 
 		 * In the event we dont have the dimensions, scan it anyway.
 		 */
-		if ((attach.width == 0 || attach.width >= 50) && (attach.height == 0 || attach.height >= 50)
-			&& settings.size() && settings[0].at("premium_subscription").length()) {
-			/* Animated gifs require a control structure only available in GIF89a */
-			if (file_content[0] == 'G' && file_content[1] == 'I' && file_content[2] == 'F' && file_content[3] == '8' && file_content[4] == '9' && file_content[5] == 'a') {
+		if ((attach.width == 0 || attach.width >= 50) && (attach.height == 0 || attach.height >= 50) && settings.size() && settings[0].at("premium_subscription").length()) {
+			/* Animated gifs require a control structure only available in GIF89a, GIF87a is fine and anything that is
+			 * neither is not a GIF file.
+			 * By the way, it's pronounced GIF, as in GOLF, not JIF, as in JUMP! 🤣
+			 */
+			uint8_t* filebits = reinterpret_cast<uint8_t*>(file_content.data());
+			if (file_content.length() >= 6 && filebits[0] == 'G' && filebits[1] == 'I' && filebits[2] == 'F' && filebits[3] == '8' && filebits[4] == '9' && filebits[5] == 'a') {
 				/* If control structure is found, sequence 21 F9 04, we dont pass the gif to the API as it is likely animated
 				 * This is a much faster, more lightweight check than using a GIF library.
 				 */
 				for (size_t x = 0; x < file_content.length() - 3; ++x) {
-					if (file_content[x] == 0x21 && file_content[x + 1] == 0xF9 && file_content[x + 2] == 0x04) {
+					if (filebits[x] == 0x21 && filebits[x + 1] == 0xF9 && filebits[x + 2] == 0x04) {
 						bot.log(dpp::ll_debug, "Detected animated gif, name: " + attach.filename + "; not scanning with IR");
-						std::string hash = sha256(file_content);
 						db::query("INSERT INTO scan_cache (hash, ocr) VALUES('?','?') ON DUPLICATE KEY UPDATE ocr = '?'", { hash, ocr, ocr });
 						return;
 					}
@@ -226,11 +91,8 @@ namespace ocr {
 			db::query("UPDATE guild_config SET calls_this_month = calls_this_month + 1 WHERE guild_id = ?", {ev.msg.guild_id.str() });
 
 			/* Build httplib client */
-			bot.log(dpp::ll_debug, "Host: " + endpoint + " url: " + url);
 			httplib::Client cli(endpoint.c_str());
 			cli.enable_server_certificate_verification(false);
-			std::string rv;
-			int code = 0;
 			auto res = cli.Get(url.c_str());
 			if (res) {
 				url = endpoint + url;
@@ -241,20 +103,16 @@ namespace ocr {
 					} catch (const std::exception& e) {
 					}
 					find_banned_type(answer, attach, bot, ev, file_content);
-					std::string hash = sha256(file_content);
 					db::query("INSERT INTO scan_cache (hash, ocr, api) VALUES('?','?','?') ON DUPLICATE KEY UPDATE ocr = '?', api = '?'", { hash, ocr, res->body, ocr, res->body });
 				} else {
 					bot.log(dpp::ll_debug, "API Error: '" + res->body + "' status: " + std::to_string(res->status));
-					std::string hash = sha256(file_content);
 					db::query("INSERT INTO scan_cache (hash, ocr) VALUES('?','?') ON DUPLICATE KEY UPDATE ocr = '?'", { hash, ocr, ocr });
 				}
 			} else {
-				bot.log(dpp::ll_debug, "API Error(2) " + res->body + " " + std::to_string(res->status));
-				std::string hash = sha256(file_content);
+				bot.log(dpp::ll_debug, "API Error; failed to connect");
 				db::query("INSERT INTO scan_cache (hash, ocr) VALUES('?','?') ON DUPLICATE KEY UPDATE ocr = '?'", { hash, ocr, ocr });
 			}
 		} else {
-			std::string hash = sha256(file_content);
 			db::query("INSERT INTO scan_cache (hash, ocr) VALUES('?','?') ON DUPLICATE KEY UPDATE ocr = '?'", { hash, ocr, ocr });
 		}
 	}
