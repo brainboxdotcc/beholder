@@ -3,6 +3,9 @@
 #include <iostream>
 #include <array>
 #include <signal.h>
+#include <sys/time.h>
+#include <sys/resource.h>
+#include <sched.h>
 #include <beholder/tessd.h>
 
 /**
@@ -36,6 +39,11 @@ int main()
 	signal(SIGALRM, tessd_timeout);
 	alarm(60);
 
+	/* Set process memory limit to 1gb */
+	rlimit64 r{0, 1073741824};
+	setrlimit64(RLIMIT_DATA, &r);	// Total memory usage
+	setrlimit64(RLIMIT_RSS, &r);	// RSS memory usage
+	
 	/* Tesseract outputs errors to terminal instead of letting us capture them via
 	 * an error code. This is supremely dumb, but we can't do anything with these
 	 * errors and they pollute our OCR output. So, we silence them.
