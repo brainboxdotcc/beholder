@@ -34,8 +34,8 @@ namespace ocr {
 				ocr.append(l).append("\n");
 			}
 			int ret = tessd.wait();
-			if (ret > static_cast<int>(tessd::exit_code::no_error) && ret < static_cast<int>(tessd::exit_code::max)) {
-				bot.log(dpp::ll_error, fmt::format("tessd returned error {}: {}", ret, tessd::tessd_error[ret]));
+			if (ret > static_cast<int>(tessd::exit_code::no_error) - 1 && ret < static_cast<int>(tessd::exit_code::max)) {
+				bot.log(dpp::ll_error, fmt::format("tessd status {}: {}", ret, tessd::tessd_error[ret]));
 			}
 		} catch (const std::runtime_error& e) {
 			bot.log(dpp::ll_error, e.what());

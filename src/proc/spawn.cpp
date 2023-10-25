@@ -3,6 +3,7 @@
 #include <iostream>
 #include <stdexcept>
 #include <string.h>
+#include <beholder/tessd.h>
 
 namespace {
 
@@ -35,7 +36,13 @@ namespace {
 	}
 }
 
+void spawn::sig_chld(int sig)
+{
+	signal(SIGCHLD, spawn::sig_chld);
+}
+
 spawn::spawn(const char* const argv[], const char* const envp[]): stdin(nullptr), stdout(nullptr) {
+	spawn::sig_chld(SIGCHLD);
 	child_pid = fork();
 	if (child_pid == -1) {
 		throw_libc_error(errno);
@@ -52,8 +59,7 @@ spawn::spawn(const char* const argv[], const char* const envp[]): stdin(nullptr)
 		}
 		catch (const std::runtime_error& e) {
 			/* Note: no point writing to stdout here, it has been redirected */
-			std::cerr << "Error: Failed to launch program: " << e.what() << std::endl;
-			exit(1);
+			tessd::status(tessd::exit_code::exec_fail);
 		}
 	} else {
 		close(write_pipe.read_fd());
@@ -75,7 +81,10 @@ pid_t spawn::get_pid() const {
 
 int spawn::wait() {
 	int status{0};
-	waitpid(child_pid, &status, 0);
-	return status;
+	if (waitpid(child_pid, &status, 0) != -1) {
+		return status;
+	} else {
+		return static_cast<int>(tessd::exit_code::waitpid);
+	}
 }
 

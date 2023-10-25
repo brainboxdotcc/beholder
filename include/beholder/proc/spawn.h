@@ -16,6 +16,17 @@ private:
 	 * @brief Child stdout pipe
 	 */
 	cpipe read_pipe;
+
+	/**
+	 * @brief Required by wait()
+	 * Captures the SIGCHLD signal, which if we do not
+	 * have a handler for, we cannot receive the exit code for
+	 * the child process.
+	 * 
+	 * @param sig 
+	 */
+	static void sig_chld(int sig);
+
 public:
 	pid_t child_pid{-1};
 	std::unique_ptr<__gnu_cxx::stdio_filebuf<char> > write_buf{nullptr};
@@ -43,7 +54,7 @@ public:
 	 * @return pid_t child PID, or -1 if no child process running
 	 */
 	pid_t get_pid() const;
-    
+  
 	/**
 	 * @brief Wait and reap child process
 	 * 

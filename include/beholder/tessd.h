@@ -10,17 +10,22 @@ namespace tessd {
 		image_size =	4,
 		no_output =	5,
 		timeout =	6,
-		max = 		7,
+		waitpid = 	7,
+		exec_fail =	8,
+		max = 		9,
 	};
 
-	const char* tessd_error[] = {
+	inline const char* tessd_error[static_cast<int>(exit_code::max)] = {
 		"No error",
 		"Error reading from STDIN",
 		"Error initialising Tesseract",
 		"Error reading image",
 		"Image dimensions too large",
 		"No OCR output",
-		"Program timeout",
+		"Program timeout"
+		"waitpid() on tessd failed",
+		"exec() failed to launch tessd",
+		"", // Marks the end of the array!
 	};
 
 	inline void status(exit_code e) {
