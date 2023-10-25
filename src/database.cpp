@@ -90,10 +90,10 @@ namespace db {
 		 * To prevent corruption of results, put a lock guard on queries.
 		 */
 		std::lock_guard<std::mutex> db_lock(db_mutex);
-
 		std::vector<std::string> escaped_parameters;
-
 		resultset rv;
+
+		_error.clear();
 
 		/**
 		 * Escape all parameters properly from a vector of std::variant
