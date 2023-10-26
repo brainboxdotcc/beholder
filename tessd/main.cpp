@@ -130,6 +130,7 @@ int main()
 	 * Destroying the api object isnt enough. RAII, whats that? herp derp.
 	 */
 	api->Clear();
+	delete api;
 	if (!output) {
 		tessd::status(tessd::exit_code::no_output);
 	}
