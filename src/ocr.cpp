@@ -111,11 +111,12 @@ namespace ocr {
 					find_banned_type(answer, attach, bot, ev, file_content);
 					db::query("INSERT INTO scan_cache (hash, ocr, api) VALUES('?','?','?') ON DUPLICATE KEY UPDATE ocr = '?', api = '?'", { hash, ocr, res->body, ocr, res->body });
 				} else {
-					bot.log(dpp::ll_debug, "API Error: '" + res->body + "' status: " + std::to_string(res->status));
+					bot.log(dpp::ll_warning, "API Error: '" + res->body + "' status: " + std::to_string(res->status));
 					db::query("INSERT INTO scan_cache (hash, ocr) VALUES('?','?') ON DUPLICATE KEY UPDATE ocr = '?'", { hash, ocr, ocr });
 				}
 			} else {
-				bot.log(dpp::ll_debug, "API Error; failed to connect");
+				auto err = res.error();
+				bot.log(dpp::ll_warning, fmt::format("API Error: {}", httplib::to_string(err)));
 				db::query("INSERT INTO scan_cache (hash, ocr) VALUES('?','?') ON DUPLICATE KEY UPDATE ocr = '?'", { hash, ocr, ocr });
 			}
 		} else {
