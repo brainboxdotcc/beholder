@@ -49,6 +49,45 @@ namespace listeners {
 		route_command(event);
 	}
 
+	void sarcastic_ping(const dpp::message_create_t &ev) {
+		std::vector<std::string> replies{
+			"@user stop poking me!",
+			"@user that tickles!",
+			"Yes, @user?",
+			"What, @user?",
+			"@user, yes, im here, hello!",
+			"I'm a bot, @user, I dont do idle conversation",
+			"@user, can't you see i have a job to do?",
+			"@user HAIIIII <a:kekeke:959959620430995557>",
+			"I am a bot, and i'm watching your images.",
+			"@user, do you have a moment to hear about Brain, our lord and saviour?",
+			"@user you're sus.",
+			"@user perhaps you want `/info`.",
+			"@user I was asleep. Thanks for waking me.",
+			"DND, currently yeeting your message in another channel",
+			"@user, i was going to leave you on read but i didnt want to hurt your feelings",
+			"Your command?",
+			"I hear you.",
+			"Your will?",
+			"@user I don't have time for games!",
+			"@user do not try my patience!",
+			"How may I help?",
+			"You must construct additional pylons.",
+			"I am sworn to ~~carry your burdens~~ watch your chat",
+			"Developer todo: *Insert witty bot response before release*",
+			"https://images-ext-1.discordapp.net/external/cNinAGjzNIwya0KX099qCZl-sAfo8-tkjCmZhiJaCew/https/media.tenor.com/I0R6wPzYDiMAAAPo/buzz-lightyear-that-seems-to-be-no-sign-of-intelligent-life-anywhere.mp4",
+		};
+		std::srand(time(NULL));
+		std::vector<std::string>::iterator rand_iter = replies.begin();
+		std::advance(rand_iter, std::rand() % replies.size());
+		std::string response = replace_string(*rand_iter, "@user", ev.msg.author.get_mention());
+		ev.from->creator->message_create(
+			dpp::message(ev.msg.channel_id, response)
+				.set_allowed_mentions(true, false, false, true, {}, {})
+				.set_reference(ev.msg.id, ev.msg.guild_id, ev.msg.channel_id, false)
+		);
+	}
+
 	void on_message_create(const dpp::message_create_t &event) {
 		auto guild_member = event.msg.member;
 		bool should_bypass = false;
@@ -56,6 +95,13 @@ namespace listeners {
 		/* If the author is a bot, stop the event (no checking). */
 		if (event.msg.author.is_bot()) {
 			return;
+		}
+
+		for (const auto& ping : event.msg.mentions) {
+			if (ping.first.id == event.from->creator->me.id) {
+				sarcastic_ping(event);
+				break;
+			}
 		}
 
 		/* Loop through all bypass roles in database */
