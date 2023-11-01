@@ -124,11 +124,58 @@ namespace listeners {
 		/* Split the message by spaces. */
 		std::vector<std::string> parts = dpp::utility::tokenize(event.msg.content, " ");
 
+		/* Check for images in the embeds of the message, if any. Found urls and
+		 * scannable content are appended into the parts vector for scanning as text content.
+		 */
+		if (event.msg.embeds.size() > 0) {
+			for (const dpp::embed& embed : event.msg.embeds) {
+				if (!embed.url.empty()) {
+					parts.emplace_back(embed.url);
+				}
+				if (embed.thumbnail.has_value() && !embed.thumbnail->proxy_url.empty()) {
+					parts.emplace_back(embed.thumbnail->proxy_url);
+				}
+				if (embed.footer.has_value() && !embed.footer->icon_url.empty()) {
+					parts.emplace_back(embed.footer->icon_url);
+				}
+				if (embed.image.has_value() && !embed.image->proxy_url.empty()) {
+					parts.emplace_back(embed.image->proxy_url);
+				}
+				if (embed.video.has_value() && !embed.video->proxy_url.empty()) {
+					parts.emplace_back(embed.video->proxy_url);
+				}
+				if (embed.author.has_value()) {
+					if (!embed.author->proxy_icon_url.empty()) {
+						parts.emplace_back(embed.author->proxy_icon_url);
+					}
+					if (!embed.author->url.empty()) {
+						parts.emplace_back(embed.author->url);
+					}
+				}
+				auto spaced = dpp::utility::tokenize(embed.description, " ");
+				if (!spaced.empty()) {
+					parts.insert(parts.end(), spaced.begin(), spaced.end());
+				}
+				for (const dpp::embed_field& field : embed.fields) {
+					auto spaced = dpp::utility::tokenize(field.value, " ");
+					if (!spaced.empty()) {
+						parts.insert(parts.end(), spaced.begin(), spaced.end());
+					}
+				}
+			}
+		}
+
 		/* Check each word in the message looking for URLs */
 		for (std::string& possibly_url : parts) {
 			size_t size = possibly_url.length();
-			if ((size >= 9 && dpp::lowercase(possibly_url.substr(0, 8)) == "https://") ||
-			(size >= 8 && dpp::lowercase(possibly_url.substr(0, 7)) == "http://")) {
+			possibly_url = dpp::lowercase(possibly_url);
+			/* Check for markdown cloaked urls: [descr potentially with spaces](url) */
+			auto cloaked_url_pos = possibly_url.find("](http");
+			if (cloaked_url_pos != std::string::npos && possibly_url.length() - cloaked_url_pos - 3 > 7) {
+				possibly_url = possibly_url.substr(cloaked_url_pos + 2, possibly_url.length() - cloaked_url_pos - 3);
+			}
+			if ((size >= 9 && possibly_url.substr(0, 8) == "https://") ||
+			(size >= 8 && possibly_url.substr(0, 7) == "http://")) {
 				dpp::attachment attach((dpp::message*)&event.msg);
 				attach.url = possibly_url;
 				/* Strip off query parameters */
