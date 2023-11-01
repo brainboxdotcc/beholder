@@ -75,9 +75,11 @@ namespace listeners {
 			"You must construct additional pylons.",
 			"I am sworn to ~~carry your burdens~~ watch your chat",
 			"Developer todo: *Insert witty bot response before release*",
-			"https://images-ext-1.discordapp.net/external/cNinAGjzNIwya0KX099qCZl-sAfo8-tkjCmZhiJaCew/https/media.tenor.com/I0R6wPzYDiMAAAPo/buzz-lightyear-that-seems-to-be-no-sign-of-intelligent-life-anywhere.mp4",
+			"https://media.tenor.com/I0R6wPzYDiMAAAAd/buzz-lightyear-that-seems-to-be-no-sign-of-intelligent-life-anywhere.gif",
+			"https://media.tenor.com/Xp-gkoRvnIEAAAAd/dumb-wizard-of-ozz.gif",
+			"hello @user?",
+			"For more information on what this bot is, visit <https://beholder.cc>",
 		};
-		std::srand(time(NULL));
 		std::vector<std::string>::iterator rand_iter = replies.begin();
 		std::advance(rand_iter, std::rand() % replies.size());
 		std::string response = replace_string(*rand_iter, "@user", ev.msg.author.get_mention());
@@ -161,6 +163,15 @@ namespace listeners {
 					if (!spaced.empty()) {
 						parts.insert(parts.end(), spaced.begin(), spaced.end());
 					}
+				}
+			}
+		}
+
+		/* Extract sticker urls, if any stickers are in the image */
+		if (event.msg.stickers.size() > 0) {
+			for (const dpp::sticker& sticker : event.msg.stickers) {
+				if (!sticker.id.empty()) {
+					parts.emplace_back(sticker.get_url());
 				}
 			}
 		}
