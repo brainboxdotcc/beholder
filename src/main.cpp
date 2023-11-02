@@ -22,6 +22,7 @@ int main(int argc, char const *argv[])
 	bot.on_log(&logger::log);
 	bot.on_slashcommand(&listeners::on_slashcommand);
 	bot.on_message_create(&listeners::on_message_create);
+	bot.on_message_update(&listeners::on_message_update);
 	bot.on_ready(&listeners::on_ready);
 
 	db::init(bot);

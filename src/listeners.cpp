@@ -90,6 +90,15 @@ namespace listeners {
 		);
 	}
 
+	void on_message_update(const dpp::message_update_t &event) {
+		/* Message update is mapped to message creation.
+		 * The effect is the same, the message is simply re-scanned.
+		 */
+		dpp::message_create_t c(event.from, event.raw_event);
+		c.msg = event.msg;
+		on_message_create(c);
+	}
+
 	void on_message_create(const dpp::message_create_t &event) {
 		auto guild_member = event.msg.member;
 		bool should_bypass = false;
