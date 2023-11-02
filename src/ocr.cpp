@@ -89,19 +89,27 @@ namespace ocr {
 			std::string endpoint = irconf["host"];
 			db::resultset m = db::query("SELECT GROUP_CONCAT(DISTINCT model) AS selected FROM premium_filter_model");
 			std::string active_models = m[0].at("selected");
-			std::string url = irconf["path"].get<std::string>()
-				+ "?" + fields[0] + "=" + dpp::utility::url_encode(active_models)
-				+ "&" + fields[1] + "=" + dpp::utility::url_encode(irconf["credentials"]["username"])
-				+ "&" + fields[2] + "=" + dpp::utility::url_encode(irconf["credentials"]["password"])
-				+ "&" + fields[3] + "=" + dpp::utility::url_encode(attach.url);
 			db::query("UPDATE guild_config SET calls_this_month = calls_this_month + 1 WHERE guild_id = ?", {ev.msg.guild_id.str() });
 
-			/* Build httplib client */
+			/* Make API request, upload the image, don't get the API to download it.
+			 * This is more expensive for us in terms of bandwidth, but we are going
+			 * to be able to check more images more of the time this way. We already
+			 * have the image data in memory and can upload it straight to the API.
+			 * Asking the API endpoint to download it via URL risks them being rate
+			 * limited or blocked as they will be making many hundreds of requests
+			 * per minute and we will not.
+			 */
 			httplib::Client cli(endpoint.c_str());
 			cli.enable_server_certificate_verification(false);
-			auto res = cli.Get(url.c_str());
+			httplib::MultipartFormDataItems items = {
+				{ fields[4], file_content, attach.filename, "application/octet-stream" },
+				{ fields[1], irconf["credentials"]["username"], "", "" },
+				{ fields[2], irconf["credentials"]["password"], "", "" },
+				{ fields[0], active_models, "", "" },
+			};
+			auto res = cli.Post(irconf["path"].get<std::string>().c_str(), items);
+
 			if (res) {
-				url = endpoint + url;
 				if (res->status < 400) {
 					json answer;
 					try {
