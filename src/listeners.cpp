@@ -146,6 +146,9 @@ namespace listeners {
 				if (embed.thumbnail.has_value() && !embed.thumbnail->proxy_url.empty()) {
 					parts.emplace_back(embed.thumbnail->proxy_url);
 				}
+				if (embed.thumbnail.has_value() && !embed.thumbnail->url.empty()) {
+					parts.emplace_back(embed.thumbnail->url);
+				}
 				if (embed.footer.has_value() && !embed.footer->icon_url.empty()) {
 					parts.emplace_back(embed.footer->icon_url);
 				}
@@ -154,6 +157,12 @@ namespace listeners {
 				}
 				if (embed.video.has_value() && !embed.video->proxy_url.empty()) {
 					parts.emplace_back(embed.video->proxy_url);
+				}
+				if (embed.image.has_value() && !embed.image->url.empty()) {
+					parts.emplace_back(embed.image->url);
+				}
+				if (embed.video.has_value() && !embed.video->url.empty()) {
+					parts.emplace_back(embed.video->url);
 				}
 				if (embed.author.has_value()) {
 					if (!embed.author->proxy_icon_url.empty()) {
@@ -193,6 +202,10 @@ namespace listeners {
 			auto cloaked_url_pos = possibly_url.find("](http");
 			if (cloaked_url_pos != std::string::npos && possibly_url.length() - cloaked_url_pos - 3 > 7) {
 				possibly_url = possibly_url.substr(cloaked_url_pos + 2, possibly_url.length() - cloaked_url_pos - 3);
+			}
+			if (possibly_url.substr(0, 19) == "https://images-ext-" && possibly_url.find("cdn.discordapp.com") != std::string::npos) {
+				/* Proxy url to something on discord cdn, skip as we would just get a 401 */
+				continue;
 			}
 			if ((size >= 9 && possibly_url.substr(0, 8) == "https://") ||
 			(size >= 8 && possibly_url.substr(0, 7) == "http://")) {
