@@ -143,20 +143,11 @@ namespace listeners {
 				if (!embed.url.empty()) {
 					parts.emplace_back(embed.url);
 				}
-				if (embed.thumbnail.has_value() && !embed.thumbnail->proxy_url.empty()) {
-					parts.emplace_back(embed.thumbnail->proxy_url);
-				}
 				if (embed.thumbnail.has_value() && !embed.thumbnail->url.empty()) {
 					parts.emplace_back(embed.thumbnail->url);
 				}
 				if (embed.footer.has_value() && !embed.footer->icon_url.empty()) {
 					parts.emplace_back(embed.footer->icon_url);
-				}
-				if (embed.image.has_value() && !embed.image->proxy_url.empty()) {
-					parts.emplace_back(embed.image->proxy_url);
-				}
-				if (embed.video.has_value() && !embed.video->proxy_url.empty()) {
-					parts.emplace_back(embed.video->proxy_url);
 				}
 				if (embed.image.has_value() && !embed.image->url.empty()) {
 					parts.emplace_back(embed.image->url);
@@ -165,8 +156,8 @@ namespace listeners {
 					parts.emplace_back(embed.video->url);
 				}
 				if (embed.author.has_value()) {
-					if (!embed.author->proxy_icon_url.empty()) {
-						parts.emplace_back(embed.author->proxy_icon_url);
+					if (!embed.author->icon_url.empty()) {
+						parts.emplace_back(embed.author->icon_url);
 					}
 					if (!embed.author->url.empty()) {
 						parts.emplace_back(embed.author->url);

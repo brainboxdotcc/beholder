@@ -6,9 +6,17 @@
 #include <beholder/database.h>
 #include <beholder/logger.h>
 #include <beholder/config.h>
+#include <sentry.h>
 
 int main(int argc, char const *argv[])
 {
+	sentry_options_t *options = sentry_options_new();
+	sentry_options_set_dsn(options, "https://cc46f07973d10ae8f3ce55105f284558@o4506174813700096.ingest.sentry.io/4506174895816704");
+	sentry_options_set_database_path(options, ".sentry-native");
+	sentry_options_set_release(options, "my-project-name@2.3.12");
+	sentry_options_set_debug(options, 1);
+	sentry_init(options);
+
 	std::srand(time(NULL));
 	config::init("../config.json");
 	logger::init(config::get("log"));
@@ -30,4 +38,6 @@ int main(int argc, char const *argv[])
 	/* Start bot */
 	bot.set_websocket_protocol(dpp::ws_etf);
 	bot.start(dpp::st_wait);
+
+	sentry_close();
 }
