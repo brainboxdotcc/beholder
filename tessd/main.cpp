@@ -7,6 +7,8 @@
 #include <sys/resource.h>
 #include <sched.h>
 #include <beholder/tessd.h>
+#include <beholder/config.h>
+#include <beholder/sentry.h>
 
 /**
  * @brief Tesseract Daemon
@@ -47,6 +49,8 @@ void set_limit(int type, uint64_t max)
 int main()
 {
 	/* Program has a hard coded maximum runtime of 1 minute */
+	config::init("../config.json");
+	sentry::init();
 	signal(SIGALRM, tessd_timeout);
 	alarm(60);
 
@@ -146,5 +150,6 @@ int main()
 	 */
 	delete[] output;
 
+	sentry::close();
 	tessd::status(tessd::exit_code::no_error);
 }

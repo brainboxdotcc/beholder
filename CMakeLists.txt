@@ -15,7 +15,7 @@ add_executable(${BOT_NAME} ${coresrc})
 target_precompile_headers(${BOT_NAME} INTERFACE "src/3rdparty/httplib.h")
 
 aux_source_directory("tessd" tessdsrc)
-add_executable("tessd" ${tessdsrc})
+add_executable("tessd" ${tessdsrc} src/config.cpp src/sentry.cpp)
 
 string(ASCII 27 Esc)
 
@@ -52,6 +52,8 @@ target_include_directories("tessd" PUBLIC
 target_link_libraries("tessd"
     tesseract
     leptonica
+    sentry
+    fmt
     ${CMAKE_THREAD_LIBS_INIT}
 )
 
