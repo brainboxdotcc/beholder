@@ -142,10 +142,10 @@ namespace db {
 			}
 		}
 
-		void* qt = sentry::register_transaction_type(querystring, "db.sql.query");
+		void* qt = sentry::register_transaction_type(format, "db.sql.query");
 		void *qlog = sentry::start_transaction(qt);
+
 		int result = mysql_query(&connection, querystring.c_str());
-		sentry::end_transaction(qlog);
 
 		/**
 		 * On successful query collate results into a std::map
@@ -180,6 +180,9 @@ namespace db {
 			_error = mysql_error(&connection);
 			std::cerr << "SQL error: " << _error << " on query: " << querystring << std::endl;
 		}
+
+		sentry::end_transaction(qlog);
+
 		return rv;
 	}
 };
