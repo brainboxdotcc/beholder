@@ -69,3 +69,7 @@ target_link_libraries(${BOT_NAME}
     ${DPP_LIBRARIES}
 )
 
+add_custom_command(TARGET ${PROJECT_NAME} POST_BUILD
+   WORKING_DIRECTORY ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}
+   COMMAND "../sentry-symbols.sh"
+)

@@ -103,14 +103,18 @@ namespace listeners {
 		auto guild_member = event.msg.member;
 		bool should_bypass = false;
 
-		/* If the author is a bot, stop the event (no checking). */
-		if (event.msg.author.is_bot()) {
+		/* If the author is a bot or webhook, stop the event (no checking). */
+		if (event.msg.author.is_bot() || event.msg.author.id.empty()) {
 			return;
 		}
 
+		/* Check if we are mentioned in the message, if so send a sarcastic reply */
 		for (const auto& ping : event.msg.mentions) {
 			if (ping.first.id == event.from->creator->me.id) {
 				sarcastic_ping(event);
+				/* Don't return, just break, because people might still try
+				 * to put dodgy images in the message too
+				 */
 				break;
 			}
 		}
@@ -193,10 +197,6 @@ namespace listeners {
 			auto cloaked_url_pos = possibly_url.find("](http");
 			if (cloaked_url_pos != std::string::npos && possibly_url.length() - cloaked_url_pos - 3 > 7) {
 				possibly_url = possibly_url.substr(cloaked_url_pos + 2, possibly_url.length() - cloaked_url_pos - 3);
-			}
-			if (possibly_url.substr(0, 19) == "https://images-ext-" && possibly_url.find("cdn.discordapp.com") != std::string::npos) {
-				/* Proxy url to something on discord cdn, skip as we would just get a 401 */
-				continue;
 			}
 			if ((size >= 9 && possibly_url.substr(0, 8) == "https://") ||
 			(size >= 8 && possibly_url.substr(0, 7) == "http://")) {

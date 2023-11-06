@@ -21,6 +21,7 @@
 #include <beholder/beholder.h>
 #include <beholder/database.h>
 #include <beholder/config.h>
+#include <beholder/sentry.h>
 #include <mysql/mysql.h>
 #include <fmt/format.h>
 #include <iostream>
@@ -91,6 +92,7 @@ namespace db {
 		 */
 		std::lock_guard<std::mutex> db_lock(db_mutex);
 		std::vector<std::string> escaped_parameters;
+		std::vector<std::string> unescaped_parameters;
 		resultset rv;
 
 		_error.clear();
@@ -100,7 +102,7 @@ namespace db {
 		 */
 		for (const auto& param : parameters) {
 			/* Worst case scenario: Every character becomes two, plus NULL terminator*/
-			std::visit([parameters, &escaped_parameters](const auto &p) {
+			std::visit([parameters, &escaped_parameters, &unescaped_parameters](const auto &p) {
 				std::ostringstream v;
 				v << p;
 				std::string s_param(v.str());
@@ -108,6 +110,7 @@ namespace db {
 				/* Some moron thought it was a great idea for mysql_real_escape_string to return an unsigned but use -1 to indicate error.
 				 * This stupid cast below is the actual recommended error check from the reference manual. Seriously stupid.
 				 */
+				unescaped_parameters.push_back(out);
 				if (mysql_real_escape_string(&connection, out, s_param.c_str(), s_param.length()) != (unsigned long)-1) {
 					escaped_parameters.push_back(out);
 				}
@@ -139,7 +142,10 @@ namespace db {
 			}
 		}
 
+		void* qt = sentry::register_transaction_type(querystring, "db.sql.query");
+		void *qlog = sentry::start_transaction(qt);
 		int result = mysql_query(&connection, querystring.c_str());
+		sentry::end_transaction(qlog);
 
 		/**
 		 * On successful query collate results into a std::map

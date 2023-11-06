@@ -51,6 +51,9 @@ int main()
 	/* Program has a hard coded maximum runtime of 1 minute */
 	config::init("../config.json");
 	sentry::init();
+	void* read_image = sentry::register_transaction_type("OCR", "read image");
+	void* init_tesseract = sentry::register_transaction_type("OCR", "init tesseract");
+	void* do_tesseract = sentry::register_transaction_type("OCR", "run tesseract");
 	signal(SIGALRM, tessd_timeout);
 	alarm(60);
 
@@ -74,23 +77,27 @@ int main()
 	/**
 	 * Buffered read from stdin to vector of char
 	 */
+	void* tx_read_image = sentry::start_transaction(read_image);
 	while((len = std::fread(buf.data(), sizeof(buf[0]), buf.size(), stdin)) > 0) {
 		if(std::ferror(stdin) && !std::feof(stdin)) {
 			tessd::status(tessd::exit_code::read);
 		}
 		input.insert(input.end(), buf.data(), buf.data() + len);
 	}
+	sentry::end_transaction(tx_read_image);
 	
 	/**
 	 * RAII isnt a thing in tesseract land. We can't just initialise the object
 	 * by `new`, we have to separately call an Init method. One of many
 	 * anti-patterns.
 	 */
+	void* tx_init_tesseract = sentry::start_transaction(init_tesseract);
 	tesseract::TessBaseAPI* api = new tesseract::TessBaseAPI();
 	if (api->Init(NULL, "eng", tesseract::OcrEngineMode::OEM_DEFAULT)) {
 		delete api;
 		tessd::status(tessd::exit_code::tess_init);
 	}
+	sentry::end_transaction(tx_init_tesseract);
 
 	/**
 	 * This tells tesseract we want the whole image to be treated as one
@@ -98,6 +105,7 @@ int main()
 	 */
 	api->SetPageSegMode(tesseract::PageSegMode::PSM_SINGLE_BLOCK);
 
+	void* tx_do_tesseract = sentry::start_transaction(do_tesseract);
 	/**
 	 * We have to use leptonica to load images into tesseract.
 	 * Leptonica is ugly and pretty undocumented. Here be hairy
@@ -106,6 +114,8 @@ int main()
 	Pix* image = pixReadMem((l_uint8*)input.data(), input.size());
 	if (!image) {
 		delete api;
+		sentry::end_transaction(tx_do_tesseract);
+		sentry::close();
 		tessd::status(tessd::exit_code::pix_read_mem);
 	}
 
@@ -117,6 +127,8 @@ int main()
 	if (image->w * image->h > 33554432) {
 		delete api;
 		pixDestroy(&image);
+		sentry::end_transaction(tx_do_tesseract);
+		sentry::close();
 		tessd::status(tessd::exit_code::image_size);
 	}
 
@@ -136,6 +148,8 @@ int main()
 	api->Clear();
 	delete api;
 	if (!output) {
+		sentry::end_transaction(tx_do_tesseract);
+		sentry::close();
 		tessd::status(tessd::exit_code::no_output);
 	}
 
@@ -143,6 +157,12 @@ int main()
 	 * Parent process picks up this output
 	 */
 	std::cout << output << std::endl;
+
+	/**
+	 * Send transaction record to sentry.io
+	 */
+	sentry::end_transaction(tx_do_tesseract);
+	sentry::close();
 
 	/**
 	 * We have to delete[] this content. Why couldnt it just return
