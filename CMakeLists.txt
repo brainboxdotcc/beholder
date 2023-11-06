@@ -1,6 +1,7 @@
-cmake_minimum_required (VERSION 3.6)
+cmake_minimum_required (VERSION 3.16)
 
-include(cmake/FindMYSQL.cmake)
+set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} "${CMAKE_SOURCE_DIR}/cmake/")
+find_package(MySQL)
 
 set(CMAKE_MODULE_PATH ${CMAKE_CURRENT_SOURCE_DIR}/cmake)
 set(BOT_NAME "beholder")

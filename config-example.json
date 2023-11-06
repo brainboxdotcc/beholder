@@ -1,8 +1,7 @@
 {
 	"token": "token goes here", 
 	"log": "log path goes here",
-	"sentry_subdomain": "sentry subdomain",
-	"sentry_id": "sentry id",
+	"sentry_dsn": "sentry dsn",
 	"ir": {
 		"host": "image recognition endpoint",
 		"path": "image recognition endpoint",

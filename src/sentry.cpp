@@ -6,7 +6,7 @@
 
 namespace sentry {
 	bool init() {
-		std::string dsn = fmt::format("https://{}.ingest.sentry.io/{}", config::get("sentry_subdomain"), config::get("sentry_id"));
+		std::string dsn = config::get("sentry_dsn");
 		sentry_options_t *options = sentry_options_new();
 		sentry_options_set_dsn(options, dsn.c_str());
 		sentry_options_set_database_path(options, ".sentry-native");
@@ -27,6 +27,10 @@ namespace sentry {
 
 	void* span(void* tx, const std::string& query) {
 		return sentry_transaction_start_child((sentry_transaction_t*)tx, "db.sql.query", query.c_str());
+	}
+
+	void register_error(const std::string& error) {
+
 	}
 
 	void end_span(void* span) {
