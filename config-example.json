@@ -1,6 +1,7 @@
 {
 	"token": "token goes here", 
 	"log": "log path goes here",
+	"environment": "environment name",
 	"sentry_dsn": "sentry dsn",
 	"ir": {
 		"host": "image recognition endpoint",

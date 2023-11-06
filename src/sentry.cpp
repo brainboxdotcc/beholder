@@ -7,12 +7,13 @@
 namespace sentry {
 	bool init() {
 		std::string dsn = config::get("sentry_dsn");
+		std::string env = config::get("environment");
 		sentry_options_t *options = sentry_options_new();
 		sentry_options_set_dsn(options, dsn.c_str());
 		sentry_options_set_database_path(options, ".sentry-native");
-		sentry_options_set_release(options, "beholder@1.0.0");
+		sentry_options_set_release(options, BEHOLDER_VERSION);
 		sentry_options_set_debug(options, 0);
-		sentry_options_set_environment(options, "development");
+		sentry_options_set_environment(options, env.c_str());
 		sentry_options_set_traces_sample_rate(options, 0.2);
 
 		return !sentry_init(options);

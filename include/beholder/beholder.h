@@ -5,6 +5,8 @@
 
 namespace fs = std::filesystem;
 
+#define BEHOLDER_VERSION "beholder@1.0.0"
+
 constexpr size_t max_size = 8 * 1024 * 1024;
 constexpr int max_concurrency = 12;
 
