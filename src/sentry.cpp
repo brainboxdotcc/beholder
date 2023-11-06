@@ -37,6 +37,10 @@ namespace sentry {
 		sentry_span_finish((sentry_span_t*)span);
 	}
 
+	std::string version() {
+		return sentry_sdk_version();
+	}
+
 	void* start_transaction(void* tx_ctx) {
 		if (!tx_ctx) {
 			return nullptr;

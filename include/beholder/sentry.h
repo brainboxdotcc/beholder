@@ -24,4 +24,6 @@ namespace sentry {
 
 	void end_span(void* span);
 
+	std::string version();
+
 };

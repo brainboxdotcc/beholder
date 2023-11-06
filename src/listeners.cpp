@@ -3,6 +3,7 @@
 #include <beholder/database.h>
 #include <beholder/beholder.h>
 #include <beholder/command.h>
+#include <beholder/sentry.h>
 
 #include <beholder/commands/logchannel.h>
 #include <beholder/commands/roles.h>
@@ -46,7 +47,9 @@ namespace listeners {
 
 
 	void on_slashcommand(const dpp::slashcommand_t &event) {
+		void *slashlog = sentry::start_transaction(sentry::register_transaction_type("/" + event.command.get_command_name(), "event.slashcommand"));
 		route_command(event);
+		sentry::end_transaction(slashlog);
 	}
 
 	void sarcastic_ping(const dpp::message_create_t &ev) {
