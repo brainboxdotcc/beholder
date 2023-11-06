@@ -20,4 +20,8 @@ namespace sentry {
 
 	void end_transaction(void* opaque_transaction);
 
+	void* span(void* tx, const std::string& query);
+
+	void end_span(void* span);
+
 };

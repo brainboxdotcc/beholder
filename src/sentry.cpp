@@ -11,7 +11,7 @@ namespace sentry {
 		sentry_options_set_dsn(options, dsn.c_str());
 		sentry_options_set_database_path(options, ".sentry-native");
 		sentry_options_set_release(options, "beholder@1.0.0");
-		sentry_options_set_debug(options, 0);
+		sentry_options_set_debug(options, 1);
 		sentry_options_set_environment(options, "development");
 		sentry_options_set_traces_sample_rate(options, 1);
 
@@ -23,6 +23,14 @@ namespace sentry {
     			transaction_name.c_str(),
     			transaction_operation.c_str()
 		);
+	}
+
+	void* span(void* tx, const std::string& query) {
+		return sentry_span_start_child((sentry_span_t*)tx, "db.sql.query", query.c_str());
+	}
+
+	void end_span(void* span) {
+		sentry_span_finish((sentry_span_t*)span);
 	}
 
 	void* start_transaction(void* tx_ctx) {
