@@ -61,9 +61,10 @@ bool check_cached_search(const std::string& content, const dpp::attachment attac
 }
 
 void download_image(const dpp::attachment attach, dpp::cluster& bot, const dpp::message_create_t ev) {
-	if (attach.url.find(".webp") != std::string::npos || attach.url.find(".jpg") != std::string::npos ||
-		attach.url.find(".jpeg") != std::string::npos || attach.url.find(".png") != std::string::npos ||
-		attach.url.find(".gif") != std::string::npos) {
+	std::string lower_url = dpp::lowercase(attach.url);
+	if (lower_url.find(".webp") != std::string::npos || lower_url.find(".jpg") != std::string::npos ||
+		lower_url.find(".jpeg") != std::string::npos || lower_url.find(".png") != std::string::npos ||
+		lower_url.find(".gif") != std::string::npos) {
 		bot.log(dpp::ll_info, "Image: " + attach.url);
 		if (concurrent_images > max_concurrency) {
 			bot.log(dpp::ll_info, "Too many concurrent images, skipped");

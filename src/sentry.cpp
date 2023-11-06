@@ -26,7 +26,7 @@ namespace sentry {
 	}
 
 	void* span(void* tx, const std::string& query) {
-		return sentry_span_start_child((sentry_span_t*)tx, "db.sql.query", query.c_str());
+		return sentry_transaction_start_child((sentry_transaction_t*)tx, "db.sql.query", query.c_str());
 	}
 
 	void end_span(void* span) {
