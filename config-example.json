@@ -3,6 +3,7 @@
 	"log": "log path goes here",
 	"environment": "environment name",
 	"sentry_dsn": "sentry dsn",
+	"sentry_sample_rate": 0.2,
 	"ir": {
 		"host": "image recognition endpoint",
 		"path": "image recognition endpoint",
