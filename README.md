@@ -64,6 +64,9 @@ Insert data into database for your guild and patterns
 * cmake
 * fmtlib
 * spdlog
+* CxxUrl
+* sentry-native
+* libcrypto/libssl
 * [D++](https://github.com/brainboxdotcc/dpp) v10.0.27 or later
 
 Start the bot:
