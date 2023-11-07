@@ -13,6 +13,9 @@ aux_source_directory("src/3rdparty" coresrc)
 aux_source_directory("src/proc" coresrc)
 add_executable(${BOT_NAME} ${coresrc})
 
+
+find_package(CxxUrl REQUIRED)
+
 target_precompile_headers(${BOT_NAME} INTERFACE "src/3rdparty/httplib.h")
 
 aux_source_directory("tessd" tessdsrc)
@@ -66,6 +69,7 @@ target_link_libraries(${BOT_NAME}
     crypto
     ssl
     sentry
+    CxxUrl
     ${CMAKE_THREAD_LIBS_INIT}
     ${DPP_LIBRARIES}
 )

@@ -3,6 +3,7 @@
 #include <beholder/database.h>
 #include <dpp/json.h>
 #include <beholder/whitelist.h>
+#include <CxxUrl/url.hpp>
 
 std::atomic<int> concurrent_images{0};
 
@@ -62,10 +63,16 @@ bool check_cached_search(const std::string& content, const dpp::attachment attac
 
 void download_image(const dpp::attachment attach, dpp::cluster& bot, const dpp::message_create_t ev) {
 	std::string lower_url = dpp::lowercase(attach.url);
-	if (lower_url.find(".webp") != std::string::npos || lower_url.find(".jpg") != std::string::npos ||
-		lower_url.find(".jpeg") != std::string::npos || lower_url.find(".png") != std::string::npos ||
-		lower_url.find(".gif") != std::string::npos) {
-		bot.log(dpp::ll_info, "Image: " + attach.url);
+	std::string path;
+	try {
+		Url u(lower_url);
+		path = u.path();
+	}
+	catch (const std::exception&) {
+		return;
+	}
+	if (path.ends_with(".webp") || path.ends_with(".jpg") || path.ends_with(".jpeg") || path.ends_with(".png") || path.ends_with(".gif")) {
+		bot.log(dpp::ll_info, "Download image: " + path);
 		if (concurrent_images > max_concurrency) {
 			bot.log(dpp::ll_info, "Too many concurrent images, skipped");
 			return;

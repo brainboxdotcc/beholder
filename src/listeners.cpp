@@ -1,4 +1,5 @@
 #include <fmt/format.h>
+#include <CxxUrl/url.hpp>
 #include <beholder/listeners.h>
 #include <beholder/database.h>
 #include <beholder/beholder.h>
@@ -205,12 +206,13 @@ namespace listeners {
 			(size >= 8 && possibly_url.substr(0, 7) == "http://")) {
 				dpp::attachment attach((dpp::message*)&event.msg);
 				attach.url = possibly_url;
-				/* Strip off query parameters */
-				auto pos = possibly_url.find('?');
-				if (pos != std::string::npos) {
-					possibly_url = possibly_url.substr(0, pos);
+				try {
+					Url u(possibly_url);
+					attach.filename = fs::path(u.path()).filename();
 				}
-				attach.filename = fs::path(possibly_url).filename();
+				catch (const std::exception&) {
+					attach.filename = fs::path(possibly_url).filename();
+				}
 				download_image(attach, *event.from->creator, event);
 			}
 		}
