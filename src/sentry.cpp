@@ -5,6 +5,7 @@
 #include <sentry.h>
 
 namespace sentry {
+
 	bool init() {
 		std::string dsn = config::get("sentry_dsn");
 		std::string env = config::get("environment");

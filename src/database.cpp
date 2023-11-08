@@ -142,9 +142,6 @@ namespace db {
 			}
 		}
 
-		void *qlog = sentry::start_transaction(sentry::register_transaction_type("PID#" + std::to_string(getpid()), "db"));
-		void* qspan = sentry::span(qlog, querystring);
-
 		int result = mysql_query(&connection, querystring.c_str());
 
 		/**
@@ -180,9 +177,6 @@ namespace db {
 			_error = mysql_error(&connection);
 			std::cerr << "SQL error: " << _error << " on query: " << querystring << std::endl;
 		}
-
-		sentry::end_span(qspan);
-		sentry::end_transaction(qlog);
 
 		return rv;
 	}
