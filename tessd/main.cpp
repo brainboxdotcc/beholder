@@ -164,7 +164,6 @@ int main()
 	 * Send transaction record to sentry.io
 	 */
 	sentry::end_transaction(tx_do_tesseract);
-	sentry::close();
 
 	/**
 	 * We have to delete[] this content. Why couldnt it just return
