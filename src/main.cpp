@@ -12,7 +12,6 @@ int main(int argc, char const *argv[])
 {
 	std::srand(time(NULL));
 	config::init("../config.json");
-	sentry::init();
 	logger::init(config::get("log"));
 
 	dpp::cluster bot(
@@ -20,6 +19,8 @@ int main(int argc, char const *argv[])
 		dpp::i_guild_messages | dpp::i_message_content | dpp::i_guild_members,
 		1, 0, 1, true, dpp::cache_policy::cpol_none
 	);
+
+	sentry::init(bot);
 
 	bot.on_log(&logger::log);
 	bot.on_slashcommand(&listeners::on_slashcommand);
@@ -35,3 +36,4 @@ int main(int argc, char const *argv[])
 
 	sentry::close();
 }
+

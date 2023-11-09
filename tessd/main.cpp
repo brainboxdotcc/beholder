@@ -1,3 +1,4 @@
+#include <dpp/dpp.h>
 #include <tesseract/baseapi.h>
 #include <leptonica/allheaders.h>
 #include <iostream>
@@ -50,7 +51,8 @@ int main()
 {
 	/* Program has a hard coded maximum runtime of 1 minute */
 	config::init("../config.json");
-	sentry::init();
+	dpp::cluster bot("");
+	sentry::init(bot);
 	void* read_image = sentry::register_transaction_type("OCR", "read image");
 	void* init_tesseract = sentry::register_transaction_type("OCR", "init tesseract");
 	void* do_tesseract = sentry::register_transaction_type("OCR", "run tesseract");
