@@ -104,7 +104,7 @@ namespace sentry {
 	void custom_transport(sentry_envelope_t *envelope, void *state) {
 		size_t size_out{0};
 		char* env_str = sentry_envelope_serialize(envelope, &size_out);
-		add_send_queue(std::string(env_str, size_out));
+		add_send_queue(env_str);
 		sentry_string_free(env_str);
 		sentry_envelope_free(envelope);
 	}
