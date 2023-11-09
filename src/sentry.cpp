@@ -106,7 +106,11 @@ namespace sentry {
 		char* env_str = sentry_envelope_serialize(envelope, &size_out);
 		add_send_queue(env_str);
 		sentry_string_free(env_str);
-		sentry_envelope_free(envelope);
+		/**
+		 *  Not needed: freed explicitly right after our call in transports/sentry_function_transport.c
+		 * of the sentry-native lib
+		 */
+		//sentry_envelope_free(envelope);
 	}
 
 	bool init(dpp::cluster& creator) {
