@@ -19,13 +19,17 @@ find_package(CxxUrl REQUIRED)
 target_precompile_headers(${BOT_NAME} INTERFACE "src/3rdparty/httplib.h")
 
 aux_source_directory("tessd" tessdsrc)
-add_executable("tessd" ${tessdsrc} src/config.cpp src/sentry.cpp)
+add_executable("tessd" ${tessdsrc} src/config.cpp src/3rdparty/httplib.cpp src/sentry.cpp)
 
 string(ASCII 27 Esc)
 
 set(CMAKE_POSITION_INDEPENDENT_CODE ON)
 
 set_target_properties(${BOT_NAME} PROPERTIES
+    CXX_STANDARD 20
+    CXX_STANDARD_REQUIRED ON
+)
+set_target_properties("tessd" PROPERTIES
     CXX_STANDARD 20
     CXX_STANDARD_REQUIRED ON
 )
@@ -43,6 +47,7 @@ endif()
 
 set(CMAKE_CXX_FLAGS "-g -O0")
 target_compile_definitions(${BOT_NAME} PUBLIC DPP_CORO=ON CPPHTTPLIB_OPENSSL_SUPPORT)
+target_compile_definitions("tessd" PUBLIC DPP_CORO=ON CPPHTTPLIB_OPENSSL_SUPPORT)
 
 target_include_directories(${BOT_NAME} PUBLIC
     ${CMAKE_CURRENT_SOURCE_DIR}/include
@@ -51,13 +56,18 @@ target_include_directories(${BOT_NAME} PUBLIC
 
 target_include_directories("tessd" PUBLIC
     ${CMAKE_CURRENT_SOURCE_DIR}/include
+    ${DPP_INCLUDE_DIR}
 )
 
 target_link_libraries("tessd"
     tesseract
     leptonica
     sentry
+    ssl
+    crypto
     fmt
+    CxxUrl
+    ${DPP_LIBRARIES}
     ${CMAKE_THREAD_LIBS_INIT}
 )
 
@@ -78,3 +88,4 @@ add_custom_command(TARGET ${PROJECT_NAME} POST_BUILD
    WORKING_DIRECTORY ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}
    COMMAND "../sentry-symbols.sh"
 )
+

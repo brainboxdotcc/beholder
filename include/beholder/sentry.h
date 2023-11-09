@@ -4,12 +4,14 @@ namespace sentry {
 	/**
 	 * @brief Initialise sentry.io
 	 * Expects there to be a sentry.io project of type 'native'
+	 *
+	 * @param creator Creating dpp cluster
 	 * @return true on success
 	 * 
 	 * @note Reads configuration file to find the DSN and the
 	 * environment name to use.
 	 */
-	bool init();
+	bool init(dpp::cluster& creator);
 
 	/**
 	 * @brief Closes the sentry.io connection
