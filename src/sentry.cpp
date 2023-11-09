@@ -79,12 +79,14 @@ namespace sentry {
 			cli.enable_server_certificate_verification(false);
 			auto res = cli.Post("/api" + dsn.path() + "/envelope/?sentry_key=" + dsn.user_info() + "&sentry_version=7&sentry_client=sentry.native/7.77.0", send_envelope, "application/json");
 			if (res) {
-				/* Handle rate limits */
-				int remaining = atoi(res->get_header_value("X-Sentry-Rate-Limit-Remaining").c_str());
-				time_t next = atoll(res->get_header_value("X-Sentry-Rate-Limit-Reset").c_str()) - time(nullptr);
-				if (remaining == 0) {
-					bot->log(dpp::ll_debug, "Sentry rate limit reached, delivery thread sleeping " + std::to_string(next) + " seconds...");
-					std::this_thread::sleep_for(std::chrono::seconds(next));
+				/* Handle rate limits if headers provided */
+				if (!res->get_header_value("X-Sentry-Rate-Limit-Remaining").empty() && !res->get_header_value("X-Sentry-Rate-Limit-Reset").empty()) {
+					int remaining = atoi(res->get_header_value("X-Sentry-Rate-Limit-Remaining").c_str());
+					time_t next = atoll(res->get_header_value("X-Sentry-Rate-Limit-Reset").c_str()) - time(nullptr);
+					if (remaining == 0) {
+						bot->log(dpp::ll_debug, "Sentry rate limit reached, delivery thread sleeping " + std::to_string(next) + " seconds...");
+						std::this_thread::sleep_for(std::chrono::seconds(next));
+					}
 				}
 				if (res->status >= 400) {
 					bot->log(dpp::ll_warning, "Sentry post error: '" + res->body + "' status: " + std::to_string(res->status));
