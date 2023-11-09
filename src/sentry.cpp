@@ -69,7 +69,9 @@ namespace sentry {
 	 */
 	void do_sentry_send() {
 		std::deque<std::string> queue = drain_send_queue();
-		bot->log(dpp::ll_debug, "Sentry: " + std::to_string(queue.size()) + " envelopes to send...");
+		if (queue.size()) {
+			bot->log(dpp::ll_debug, "Sentry: " + std::to_string(queue.size()) + " envelopes to send...");
+		}
 		for(const std::string& send_envelope : queue) {
 			Url dsn(config::get("sentry_dsn"));
 			httplib::Client cli(dsn.scheme() + "://" + dsn.host());
