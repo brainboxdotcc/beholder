@@ -33,5 +33,7 @@ int main(int argc, char const *argv[])
 	/* Start bot */
 	bot.set_websocket_protocol(dpp::ws_etf);
 	bot.start(dpp::st_wait);
+
+	sentry::close();
 }
 
