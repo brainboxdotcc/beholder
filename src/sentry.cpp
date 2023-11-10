@@ -77,6 +77,9 @@ namespace sentry {
 	void do_sentry_send() {
 		std::deque<std::string> queue = drain_send_queue();
 		for(const std::string& send_envelope : queue) {
+			if (send_envelope.empty()) {
+				continue;
+			}
 			Url dsn(config::get("sentry_dsn"));
 			httplib::Client cli(dsn.scheme() + "://" + dsn.host());
 			cli.enable_server_certificate_verification(false);
@@ -92,11 +95,11 @@ namespace sentry {
 					}
 				}
 				if (res->status >= 400) {
-					bot->log(dpp::ll_warning, "Sentry post error: '" + res->body + "' status: " + std::to_string(res->status));
+					bot->log(dpp::ll_debug, "Sentry post error: '" + res->body + "' status: " + std::to_string(res->status) + " event envelope: " + send_envelope);
 				}
 			} else {
 				auto err = res.error();
-				bot->log(dpp::ll_warning, "Sentry post error: " + httplib::to_string(err));
+				bot->log(dpp::ll_debug, "Sentry post error: " + httplib::to_string(err));
 			}
 		}
 	}
@@ -206,7 +209,6 @@ namespace sentry {
 		terminating = true;
 		work_thread->join();
 		do_sentry_send();
-		sentry_transport_free(transport);
 		sentry_close();
 		delete work_thread;
 	}

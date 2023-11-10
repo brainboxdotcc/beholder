@@ -82,6 +82,9 @@ int main()
 	void* tx_read_image = sentry::start_transaction(read_image);
 	while((len = std::fread(buf.data(), sizeof(buf[0]), buf.size(), stdin)) > 0) {
 		if(std::ferror(stdin) && !std::feof(stdin)) {
+			sentry::log_critical("tessd", "Unexpected end of file on stdin");
+			sentry::end_transaction(tx_read_image);
+			sentry::close();
 			tessd::status(tessd::exit_code::read);
 		}
 		input.insert(input.end(), buf.data(), buf.data() + len);
@@ -97,6 +100,9 @@ int main()
 	tesseract::TessBaseAPI* api = new tesseract::TessBaseAPI();
 	if (api->Init(NULL, "eng", tesseract::OcrEngineMode::OEM_DEFAULT)) {
 		delete api;
+		sentry::log_critical("tessd", "tesseract::TessBaseAPI::Init failed");
+		sentry::end_transaction(tx_init_tesseract);
+		sentry::close();
 		tessd::status(tessd::exit_code::tess_init);
 	}
 	sentry::end_transaction(tx_init_tesseract);
@@ -116,6 +122,7 @@ int main()
 	Pix* image = pixReadMem((l_uint8*)input.data(), input.size());
 	if (!image) {
 		delete api;
+		sentry::log_critical("tessd", "pixReadMem failed");
 		sentry::end_transaction(tx_do_tesseract);
 		sentry::close();
 		tessd::status(tessd::exit_code::pix_read_mem);
@@ -150,6 +157,7 @@ int main()
 	api->Clear();
 	delete api;
 	if (!output) {
+		sentry::log_warning("tessd", "TessBaseAPI::GetUTF8Text() failed");
 		sentry::end_transaction(tx_do_tesseract);
 		sentry::close();
 		tessd::status(tessd::exit_code::no_output);

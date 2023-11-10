@@ -47,6 +47,10 @@ void info_command::route(const dpp::slashcommand_t &event)
 		dpp::embed embed = dpp::embed()
 			.set_url("https://beholder.cc/")
 			.set_title("Beholder Information")
+			.set_footer(dpp::embed_footer{ 
+				.text = "Requested by " + event.command.usr.format_username(), 
+				.icon_url = bot->me.get_avatar_url(), 
+			})
 			.set_colour(0x7aff7a)
 			.set_thumbnail("https://beholder.cc/img/beholder_animated.gif")
 			.set_description(has_premium ? ":star: This server has Beholder Premium! :star:" : "")
