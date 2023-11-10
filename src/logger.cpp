@@ -4,6 +4,7 @@
 #include <spdlog/sinks/stdout_color_sinks.h>
 #include <spdlog/sinks/rotating_file_sink.h>
 #include <dpp/dpp.h>
+#include <beholder/sentry.h>
 
 namespace logger {
 
@@ -38,9 +39,18 @@ namespace logger {
 			case dpp::ll_trace: async_logger->trace("{}", event.message); break;
 			case dpp::ll_debug: async_logger->debug("{}", event.message); break;
 			case dpp::ll_info: async_logger->info("{}", event.message); break;
-			case dpp::ll_warning: async_logger->warn("{}", event.message); break;
-			case dpp::ll_error: async_logger->error("{}", event.message); break;
-			case dpp::ll_critical: async_logger->critical("{}", event.message); break;
+			case dpp::ll_warning:
+				async_logger->warn("{}", event.message);
+				sentry::log_warning("spdlog", event.message);
+				break;
+			case dpp::ll_error:
+				async_logger->error("{}", event.message);
+				sentry::log_error("spdlog", event.message);
+				break;
+			case dpp::ll_critical:
+				async_logger->critical("{}", event.message);
+				sentry::log_critical("spdlog", event.message);
+				break;
 		}
 	}
 }

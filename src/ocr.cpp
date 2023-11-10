@@ -1,3 +1,4 @@
+#include <typeinfo>
 #include <dpp/dpp.h>
 #include <beholder/config.h>
 #include <beholder/beholder.h>
@@ -7,6 +8,7 @@
 #include <beholder/proc/cpipe.h>
 #include <beholder/proc/spawn.h>
 #include <beholder/tessd.h>
+#include <beholder/sentry.h>
 
 namespace ocr {
 
@@ -115,6 +117,7 @@ namespace ocr {
 					try {
 						answer = json::parse(res->body);
 					} catch (const std::exception& e) {
+						sentry::log_catch(typeid(e).name(), e.what());
 					}
 					find_banned_type(answer, attach, bot, ev, file_content);
 					db::query("INSERT INTO scan_cache (hash, ocr, api) VALUES('?','?','?') ON DUPLICATE KEY UPDATE ocr = '?', api = '?'", { hash, ocr, res->body, ocr, res->body });

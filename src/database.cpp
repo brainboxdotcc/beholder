@@ -39,6 +39,7 @@ namespace db {
 	MYSQL connection;
 	std::mutex db_mutex;
 	std::string _error;
+	dpp::cluster* creator = nullptr;
 
 	/**
 	 * Connect to mysql database, returns false if there was an error.
@@ -56,12 +57,13 @@ namespace db {
 
 	void init (dpp::cluster& bot)
 	{
+		creator = &bot;
 		const json& dbconf = config::get("database");
 		if (!db::connect(dbconf["host"], dbconf["username"], dbconf["password"], dbconf["database"], dbconf["port"])) {
-			bot.log(dpp::ll_critical, fmt::format("Database connection error connecting to {}", dbconf["database"]));
+			creator->log(dpp::ll_critical, fmt::format("Database connection error connecting to {}", dbconf["database"]));
 			exit(2);
 		}
-		bot.log(dpp::ll_info, fmt::format("Connected to database: {}", dbconf["database"]));
+		creator->log(dpp::ll_info, fmt::format("Connected to database: {}", dbconf["database"]));
 	}
 
 	/**
@@ -119,6 +121,7 @@ namespace db {
 
 		if (parameters.size() != escaped_parameters.size()) {
 			_error = "Parameter wasn't escaped; error: " + std::string(mysql_error(&connection));
+			creator->log(dpp::ll_error, _error);
 			return rv;
 		}
 
@@ -173,12 +176,14 @@ namespace db {
 				}
 				mysql_free_result(a_res);
 			}
+			sentry::set_span_status(qspan, sentry::STATUS_OK);
 		} else {
 			/**
 			 * In properly written code, this should never happen. Famous last words.
 			 */
 			_error = mysql_error(&connection);
-			std::cerr << "SQL error: " << _error << " on query: " << querystring << std::endl;
+			sentry::set_span_status(qspan, sentry::STATUS_INVALID_ARGUMENT);
+			creator->log(dpp::ll_error, fmt::format("{} (query: {})", _error, querystring));
 		}
 
 		sentry::end_span(qspan);

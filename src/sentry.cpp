@@ -12,6 +12,7 @@
 
 namespace sentry {
 
+	sentry_transport_t *transport = nullptr;
 	void *transport_state = nullptr;
 	dpp::cluster* bot = nullptr;
 	std::deque<std::string> send_queue;
@@ -49,6 +50,7 @@ namespace sentry {
 	 * send function every minute. Bails early if terminated.
 	 */
 	void sentry_send_thread() {
+		dpp::utility::set_thread_name("sentry_sender");
 		while (!terminating) {
 			/* Sleep 1 minute or until terminated */
 			for (int i = 0; i < 600; ++i) {
@@ -69,9 +71,6 @@ namespace sentry {
 	 */
 	void do_sentry_send() {
 		std::deque<std::string> queue = drain_send_queue();
-		if (queue.size()) {
-			bot->log(dpp::ll_debug, "Sentry: " + std::to_string(queue.size()) + " envelopes to send...");
-		}
 		for(const std::string& send_envelope : queue) {
 			Url dsn(config::get("sentry_dsn"));
 			httplib::Client cli(dsn.scheme() + "://" + dsn.host());
@@ -105,12 +104,8 @@ namespace sentry {
 		size_t size_out{0};
 		char* env_str = sentry_envelope_serialize(envelope, &size_out);
 		add_send_queue(env_str);
-		sentry_string_free(env_str);
-		/**
-		 *  Not needed: freed explicitly right after our call in transports/sentry_function_transport.c
-		 * of the sentry-native lib
-		 */
-		//sentry_envelope_free(envelope);
+		sentry_free(env_str);
+		sentry_envelope_free(envelope);
 	}
 
 	bool init(dpp::cluster& creator) {
@@ -126,7 +121,7 @@ namespace sentry {
 		sentry_options_set_debug(options, 0);
 		sentry_options_set_environment(options, env.c_str());
 		sentry_options_set_traces_sample_rate(options, sample_rate);
-		sentry_transport_t *transport = sentry_transport_new(custom_transport);
+		transport = sentry_transport_new(custom_transport);
 		sentry_transport_set_state(transport, transport_state);
 		sentry_options_set_transport(options, transport);
 
@@ -148,8 +143,36 @@ namespace sentry {
 		return sentry_transaction_start_child((sentry_transaction_t*)tx, "db.sql.query", query.c_str());
 	}
 
-	void register_error(const std::string& error) {
+	void set_span_status(void* tx, sentry_status s) {
+		sentry_span_t* span = (sentry_span_t*)tx;
+		sentry_span_status_t status = (sentry_span_status_t)s;
+		sentry_span_set_status(span, status);
+	}
 
+	void log_catch(const std::string& exception_type, const std::string& what) {
+		sentry_value_t exc = sentry_value_new_exception(exception_type.c_str(), what.c_str());
+		sentry_value_set_stacktrace(exc, NULL, 0);
+		sentry_value_t event = sentry_value_new_event();
+		sentry_event_add_exception(event, exc);
+		sentry_capture_event(event);
+	}
+
+	void log_message_event(const std::string& logger, const std::string& message, sentry_level_t level) {
+		sentry_value_t event = sentry_value_new_message_event(level, logger.c_str(), message.c_str());
+		sentry_event_value_add_stacktrace(event, NULL, 0);
+		sentry_capture_event(event);
+	}
+
+	void log_error(const std::string& logger, const std::string& message) {
+		log_message_event(logger.c_str(), message.c_str(), SENTRY_LEVEL_ERROR);
+	}
+
+	void log_warning(const std::string& logger, const std::string& message) {
+		log_message_event(logger.c_str(), message.c_str(), SENTRY_LEVEL_WARNING);
+	}
+
+	void log_critical(const std::string& logger, const std::string& message) {
+		log_message_event(logger.c_str(), message.c_str(), SENTRY_LEVEL_FATAL);
 	}
 
 	void end_span(void* span) {
@@ -178,6 +201,7 @@ namespace sentry {
 		terminating = true;
 		work_thread->join();
 		do_sentry_send();
+		sentry_transport_free(transport);
 		sentry_close();
 		delete work_thread;
 	}
