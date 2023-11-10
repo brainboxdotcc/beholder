@@ -72,7 +72,6 @@ void download_image(const dpp::attachment attach, dpp::cluster& bot, const dpp::
 		path = u.path();
 	}
 	catch (const std::exception& e) {
-		sentry::log_catch(typeid(e).name(), e.what());
 		return;
 	}
 	if (path.ends_with(".webp") || path.ends_with(".jpg") || path.ends_with(".jpeg") || path.ends_with(".png") || path.ends_with(".gif")) {

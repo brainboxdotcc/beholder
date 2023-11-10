@@ -140,11 +140,16 @@ namespace listeners {
 			}
 		}
 
-		/* Split the message by spaces. */
-		std::vector<std::string> parts = dpp::utility::tokenize(event.msg.content, " ");
+		/* Split the message by spaces and newlines */
+		std::vector<std::string> parts = dpp::utility::tokenize(replace_string(event.msg.content, "\n", " "), " ");
 
 		/* Check for images in the embeds of the message, if any. Found urls and
 		 * scannable content are appended into the parts vector for scanning as text content.
+		 *
+		 * You might be asking "we do we look in embeds, if we ignore messages from other bots, and embeds can
+		 * only be legally sent by bots?" There are two reasons for this: Firstly, when a user sends a link
+		 * that can be automatically embedded by Discord, such as a YouTube link, an embed is automatically generated
+		 * and associated with the message. The second reason is detecting misbehaviour by selfbots.
 		 */
 		if (event.msg.embeds.size() > 0) {
 			for (const dpp::embed& embed : event.msg.embeds) {
@@ -171,12 +176,12 @@ namespace listeners {
 						parts.emplace_back(embed.author->url);
 					}
 				}
-				auto spaced = dpp::utility::tokenize(embed.description, " ");
+				auto spaced = dpp::utility::tokenize(replace_string(embed.description, "\n", " "), " ");
 				if (!spaced.empty()) {
 					parts.insert(parts.end(), spaced.begin(), spaced.end());
 				}
 				for (const dpp::embed_field& field : embed.fields) {
-					auto spaced = dpp::utility::tokenize(field.value, " ");
+					auto spaced = dpp::utility::tokenize(replace_string(field.value, "\n", " "), " ");
 					if (!spaced.empty()) {
 						parts.insert(parts.end(), spaced.begin(), spaced.end());
 					}
