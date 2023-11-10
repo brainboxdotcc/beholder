@@ -48,7 +48,7 @@ namespace db {
 		std::lock_guard<std::mutex> db_lock(db_mutex);
 		if (mysql_init(&connection) != nullptr) {
 			mysql_options(&connection, MYSQL_INIT_COMMAND, CONNECT_STRING);
-			return mysql_real_connect(&connection, host.c_str(), user.c_str(), pass.c_str(), db.c_str(), port, NULL, CLIENT_MULTI_RESULTS | CLIENT_MULTI_STATEMENTS);
+			return mysql_real_connect(&connection, host.c_str(), user.c_str(), pass.c_str(), db.c_str(), port, NULL, CLIENT_MULTI_RESULTS | CLIENT_MULTI_STATEMENTS | CLIENT_REMEMBER_OPTIONS);
 		} else {
 			_error = "mysql_init() failed";
 			return false;
