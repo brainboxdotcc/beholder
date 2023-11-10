@@ -41,7 +41,9 @@ namespace logger {
 			case dpp::ll_info: async_logger->info("{}", event.message); break;
 			case dpp::ll_warning:
 				async_logger->warn("{}", event.message);
-				sentry::log_warning("spdlog", event.message);
+				if (event.message != "Read loop ended: Remote site requested reconnection") {
+					sentry::log_warning("spdlog", event.message);
+				}
 				break;
 			case dpp::ll_error:
 				async_logger->error("{}", event.message);
