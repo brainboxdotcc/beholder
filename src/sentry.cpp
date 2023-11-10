@@ -45,6 +45,11 @@ namespace sentry {
 		return copy;
 	}
 
+	size_t queue_length() {
+		std::lock_guard<std::mutex> lock(send_mutex);
+		return send_queue.size();
+	}
+
 	/**
 	 * @brief Loop until terminated, calling the
 	 * send function every minute. Bails early if terminated.

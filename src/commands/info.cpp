@@ -56,7 +56,8 @@ void info_command::route(const dpp::slashcommand_t &event)
 			.add_field("Memory Usage", std::to_string(rss() / 1024 / 1024) + "M", true)
 			.add_field("Total Servers", std::to_string(guild_count), true)
 			.add_field("Concurrency", std::to_string(concurrent_images), true)
-			.add_field("Sentry Version", sentry::version(), true);
+			.add_field("Sentry Version", sentry::version(), true)
+			.add_field("Log Queue Length", std::to_string(sentry::queue_length()), true);
 
 		if (!log_channel.empty()) {
 			embed.add_field("Log Channel", "<#" + log_channel + ">", true);

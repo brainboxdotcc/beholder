@@ -142,4 +142,11 @@ namespace sentry {
 	 */
 	std::string version();
 
+	/**
+	 * @brief Current size of log queue
+	 * 
+	 * @return size_t log queue length
+	 */
+	size_t queue_length();
+
 };
