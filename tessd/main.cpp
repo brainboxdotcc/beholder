@@ -122,7 +122,6 @@ int main()
 	Pix* image = pixReadMem((l_uint8*)input.data(), input.size());
 	if (!image) {
 		delete api;
-		sentry::log_critical("tessd", "pixReadMem failed");
 		sentry::end_transaction(tx_do_tesseract);
 		sentry::close();
 		tessd::status(tessd::exit_code::pix_read_mem);
@@ -157,7 +156,6 @@ int main()
 	api->Clear();
 	delete api;
 	if (!output) {
-		sentry::log_warning("tessd", "TessBaseAPI::GetUTF8Text() failed");
 		sentry::end_transaction(tx_do_tesseract);
 		sentry::close();
 		tessd::status(tessd::exit_code::no_output);
