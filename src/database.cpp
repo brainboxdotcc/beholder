@@ -122,6 +122,7 @@ namespace db {
 		if (parameters.size() != escaped_parameters.size()) {
 			_error = "Parameter wasn't escaped; error: " + std::string(mysql_error(&connection));
 			creator->log(dpp::ll_error, _error);
+			sentry::log_error("db", _error);
 			return rv;
 		}
 
@@ -184,6 +185,7 @@ namespace db {
 			_error = mysql_error(&connection);
 			sentry::set_span_status(qspan, sentry::STATUS_INVALID_ARGUMENT);
 			creator->log(dpp::ll_error, fmt::format("{} (query: {})", _error, querystring));
+			sentry::log_error("db", _error);
 		}
 
 		sentry::end_span(qspan);

@@ -36,22 +36,23 @@ namespace logger {
 
 	void log(const dpp::log_t & event) {
 		switch (event.severity) {
-			case dpp::ll_trace: async_logger->trace("{}", event.message); break;
-			case dpp::ll_debug: async_logger->debug("{}", event.message); break;
-			case dpp::ll_info: async_logger->info("{}", event.message); break;
+			case dpp::ll_trace:
+				async_logger->trace("{}", event.message);
+				break;
+			case dpp::ll_debug:
+				async_logger->debug("{}", event.message);
+				break;
+			case dpp::ll_info:
+				async_logger->info("{}", event.message);
+				break;
 			case dpp::ll_warning:
 				async_logger->warn("{}", event.message);
-				if (event.message != "Read loop ended: Remote site requested reconnection") {
-					sentry::log_warning("spdlog", event.message);
-				}
 				break;
 			case dpp::ll_error:
 				async_logger->error("{}", event.message);
-				sentry::log_error("spdlog", event.message);
 				break;
 			case dpp::ll_critical:
 				async_logger->critical("{}", event.message);
-				sentry::log_critical("spdlog", event.message);
 				break;
 		}
 	}

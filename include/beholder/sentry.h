@@ -149,4 +149,16 @@ namespace sentry {
 	 */
 	size_t queue_length();
 
+	/**
+	 * @brief Set the D++ user associated with events/transactions
+	 * 
+	 * @param user D++ user
+	 */
+	void set_user(const dpp::user& user);
+
+	/**
+	 * @brief Unset D++ user associated with events/transactions
+	 */
+	void unset_user();
+
 };

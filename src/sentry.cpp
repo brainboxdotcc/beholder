@@ -17,6 +17,7 @@ namespace sentry {
 	dpp::cluster* bot = nullptr;
 	std::deque<std::string> send_queue;
 	std::mutex send_mutex;
+	std::mutex sentry_mutex;
 	std::thread* work_thread = nullptr;
 	std::atomic<bool> terminating = false;
 
@@ -141,6 +142,7 @@ namespace sentry {
 	}
 
 	void* register_transaction_type(const std::string& transaction_name, const std::string& transaction_operation) {
+		std::lock_guard<std::mutex> lock(sentry_mutex);
 		return sentry_transaction_context_new(
     			transaction_name.c_str(),
     			transaction_operation.c_str()
@@ -148,16 +150,19 @@ namespace sentry {
 	}
 
 	void* span(void* tx, const std::string& query) {
+		std::lock_guard<std::mutex> lock(sentry_mutex);
 		return sentry_transaction_start_child((sentry_transaction_t*)tx, "db.sql.query", query.c_str());
 	}
 
 	void set_span_status(void* tx, sentry_status s) {
+		std::lock_guard<std::mutex> lock(sentry_mutex);
 		sentry_span_t* span = (sentry_span_t*)tx;
 		sentry_span_status_t status = (sentry_span_status_t)s;
 		sentry_span_set_status(span, status);
 	}
 
 	void log_catch(const std::string& exception_type, const std::string& what) {
+		std::lock_guard<std::mutex> lock(sentry_mutex);
 		sentry_value_t exc = sentry_value_new_exception(exception_type.c_str(), what.c_str());
 		sentry_value_set_stacktrace(exc, NULL, 0);
 		sentry_value_t event = sentry_value_new_event();
@@ -165,7 +170,21 @@ namespace sentry {
 		sentry_capture_event(event);
 	}
 
+	void set_user(const dpp::user& user) {
+		std::lock_guard<std::mutex> lock(sentry_mutex);
+		sentry_value_t u = sentry_value_new_object();
+		sentry_value_set_by_key(u, "id", sentry_value_new_string(user.id.str().c_str()));
+		sentry_value_set_by_key(u, "username", sentry_value_new_string(user.format_username().c_str()));
+		sentry_set_user(u);
+	}
+
+	void unset_user() {
+		std::lock_guard<std::mutex> lock(sentry_mutex);
+		sentry_remove_user();
+	}
+
 	void log_message_event(const std::string& logger, const std::string& message, sentry_level_t level) {
+		std::lock_guard<std::mutex> lock(sentry_mutex);
 		sentry_value_t event = sentry_value_new_message_event(level, logger.c_str(), message.c_str());
 		sentry_event_value_add_stacktrace(event, NULL, 0);
 		sentry_capture_event(event);
@@ -184,6 +203,7 @@ namespace sentry {
 	}
 
 	void end_span(void* span) {
+		std::lock_guard<std::mutex> lock(sentry_mutex);
 		sentry_span_finish((sentry_span_t*)span);
 	}
 
@@ -195,12 +215,14 @@ namespace sentry {
 		if (!tx_ctx) {
 			return nullptr;
 		}
+		std::lock_guard<std::mutex> lock(sentry_mutex);
 		sentry_transaction_t* tx = sentry_transaction_start((sentry_transaction_context_t *)tx_ctx, sentry_value_new_null());
 		return tx;
 	}
 
 	void end_transaction(void* opaque_transaction) {
 		if (opaque_transaction) {
+			std::lock_guard<std::mutex> lock(sentry_mutex);
 			sentry_transaction_finish((sentry_transaction_t*)opaque_transaction);
 		}
 	}
