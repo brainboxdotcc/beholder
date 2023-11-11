@@ -154,7 +154,7 @@ namespace sentry {
 	 * 
 	 * @param user D++ user
 	 */
-	void set_user(const dpp::user& user);
+	void set_user(const dpp::user& user, uint64_t guild_id);
 
 	/**
 	 * @brief Unset D++ user associated with events/transactions

@@ -170,11 +170,12 @@ namespace sentry {
 		sentry_capture_event(event);
 	}
 
-	void set_user(const dpp::user& user) {
+	void set_user(const dpp::user& user, uint64_t guild_id) {
 		std::lock_guard<std::mutex> lock(sentry_mutex);
 		sentry_value_t u = sentry_value_new_object();
 		sentry_value_set_by_key(u, "id", sentry_value_new_string(user.id.str().c_str()));
 		sentry_value_set_by_key(u, "username", sentry_value_new_string(user.format_username().c_str()));
+		sentry_value_set_by_key(u, "guild_id", sentry_value_new_string(std::to_string(guild_id).c_str()));
 		sentry_set_user(u);
 	}
 

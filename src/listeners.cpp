@@ -48,6 +48,15 @@ namespace listeners {
 
 
 	void on_slashcommand(const dpp::slashcommand_t &event) {
+		event.from->creator->log(
+			dpp::ll_info,
+			fmt::format(
+				"COMMAND: {} by {} ({})",
+				event.command.get_command_name(),
+				event.command.usr.format_username(),
+				event.command.usr.id
+			)
+		);
 		route_command(event);
 	}
 
