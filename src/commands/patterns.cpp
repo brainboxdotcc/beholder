@@ -28,12 +28,12 @@ dpp::slashcommand patterns_command::register_command(dpp::cluster& bot)
 		if (event.custom_id == "set_patterns_modal") {
 			std::string pats = std::get<std::string>(event.components[0].components[0].value);
 			auto list = dpp::utility::tokenize(pats, "\n");
-			db::query("START TRANSACTION");
+			db::transaction();
 			db::query("DELETE FROM guild_patterns WHERE guild_id = ?", { event.command.guild_id.str() });
 
 			if (!db::error().empty()) {
 				/* We get out the transaction in the event of a failure. */
-				db::query("ROLLBACK");
+				db::rollback();
 				event.reply(dpp::message("❌ Failed to set patterns").set_flags(dpp::m_ephemeral));
 				return;
 			}
@@ -55,13 +55,13 @@ dpp::slashcommand patterns_command::register_command(dpp::cluster& bot)
 				db::query(sql_query, sql_parameters);
 
 				if (!db::error().empty()) {
-					db::query("ROLLBACK");
+					db::rollback();
 					event.reply(dpp::message("❌ Failed to set patterns").set_flags(dpp::m_ephemeral));
 					return;
 				}
 			}
 
-			db::query("COMMIT");
+			db::commit();
 			event.reply(dpp::message("✅ " + std::to_string(list.size()) + " Patterns set").set_flags(dpp::m_ephemeral));
 		}
 	});

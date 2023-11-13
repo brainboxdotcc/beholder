@@ -121,4 +121,26 @@ namespace db {
 	 * @return size_t Query counter
 	 */
 	size_t query_count();
+
+	/**
+	 * @brief Start a transaction
+	 * 
+	 * @return true if transaction was started
+	 */
+	bool transaction();
+
+	/**
+	 * @brief Commit a previously started transaction
+	 * 
+	 * @return true if transaction was committed
+	 */
+	bool commit();
+
+	/**
+	 * @brief Roll back a previously started transaction
+	 * 
+	 * @return true if transaction was rolled back
+	 */
+	bool rollback();
+
 };

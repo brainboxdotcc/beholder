@@ -135,6 +135,31 @@ namespace db {
 		creator->log(dpp::ll_info, fmt::format("Connected to database: {}", dbconf["database"]));
 	}
 
+	/**
+	 * @brief Certain types of query are not supported in the binary protocol
+	 * used for prepared statements. As such they must be executed 'raw', and
+	 * unprepared. This is not exposed to the interface as we don't want users
+	 * directly calling raw_query() and summoning Little Bobby Tables. Only
+	 * queries which return no result set are supported.
+	 * 
+	 * @return true query executed
+	 */
+	bool raw_query(const std::string& query) {
+		return mysql_real_query(&connection, query.c_str(), query.length()) == 0;
+	}
+
+	bool transaction() {
+		return raw_query("START TRANSACTION");
+	}
+
+	bool commit() {
+		return raw_query("COMMIT");
+	}
+
+	bool rollback() {
+		return raw_query("ROLLBACK");
+	}
+
 	bool close() {
 		std::lock_guard<std::mutex> db_lock(db_mutex);
 		mysql_close(&connection);
