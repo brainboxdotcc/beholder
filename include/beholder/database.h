@@ -17,7 +17,6 @@
  * limitations under the License.
  *
  ************************************************************************************/
-
 #pragma once
 #include <vector>
 #include <map>

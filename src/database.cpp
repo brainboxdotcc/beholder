@@ -1,8 +1,8 @@
 /************************************************************************************
  * 
- * Sporks, the learning, scriptable Discord bot!
+ * Beholder, the image filtering bot
  *
- * Copyright 2019 Craig Edwards <support@sporks.gg>
+ * Copyright 2019,2023 Craig Edwards <support@sporks.gg>
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -36,20 +36,72 @@
 
 namespace db {
 
+	/**
+	 * @brief Represents a cached prepared statement.
+	 * We need to store the MYSQL_STMT*, the bound variable pointers,
+	 * and the lengths, plus buffers for char* bound variables.
+	 */
 	struct cached_query {
+		/**
+		 * @brief If true, this query expects results, e.g. SELECT, EXPLAIN
+		 */
 		bool expects_results{false};
+
+		/**
+		 * @brief The mysql statement handle
+		 */
 		MYSQL_STMT* st{nullptr};
+
+		/**
+		 * @brief C pointers to bound variables
+		 */
 		MYSQL_BIND* bindings{nullptr};
+
+		/**
+		 * @brief C pointers to bound variable lengths
+		 */
 		unsigned long* lengths{nullptr};
+
+		/**
+		 * @brief Used to represent a set of C string buffers
+		 */
 		std::vector<std::string> bufs;
 	};
 
+	/**
+	 * @brief MySQL database connection
+	 */
 	MYSQL connection;
+
+	/**
+	 * @brief Database mutex
+	 * one connection may only be accessed by one thread at a time!
+	 */
 	std::mutex db_mutex;
-	std::string _error;
-	size_t _total{0};
-	size_t _affected{0};
+
+	/**
+	 * @brief Last error string from MySQL
+	 */
+	std::string last_error;
+
+	/**
+	 * @brief Total number of queries since connection
+	 */
+	size_t query_total{0};
+
+	/**
+	 * @brief Number of affected rows from last INSERT, UPDATE or DELETE
+	 */
+	size_t rows_affected{0};
+
+	/**
+	 * @brief Creating D++ cluster, used for logging
+	 */
 	dpp::cluster* creator{nullptr};
+
+	/**
+	 * @brief Query cache, a map of cached_query
+	 */
 	std::map<std::string, cached_query> cached_queries;
 
 	size_t cache_size() {
@@ -59,7 +111,7 @@ namespace db {
 	
 	size_t query_count() {
 		std::lock_guard<std::mutex> db_lock(db_mutex);
-		return _total;
+		return query_total;
 	}
 
 	bool connect(const std::string &host, const std::string &user, const std::string &pass, const std::string &db, int port) {
@@ -68,7 +120,7 @@ namespace db {
 			mysql_options(&connection, MYSQL_INIT_COMMAND, CONNECT_STRING);
 			return mysql_real_connect(&connection, host.c_str(), user.c_str(), pass.c_str(), db.c_str(), port, NULL, CLIENT_MULTI_RESULTS | CLIENT_MULTI_STATEMENTS | CLIENT_REMEMBER_OPTIONS);
 		} else {
-			_error = "mysql_init() failed";
+			last_error = "mysql_init() failed";
 			return false;
 		}
 	}
@@ -96,22 +148,22 @@ namespace db {
 
 	const std::string& error() {
 		std::lock_guard<std::mutex> db_lock(db_mutex);
-		return _error;
+		return last_error;
 	}
 
 	void log_error(const std::string& format, const std::string& error) {
 		if (!format.empty()) {
-			_error = fmt::format("{} (query: {})", error, format);
+			last_error = fmt::format("{} (query: {})", error, format);
 		} else {
-			_error = error;
+			last_error = error;
 		}
-		creator->log(dpp::ll_error, _error);
-		sentry::log_error("db", _error);
+		creator->log(dpp::ll_error, last_error);
+		sentry::log_error("db", last_error);
 	}
 
 	size_t affected_rows() {
 		std::lock_guard<std::mutex> db_lock(db_mutex);
-		return _affected;
+		return rows_affected;
 	}
 
 	resultset query(const std::string &format, const paramlist &parameters) {
@@ -126,13 +178,13 @@ namespace db {
 		/**
 		 * Clear error status
 		 */
-		_error.clear();
+		last_error.clear();
 		/**
 		 * Clear number of affected rows
 		 */
-		_affected = 0;
+		rows_affected = 0;
 
-		++_total;
+		++query_total;
 
 		/**
 		 * Check for a cached query in the query cache, if one is found, we can use it,
@@ -217,7 +269,7 @@ namespace db {
 				log_error(format, mysql_stmt_error(cc.st));
 				sentry::set_span_status(qspan, sentry::STATUS_INVALID_ARGUMENT);
 			} else {
-				_affected = mysql_stmt_affected_rows(cc.st);
+				rows_affected = mysql_stmt_affected_rows(cc.st);
 				sentry::set_span_status(qspan, sentry::STATUS_OK);
 			}
 		} else {
