@@ -136,6 +136,8 @@ namespace sentry {
 
 		sentry_init(options);
 
+		sentry_set_tag("cluster", "0");
+
 		work_thread = new std::thread(sentry_send_thread);
 
 		return true;

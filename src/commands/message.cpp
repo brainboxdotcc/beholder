@@ -10,7 +10,7 @@ dpp::slashcommand message_command::register_command(dpp::cluster& bot)
 			std::string embed_title = std::get<std::string>(event.components[0].components[0].value);
 			std::string embed_body = std::get<std::string>(event.components[1].components[0].value);
 			db::query(
-				"INSERT INTO guild_config (guild_id, embed_title, embed_body) VALUES('?', '?', '?') ON DUPLICATE KEY UPDATE embed_title = '?', embed_body = '?'",
+				"INSERT INTO guild_config (guild_id, embed_title, embed_body) VALUES(?, ?, ?) ON DUPLICATE KEY UPDATE embed_title = ?, embed_body = ?",
 				{ event.command.guild_id.str(), embed_title, embed_body, embed_title, embed_body }
 			);
 			/* Replace @user with the user's mention for preview */
@@ -30,7 +30,7 @@ dpp::slashcommand message_command::register_command(dpp::cluster& bot)
 
 void message_command::route(const dpp::slashcommand_t &event)
 {
-	db::resultset embed = db::query("SELECT embed_body, embed_title FROM guild_config WHERE guild_id = '?'", { event.command.guild_id.str() });
+	db::resultset embed = db::query("SELECT embed_body, embed_title FROM guild_config WHERE guild_id = ?", { event.command.guild_id.str() });
 	std::string embed_body, embed_title;
 	if (!embed.empty()) {
 		embed_body = embed[0].at("embed_body");

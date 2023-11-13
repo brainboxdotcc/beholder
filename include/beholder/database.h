@@ -1,8 +1,8 @@
 /************************************************************************************
  * 
- * Sporks, the learning, scriptable Discord bot!
+ * Beholder, the image filtering bot
  *
- * Copyright 2019 Craig Edwards <support@sporks.gg>
+ * Copyright 2019,2023 Craig Edwards <support@sporks.gg>
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -24,31 +24,102 @@
 #include <string>
 #include <variant>
 
-/*
- * db::resultset r = db::query("SELECT * FROM infobot WHERE setby = '?'", {"SKIPDX00"});
- * int t = 0;
- * for (auto q = r.begin(); q != r.end(); ++q) {
- *	 std::cout << (t++) << ": " << (*q)["key_word"] << std::endl;
- * }
+/**
+ * @brief Database abstraction layer
+ * Abstracts mysql C connector, supporting prepared statements and caching.
  */
-
 namespace db {
 
-	/* Definition of a row in a result set*/
-	typedef std::map<std::string, std::string> row;
-	/* Definition of a result set, a vector of maps */
-	typedef std::vector<row> resultset;
+	/**
+	 * @brief Definition of a row in a result set
+	 */
+	using row = std::map<std::string, std::string>;
 
-	typedef std::vector<std::variant<float, std::string, uint64_t, int64_t, bool, int32_t, uint32_t, double>> paramlist;
+	/**
+	 * @brief Definition of a result set, a vector of maps
+	 */
+	using resultset = std::vector<row>;
 
-	/* Initialise database */
+	/**
+	 * @brief A list of database query parameters.
+	 * These will be translated into prepared statement arguments.
+	 */
+	using paramlist = std::vector<std::variant<float, std::string, uint64_t, int64_t, bool, int32_t, uint32_t, double>>;
+
+	/**
+	 * @brief Initialise database connection
+	 * 
+	 * @param bot creating D++ cluster
+	 */
 	void init (dpp::cluster& bot);
-	/* Connect to database */
-	bool connect(const std::string &host, const std::string &user, const std::string &pass, const std::string &db, int port);
-	/* Disconnect from database */
+
+	/**
+	 * @brief Connect to database and set options
+	 * 
+	 * @param host Database hostname
+	 * @param user Database username
+	 * @param pass Database password
+	 * @param db Database schema name
+	 * @param port Databae port number
+	 * @return True if the database connection succeeded
+	 */
+	bool connect(const std::string &host, const std::string &user, const std::string &pass, const std::string &db, int port = 3306);
+
+	/**
+	 * @brief Disconnect from database and free query cache
+	 * 
+	 * @return true on successful disconnection
+	 */
 	bool close();
-	/* Issue a database query and return results */
+
+	/**
+	 * @brief Run a mysql query, with automatic escaping of parameters to prevent SQL injection.
+	 * 
+	 * The parameters given should be a vector of strings. You can instantiate this using "{}".
+	 * The queries are cached as prepared statements and therefore do not need quote symbols
+	 * to be placed around parameters in the query. These will be automatically added if required.
+	 * 
+	 * For example:
+	 * 
+	 * ```cpp
+	 * 	db::query("UPDATE foo SET bar = ? WHERE id = ?", { "baz", 3 });
+	 * ```
+	 * 
+	 * Returns a resultset of the results as rows. Avoid returning massive resultsets if you can.
+	 */
 	resultset query(const std::string &format, const paramlist &parameters = {});
-	/* Returns the last error string */
+
+	/**
+	 * @brief Returns number of affected rows from an UPDATE, INSERT, DELETE
+	 * 
+	 * @note This value is by any db::query() call. Take a copy!
+	 * @return size_t Number of affected rows
+	 */
+	size_t affected_rows();
+
+	/**
+	 * @brief Returns the last error string.
+	 * 
+	 * @note This value is by any db::query() call. Take a copy!
+	 * @return const std::string& Error mesage
+	 */
 	const std::string& error();
+
+	/**
+	 * @brief Returns the size of the query cache
+	 * 
+	 * Prepared statement handles are stored in a std::map along with their metadata, so that
+	 * they don't have to be re-prepared if they are executed repeatedly. This is a diagnostic
+	 * and informational function which returns the size of that map.
+	 * 
+	 * @return size_t Cache size
+	 */
+	size_t cache_size();
+
+	/**
+	 * @brief Returns total number of queries executed since connection was established
+	 * 
+	 * @return size_t Query counter
+	 */
+	size_t query_count();
 };

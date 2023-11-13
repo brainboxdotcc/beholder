@@ -59,13 +59,14 @@ void info_command::route(const dpp::slashcommand_t &event)
 			.add_field("Bot Uptime", bot->uptime().to_string(), true)
 			.add_field("Memory Usage", std::to_string(rss() / 1024 / 1024) + "M", true)
 			.add_field("Total Servers", std::to_string(guild_count), true)
+			.add_field("Log Channel", log_channel.length() ? "<#" + log_channel + ">" : "(not set)", true)
 			.add_field("Concurrency", std::to_string(concurrent_images), true)
 			.add_field("Sentry Version", sentry::version(), true)
-			.add_field("Log Queue Length", std::to_string(sentry::queue_length()), true);
+			.add_field("Log Queue Length", std::to_string(sentry::queue_length()), true)
+			.add_field("Shard", std::to_string(event.from->shard_id) + "/" + std::to_string(bot->get_shards().size()), true)
+			.add_field("SQL cache size", std::to_string(db::cache_size()), true)
+			.add_field("SQL query count", std::to_string(db::query_count()), true);
 
-		if (!log_channel.empty()) {
-			embed.add_field("Log Channel", "<#" + log_channel + ">", true);
-		}
 		embed.add_field("Library Version", "<:DPP1:847152435399360583><:DPP2:847152435343523881> [" + std::string(DPP_VERSION_TEXT) + "](https://dpp.dev/)", false);
 
 		event.reply(dpp::message().add_embed(embed));

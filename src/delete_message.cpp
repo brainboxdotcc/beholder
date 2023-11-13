@@ -13,9 +13,9 @@ void delete_message_and_warn(const std::string& image, dpp::cluster& bot, const 
 
 		db::resultset logchannel;
 		if (premium) {
-			logchannel = db::query("SELECT log_channel, premium_title as embed_title, premium_body as embed_body FROM guild_config WHERE guild_id = '?'", { ev.msg.guild_id.str() });
+			logchannel = db::query("SELECT log_channel, premium_title as embed_title, premium_body as embed_body FROM guild_config WHERE guild_id = ?", { ev.msg.guild_id.str() });
 		} else {
-			logchannel = db::query("SELECT log_channel, embed_title, embed_body FROM guild_config WHERE guild_id = '?'", { ev.msg.guild_id.str() });
+			logchannel = db::query("SELECT log_channel, embed_title, embed_body FROM guild_config WHERE guild_id = ?", { ev.msg.guild_id.str() });
 		}
 		if (logchannel.size() && logchannel[0].at("log_channel").length()) {
 			std::string message_body = logchannel[0].at("embed_body");

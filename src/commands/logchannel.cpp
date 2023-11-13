@@ -13,7 +13,7 @@ dpp::slashcommand logchannel_command::register_command(dpp::cluster& bot)
 				return;
 			}
 
-			db::query("INSERT INTO guild_config (guild_id, log_channel) VALUES('?', '?') ON DUPLICATE KEY UPDATE log_channel = '?'", { event.command.guild_id.str(), event.values[0], event.values[0] });
+			db::query("INSERT INTO guild_config (guild_id, log_channel) VALUES(?, ?) ON DUPLICATE KEY UPDATE log_channel = ?", { event.command.guild_id.str(), event.values[0], event.values[0] });
 			event.reply(dpp::message("✅ Log channel set").set_flags(dpp::m_ephemeral));
 		}
 	});
@@ -36,7 +36,7 @@ void logchannel_command::route(const dpp::slashcommand_t &event)
 		.set_id("log_channel_select_menu");
 
 	/* Loop through all bypass roles in database */
-	db::resultset channels = db::query("SELECT * FROM guild_config WHERE guild_id = '?'", { event.command.guild_id });
+	db::resultset channels = db::query("SELECT * FROM guild_config WHERE guild_id = ?", { event.command.guild_id });
 	if (!channels.empty()) {
 		/* Add the channel as a default value to the select menu. */
 		select_menu.add_default_value(dpp::snowflake(channels[0].at("log_channel")), dpp::cdt_channel);

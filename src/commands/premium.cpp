@@ -10,7 +10,7 @@ dpp::slashcommand premium_command::register_command(dpp::cluster& bot)
 			std::string embed_title = std::get<std::string>(event.components[0].components[0].value);
 			std::string embed_body = std::get<std::string>(event.components[1].components[0].value);
 			db::query(
-				"INSERT INTO guild_config (guild_id, premium_title, premium_body) VALUES('?', '?', '?') ON DUPLICATE KEY UPDATE premium_title = '?', premium_body = '?'",
+				"INSERT INTO guild_config (guild_id, premium_title, premium_body) VALUES(?, ?, ?) ON DUPLICATE KEY UPDATE premium_title = ?, premium_body = ?",
 				{ event.command.guild_id.str(), embed_title, embed_body, embed_title, embed_body }
 			);
 			/* Replace @user with the user's mention for preview */
@@ -26,7 +26,7 @@ dpp::slashcommand premium_command::register_command(dpp::cluster& bot)
 	bot.on_select_click([&bot](const dpp::select_click_t& event) {
 		if (event.custom_id == "premium_patterns_select_menu") {
 			db::query("START TRANSACTION");
-			db::query("DELETE FROM premium_filters WHERE guild_id = '?'", { event.command.guild_id.str() });
+			db::query("DELETE FROM premium_filters WHERE guild_id = ?", { event.command.guild_id.str() });
 
 			if (!db::error().empty()) {
 				/* We get out the transaction in the event of a failure. */
@@ -41,7 +41,7 @@ dpp::slashcommand premium_command::register_command(dpp::cluster& bot)
 				db::paramlist sql_parameters;
 
 				for (std::size_t i = 0; i < event.values.size(); ++i) {
-					sql_query += "(?, '?', 0.7)";
+					sql_query += "(?, ?, 0.7)";
 					if (i != event.values.size() - 1) {
 						sql_query += ", ";
 					}
@@ -74,7 +74,7 @@ void premium_command::route(const dpp::slashcommand_t &event)
 {
 	dpp::command_interaction cmd_data = event.command.get_command_interaction();
 	auto subcommand = cmd_data.options[0];
-	db::resultset embed = db::query("SELECT premium_subscription, premium_body, premium_title FROM guild_config WHERE guild_id = '?'", { event.command.guild_id.str() });
+	db::resultset embed = db::query("SELECT premium_subscription, premium_body, premium_title FROM guild_config WHERE guild_id = ?", { event.command.guild_id.str() });
 	if (embed.empty() || embed[0].at("premium_subscription").empty()) {
 		event.reply("You don't appear to be a Beholder Premium subscriber!");
 	}
@@ -133,13 +133,6 @@ void premium_command::route(const dpp::slashcommand_t &event)
 				opt.set_default(true);
 			}
 			select_menu.add_select_option(opt);
-		}
-
-		/* Loop through all bypass roles in database */
-		db::resultset channels = db::query("SELECT * FROM guild_config WHERE guild_id = '?'", { event.command.guild_id });
-		if (!channels.empty()) {
-			/* Add the channel as a default value to the select menu. */
-			select_menu.add_default_value(dpp::snowflake(channels[0].at("log_channel")), dpp::cdt_channel);
 		}
 
 		msg.add_component(dpp::component().add_component(select_menu)).set_flags(dpp::m_ephemeral);

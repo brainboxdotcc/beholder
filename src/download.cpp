@@ -41,7 +41,7 @@ void download_image(const dpp::attachment attach, dpp::cluster& bot, const dpp::
 			bot.log(dpp::ll_info, "Image dimensions of " + std::to_string(attach.width) + "x" + std::to_string(attach.height) + " too large to be a screenshot");
 			return;
 		}
-		db::resultset pattern_count = db::query("SELECT COUNT(guild_id) AS total FROM guild_patterns WHERE guild_id = '?'", { ev.msg.guild_id.str() });
+		db::resultset pattern_count = db::query("SELECT COUNT(guild_id) AS total FROM guild_patterns WHERE guild_id = ?", { ev.msg.guild_id.str() });
 		if (pattern_count.size() == 0 || atoi(pattern_count[0].at("total").c_str()) == 0) {
 			bot.log(dpp::ll_info, "No patterns defined for guild " + ev.msg.guild_id.str());
 			return;

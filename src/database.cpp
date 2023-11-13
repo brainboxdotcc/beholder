@@ -36,14 +36,32 @@
 
 namespace db {
 
+	struct cached_query {
+		bool expects_results{false};
+		MYSQL_STMT* st{nullptr};
+		MYSQL_BIND* bindings{nullptr};
+		unsigned long* lengths{nullptr};
+		std::vector<std::string> bufs;
+	};
+
 	MYSQL connection;
 	std::mutex db_mutex;
 	std::string _error;
-	dpp::cluster* creator = nullptr;
+	size_t _total{0};
+	size_t _affected{0};
+	dpp::cluster* creator{nullptr};
+	std::map<std::string, cached_query> cached_queries;
 
-	/**
-	 * Connect to mysql database, returns false if there was an error.
-	 */
+	size_t cache_size() {
+		std::lock_guard<std::mutex> db_lock(db_mutex);
+		return cached_queries.size();
+	}
+	
+	size_t query_count() {
+		std::lock_guard<std::mutex> db_lock(db_mutex);
+		return _total;
+	}
+
 	bool connect(const std::string &host, const std::string &user, const std::string &pass, const std::string &db, int port) {
 		std::lock_guard<std::mutex> db_lock(db_mutex);
 		if (mysql_init(&connection) != nullptr) {
@@ -55,37 +73,47 @@ namespace db {
 		}
 	}
 
-	void init (dpp::cluster& bot)
-	{
+	void init (dpp::cluster& bot) {
 		creator = &bot;
 		const json& dbconf = config::get("database");
 		if (!db::connect(dbconf["host"], dbconf["username"], dbconf["password"], dbconf["database"], dbconf["port"])) {
-			creator->log(dpp::ll_critical, fmt::format("Database connection error connecting to {}", dbconf["database"]));
+			creator->log(dpp::ll_critical, fmt::format("Database connection error connecting to {}: {}", dbconf["database"], mysql_error(&connection)));
 			exit(2);
 		}
 		creator->log(dpp::ll_info, fmt::format("Connected to database: {}", dbconf["database"]));
 	}
 
-	/**
-	 * Disconnect from mysql database, for now always returns true.
-	 * If there's an error, there isn't much we can do about it anyway.
-	 */
 	bool close() {
 		std::lock_guard<std::mutex> db_lock(db_mutex);
 		mysql_close(&connection);
+		for (const auto& cc : cached_queries) {
+			mysql_stmt_close(cc.second.st);
+			delete[] cc.second.bindings;
+			delete[] cc.second.lengths;
+		}
 		return true;
 	}
 
 	const std::string& error() {
+		std::lock_guard<std::mutex> db_lock(db_mutex);
 		return _error;
 	}
 
-	/**
-	 * Run a mysql query, with automatic escaping of parameters to prevent SQL injection.
-	 * The parameters given should be a vector of strings. You can instantiate this using "{}".
-	 * For example: db::query("UPDATE foo SET bar = '?' WHERE id = '?'", {"baz", "3"});
-	 * Returns a resultset of the results as rows. Avoid returning massive resultsets if you can.
-	 */
+	void log_error(const std::string& format, const std::string& error) {
+		if (!format.empty()) {
+			_error = fmt::format("{} (query: {})", error, format);
+		} else {
+			_error = error;
+		}
+		creator->log(dpp::ll_error, _error);
+		sentry::log_error("db", _error);
+	}
+
+	size_t affected_rows() {
+		std::lock_guard<std::mutex> db_lock(db_mutex);
+		return _affected;
+	}
+
 	resultset query(const std::string &format, const paramlist &parameters) {
 
 		/**
@@ -93,99 +121,184 @@ namespace db {
 		 * To prevent corruption of results, put a lock guard on queries.
 		 */
 		std::lock_guard<std::mutex> db_lock(db_mutex);
-		std::vector<std::string> escaped_parameters;
-		std::vector<std::string> unescaped_parameters;
 		resultset rv;
 
+		/**
+		 * Clear error status
+		 */
 		_error.clear();
+		/**
+		 * Clear number of affected rows
+		 */
+		_affected = 0;
+
+		++_total;
 
 		/**
-		 * Escape all parameters properly from a vector of std::variant
+		 * Check for a cached query in the query cache, if one is found, we can use it,
+		 * and we don't need to call mysql_stmt_init() and mysql_stmt_prepare().
 		 */
-		for (const auto& param : parameters) {
-			/* Worst case scenario: Every character becomes two, plus NULL terminator*/
-			std::visit([parameters, &escaped_parameters, &unescaped_parameters](const auto &p) {
-				std::ostringstream v;
-				v << p;
-				std::string s_param(v.str());
-				char out[s_param.length() * 2 + 1];
-				/* Some moron thought it was a great idea for mysql_real_escape_string to return an unsigned but use -1 to indicate error.
-				 * This stupid cast below is the actual recommended error check from the reference manual. Seriously stupid.
-				 */
-				unescaped_parameters.push_back(out);
-				if (mysql_real_escape_string(&connection, out, s_param.c_str(), s_param.length()) != (unsigned long)-1) {
-					escaped_parameters.push_back(out);
-				}
-			}, param);
+		cached_query cc;
+		auto f = cached_queries.find(format);
+		if (f != cached_queries.end()) {
+			/* Query already exists in prepared statement cache */
+			cc = f->second;
+		} else {
+
+			/* Query doesn't exist yet, initialise a prepared statement and allocate char buffers */
+			cc.st = mysql_stmt_init(&connection);
+			if (mysql_stmt_prepare(cc.st, format.c_str(), format.length())) {
+				log_error(format, mysql_stmt_error(cc.st));
+				mysql_stmt_close(cc.st);
+				return rv;
+			}
+
+			/* Check the parameter count provided matches that which MySQL expects */
+			int expected_param_count = mysql_stmt_param_count(cc.st);
+			if (parameters.size() != expected_param_count) {
+				log_error(format, "Incorrect number of parameters: " + format + " (" + std::to_string(parameters.size()) + " vs " + std::to_string(expected_param_count) + ")");
+				mysql_stmt_close(cc.st);
+				return rv;			
+			}
+
+			/* Allocate memory for awful C stuff 🐉 */
+			cc.bindings = new MYSQL_BIND[expected_param_count];
+			cc.lengths = new unsigned long[expected_param_count];
+
+			/* Determine if this query expects results by the first keyword */
+			std::vector<std::string> q = (dpp::utility::tokenize(dpp::trim(dpp::lowercase(format)), " "));
+			cc.expects_results = (q.size() > 0 && q[0] == "select" || q[0] == "show" || q[0] == "describe" || q[0] == "explain");
+
+			/* Store to cache */
+			cached_queries.emplace(format, cc);
 		}
 
-		if (parameters.size() != escaped_parameters.size()) {
-			_error = "Parameter wasn't escaped; error: " + std::string(mysql_error(&connection));
-			creator->log(dpp::ll_error, _error);
-			sentry::log_error("db", _error);
-			return rv;
-		}
+		if (parameters.size()) {
 
-		unsigned int param = 0;
-		std::string querystring;
+			/* Parameters are expected for this query, bind them to the prepared statement */
+			std::memset(cc.bindings, 0, sizeof(cc.bindings));
+			cc.bufs.clear();
+			cc.bufs.reserve(parameters.size());
+			int v = 0;
+			for (const auto& param : parameters) {
+				std::visit([parameters, &cc, &v](const auto &p) {
+					std::ostringstream x;
+					x << p;
+					std::string s_param(x.str());
+					cc.bufs.push_back(s_param);
+					cc.lengths[v] = s_param.length();
+					cc.bindings[v].buffer_type = MYSQL_TYPE_VAR_STRING;
+					cc.bindings[v].buffer = (char*)cc.bufs[v].c_str();
+					cc.bindings[v].buffer_length = s_param.length() + 1;
+					cc.bindings[v].is_null = nullptr;
+					cc.bindings[v].length = &cc.lengths[v];
+					v++;
+				}, param);
+			}
 
-		/**
-		 * Search and replace escaped parameters in the query string.
-		 *
-		 * TODO: Really, I should use a cached query and the built in parameterisation for this.
-		 *       It would scale a lot better.
-		 */
-		for (auto v = format.begin(); v != format.end(); ++v) {
-			if (*v == '?' && escaped_parameters.size() >= param + 1) {
-				querystring.append(escaped_parameters[param]);
-				if (param != escaped_parameters.size() - 1) {
-					param++;
-				}
-			} else {
-				querystring += *v;
+			/* Bind parameters to statement */
+			if (mysql_stmt_bind_param(cc.st, (MYSQL_BIND*)cc.bindings)) {
+				log_error(format, mysql_stmt_error(cc.st));
+				return rv;
 			}
 		}
 
+		/* Start sentry transaction */
 		void *qlog = sentry::start_transaction(sentry::register_transaction_type("PID#" + std::to_string(getpid()), "db"));
-		void* qspan = sentry::span(qlog, querystring);
+		void* qspan = sentry::span(qlog, format);
+		int result{0};
 
-		int result = mysql_query(&connection, querystring.c_str());
-
-		/**
-		 * On successful query collate results into a std::map
-		 */
-		if (result == 0) {
-			MYSQL_RES *a_res = mysql_use_result(&connection);
-			if (a_res) {
-				MYSQL_ROW a_row;
-				while ((a_row = mysql_fetch_row(a_res))) {
-					MYSQL_FIELD *fields = mysql_fetch_fields(a_res);
-					row thisrow;
-					unsigned int field_count = 0;
-					if (mysql_num_fields(a_res) == 0) {
-						break;
-					}
-					if (fields && mysql_num_fields(a_res)) {
-						while (field_count < mysql_num_fields(a_res)) {
-							std::string a = (fields[field_count].name ? fields[field_count].name : "");
-							std::string b = (a_row[field_count] ? a_row[field_count] : "");
-							thisrow[a] = b;
-							field_count++;
-						}
-						rv.push_back(thisrow);
-					}
-				}
-				mysql_free_result(a_res);
+		if (!cc.expects_results) {
+			/**
+			 * Query which does not expect results, e.g. UPDATE, INSERT
+			 */
+			result = mysql_stmt_execute(cc.st);
+			if (result) {
+				log_error(format, mysql_stmt_error(cc.st));
+				sentry::set_span_status(qspan, sentry::STATUS_INVALID_ARGUMENT);
+			} else {
+				_affected = mysql_stmt_affected_rows(cc.st);
+				sentry::set_span_status(qspan, sentry::STATUS_OK);
 			}
-			sentry::set_span_status(qspan, sentry::STATUS_OK);
 		} else {
 			/**
-			 * In properly written code, this should never happen. Famous last words.
+			 * Query which expects results, e.g. SELECT
 			 */
-			_error = mysql_error(&connection);
-			sentry::set_span_status(qspan, sentry::STATUS_INVALID_ARGUMENT);
-			creator->log(dpp::ll_error, fmt::format("{} (query: {})", _error, querystring));
-			sentry::log_error("db", _error);
+			unsigned long field_count{0};
+			MYSQL_RES *a_res = mysql_stmt_result_metadata(cc.st);
+			if (a_res) {
+				field_count = mysql_stmt_field_count(cc.st);
+				MYSQL_FIELD *fields = mysql_fetch_fields(a_res);
+				MYSQL_BIND bindings[field_count];
+				char* string_buffers[field_count];
+				unsigned long lengths[field_count];
+				bool is_null[field_count];
+				std::memset(bindings, 0, sizeof(bindings));
+				for (int i = 0; i < field_count; ++i) {
+					string_buffers[i] = new char[fields[i].length];
+					bindings[i].buffer_type = MYSQL_TYPE_VAR_STRING;
+					bindings[i].buffer = string_buffers[i];
+					bindings[i].buffer_length = fields[i].length;
+					bindings[i].is_null = &is_null[i];
+					bindings[i].length = &lengths[i];
+				}
+
+				result = mysql_stmt_bind_result(cc.st, (MYSQL_BIND*)&bindings);
+				if (result) {
+					log_error(format, mysql_stmt_error(cc.st));
+					for (int i = 0; i < field_count; ++i) {
+						delete[] string_buffers[i];
+					}
+					return rv;
+				}
+
+				result = mysql_stmt_execute(cc.st);
+
+				if (mysql_stmt_store_result(cc.st)) {
+					log_error(format, mysql_stmt_error(cc.st));
+					for (int i = 0; i < field_count; ++i) {
+						delete[] string_buffers[i];
+					}
+					return rv;
+				}
+
+				if (result == 0) {
+
+					/* Build resultset */
+					while (true) {
+						result = mysql_stmt_fetch(cc.st); 
+						if (result == MYSQL_NO_DATA) {
+							/* End of resultset */
+							break; 
+						} else if (result != 0) {
+							/* Error retrieving resultset, e.g. disconnected */
+							log_error(format, mysql_stmt_error(cc.st));
+							break; 
+						}
+
+						/* Build row*/
+						if (mysql_num_fields(a_res)) {
+							long s_field_count = 0;
+							db::row thisrow;
+							while (s_field_count < mysql_num_fields(a_res)) {
+								std::string a = (fields[s_field_count].name ? fields[s_field_count].name : "");
+								std::string b = is_null[s_field_count] ? "" : std::string(string_buffers[s_field_count], lengths[s_field_count]);
+								thisrow[a] = b;
+								s_field_count++;
+							}
+							rv.emplace_back(thisrow);
+						}
+					}
+					mysql_free_result(a_res);
+					for (int i = 0; i < field_count; ++i) {
+						delete[] string_buffers[i];
+					}
+				}
+				sentry::set_span_status(qspan, sentry::STATUS_OK);
+			} else {
+				log_error(format, mysql_stmt_error(cc.st));
+				sentry::set_span_status(qspan, sentry::STATUS_INVALID_ARGUMENT);
+			}
 		}
 
 		sentry::end_span(qspan);

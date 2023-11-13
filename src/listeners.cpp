@@ -131,7 +131,7 @@ namespace listeners {
 		}
 
 		/* Loop through all bypass roles in database */
-		db::resultset bypass_roles = db::query("SELECT * FROM guild_bypass_roles WHERE guild_id = '?'", { event.msg.guild_id.str() });
+		db::resultset bypass_roles = db::query("SELECT * FROM guild_bypass_roles WHERE guild_id = ?", { event.msg.guild_id.str() });
 		for (const db::row& role : bypass_roles) {
 			const auto& roles = guild_member.get_roles();
 			if (std::find(roles.begin(), roles.end(), dpp::snowflake(role.at("role_id"))) != roles.end()) {

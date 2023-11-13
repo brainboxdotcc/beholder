@@ -10,7 +10,7 @@ dpp::slashcommand patterns_command::register_command(dpp::cluster& bot)
 			std::string pats = std::get<std::string>(event.components[0].components[0].value);
 			auto list = dpp::utility::tokenize(pats, "\n");
 			db::query("START TRANSACTION");
-			db::query("DELETE FROM guild_patterns WHERE guild_id = '?'", { event.command.guild_id.str() });
+			db::query("DELETE FROM guild_patterns WHERE guild_id = ?", { event.command.guild_id.str() });
 
 			if (!db::error().empty()) {
 				/* We get out the transaction in the event of a failure. */
@@ -25,7 +25,7 @@ dpp::slashcommand patterns_command::register_command(dpp::cluster& bot)
 				db::paramlist sql_parameters;
 
 				for (std::size_t i = 0; i < list.size(); ++i) {
-					sql_query += "(?,'?')";
+					sql_query += "(?,?)";
 					if (i != list.size() - 1) {
 						sql_query += ",";
 					}
@@ -55,7 +55,7 @@ dpp::slashcommand patterns_command::register_command(dpp::cluster& bot)
 void patterns_command::route(const dpp::slashcommand_t &event)
 {
 	std::string patterns;
-	db::resultset pattern_query = db::query("SELECT pattern FROM guild_patterns WHERE guild_id = '?' ORDER BY pattern", { event.command.guild_id.str() });
+	db::resultset pattern_query = db::query("SELECT pattern FROM guild_patterns WHERE guild_id = ? ORDER BY pattern", { event.command.guild_id.str() });
 	for (const db::row& p : pattern_query) {
 		patterns += p.at("pattern") + "\n";
 	}

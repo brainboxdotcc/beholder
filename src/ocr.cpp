@@ -25,7 +25,7 @@ namespace ocr {
 
 		/* This loop is not redundant - it ensures the spawn class is scoped */
 		try {
-			db::resultset rs = db::query("SELECT * FROM scan_cache WHERE hash = '?'", { hash });
+			db::resultset rs = db::query("SELECT * FROM scan_cache WHERE hash = ?", { hash });
 			if (!rs.empty()) {
 				ocr = rs[0].at("ocr");
 				bot.log(dpp::ll_info, fmt::format("image {} is in OCR cache", hash));
@@ -44,7 +44,7 @@ namespace ocr {
 					bot.log(ret ? dpp::ll_error : dpp::ll_info, fmt::format("tessd status {}: {}", ret, tessd::tessd_error[ret]));
 				}
 				if (!ocr.empty()) {
-					db::query("INSERT INTO scan_cache (hash, ocr) VALUES('?','?') ON DUPLICATE KEY UPDATE ocr = '?'", { hash, ocr, ocr });
+					db::query("INSERT INTO scan_cache (hash, ocr) VALUES(?,?) ON DUPLICATE KEY UPDATE ocr = ?", { hash, ocr, ocr });
 				}
 			}
 		} catch (const std::runtime_error& e) {
@@ -54,7 +54,7 @@ namespace ocr {
 		if (!ocr.empty()) {
 			std::vector<std::string> lines = dpp::utility::tokenize(ocr, "\n");
 			bot.log(dpp::ll_debug, "Read " + std::to_string(lines.size()) + " lines of text from image with total size " + std::to_string(ocr.length()));
-			db::resultset patterns = db::query("SELECT * FROM guild_patterns WHERE guild_id = '?'", { ev.msg.guild_id.str() });
+			db::resultset patterns = db::query("SELECT * FROM guild_patterns WHERE guild_id = ?", { ev.msg.guild_id.str() });
 			bot.log(dpp::ll_debug, "Checking image content against " + std::to_string(patterns.size()) + " patterns...");
 			for (const std::string& line : lines) {
 				for (const db::row& pattern : patterns) {
@@ -100,7 +100,7 @@ namespace ocr {
 			db::query("UPDATE guild_config SET calls_this_month = calls_this_month + 1 WHERE guild_id = ?", {ev.msg.guild_id.str() });
 
 			json answer;
-			db::resultset rs = db::query("SELECT * FROM api_cache WHERE hash = '?'", { hash });
+			db::resultset rs = db::query("SELECT * FROM api_cache WHERE hash = ?", { hash });
 			if (!rs.empty()) {
 				bot.log(dpp::ll_info, fmt::format("image {} is in API cache", hash));
 				answer = json::parse(rs[0].at("api"));
@@ -131,7 +131,7 @@ namespace ocr {
 						} catch (const std::exception& e) {
 						}
 						find_banned_type(answer, attach, bot, ev, file_content);
-						db::query("INSERT INTO api_cache (hash, api) VALUES('?','?') ON DUPLICATE KEY UPDATE api = '?'", { hash, res->body, res->body });
+						db::query("INSERT INTO api_cache (hash, api) VALUES(?,?) ON DUPLICATE KEY UPDATE api = ?", { hash, res->body, res->body });
 					} else {
 						bot.log(dpp::ll_warning, "API Error: '" + res->body + "' status: " + std::to_string(res->status));
 					}

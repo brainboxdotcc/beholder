@@ -9,7 +9,7 @@ dpp::slashcommand roles_command::register_command(dpp::cluster& bot)
 		if (event.custom_id == "add_roles_select_menu") {
 
 			db::query("START TRANSACTION");
-			db::query("DELETE FROM guild_bypass_roles WHERE guild_id = '?'", { event.command.guild_id.str() });
+			db::query("DELETE FROM guild_bypass_roles WHERE guild_id = ?", { event.command.guild_id.str() });
 
 			if (!db::error().empty()) {
 				/* We get out the transaction in the event of a failure. */
@@ -63,7 +63,7 @@ void roles_command::route(const dpp::slashcommand_t &event)
 		.set_id("add_roles_select_menu");
 
 	/* Loop through all bypass roles in database */
-	db::resultset bypass_roles = db::query("SELECT * FROM guild_bypass_roles WHERE guild_id = '?'", { event.command.guild_id });
+	db::resultset bypass_roles = db::query("SELECT * FROM guild_bypass_roles WHERE guild_id = ?", { event.command.guild_id });
 	for (const db::row& role : bypass_roles) {
 		/* Add the role as a default value to the select menu,
 			* letting people know that it's currently a bypass role.
