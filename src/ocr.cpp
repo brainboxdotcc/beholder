@@ -31,6 +31,45 @@
 
 namespace ocr {
 
+	/**
+	 * @brief Given an image file, check if it is a gif, and if it is animated.
+	 * If it is, flatten it by extracting just the first frame using imagemagick.
+	 * 
+	 * @param bot Reference to D++ cluster
+	 * @param attach message attachment
+	 * @param file_content file content
+	 * @return std::string new file content
+	 */
+	std::string flatten_gif(dpp::cluster& bot, const dpp::attachment attach, std::string file_content) {
+		/* Animated gifs require a control structure only available in GIF89a, GIF87a is fine and anything that is
+		 * neither is not a GIF file.
+		 * By the way, it's pronounced GIF, as in GOLF, not JIF, as in JUMP! 🤣
+		 */
+		uint8_t* filebits = reinterpret_cast<uint8_t*>(file_content.data());
+		if (file_content.length() >= 6 && filebits[0] == 'G' && filebits[1] == 'I' && filebits[2] == 'F' && filebits[3] == '8' && filebits[4] == '9' && filebits[5] == 'a') {
+			/* If control structure is found, sequence 21 F9 04, we dont pass the gif to the API as it is likely animated
+			 * This is a much faster, more lightweight check than using a GIF library.
+			 */
+			for (size_t x = 0; x < file_content.length() - 3; ++x) {
+				if (filebits[x] == 0x21 && filebits[x + 1] == 0xF9 && filebits[x + 2] == 0x04) {
+					bot.log(dpp::ll_debug, "Detected animated gif, name: " + attach.filename + "; flattening with convert");
+					const char* const argv[] = {"/usr/bin/convert", "-[0]", "/dev/stdout", nullptr};
+					spawn convert(argv);
+					bot.log(dpp::ll_info, fmt::format("spawned convert; pid={}", convert.get_pid()));
+					convert.stdin.write(file_content.data(), file_content.length());
+					convert.send_eof();
+					std::ostringstream stream;
+					stream << convert.stdout.rdbuf();
+					file_content = stream.str();
+					int ret = convert.wait();
+					bot.log(ret ? dpp::ll_error : dpp::ll_info, fmt::format("convert status {}", ret));
+					return file_content;
+				}
+			}
+		}
+		return file_content;
+	}
+
 	void image(std::string file_content, const dpp::attachment attach, dpp::cluster& bot, const dpp::message_create_t ev) {
 		std::string ocr;
 		dpp::utility::set_thread_name("img-scan/" + std::to_string(concurrent_images));
@@ -40,6 +79,7 @@ namespace ocr {
 			concurrent_images--;
 		});
 
+		bool flattened = false;
 		std::string hash = sha256(file_content);
 
 		/* This loop is not redundant - it ensures the spawn class is scoped */
@@ -49,6 +89,10 @@ namespace ocr {
 				ocr = rs[0].at("ocr");
 				bot.log(dpp::ll_info, fmt::format("image {} is in OCR cache", hash));
 			} else {
+				if (!flattened) {
+					file_content = flatten_gif(bot, attach, file_content);
+					flattened = true;
+				}
 				const char* const argv[] = {"./tessd", nullptr};
 				spawn tessd(argv);
 				bot.log(dpp::ll_info, fmt::format("spawned tessd; pid={}", tessd.get_pid()));
@@ -95,22 +139,6 @@ namespace ocr {
 		 */
 		if (attach.size < 1024 * 1024 * 12 &&
 			(attach.width == 0 || attach.width >= 50) && (attach.height == 0 || attach.height >= 50) && settings.size() && settings[0].at("premium_subscription").length()) {
-			/* Animated gifs require a control structure only available in GIF89a, GIF87a is fine and anything that is
-			 * neither is not a GIF file.
-			 * By the way, it's pronounced GIF, as in GOLF, not JIF, as in JUMP! 🤣
-			 */
-			uint8_t* filebits = reinterpret_cast<uint8_t*>(file_content.data());
-			if (file_content.length() >= 6 && filebits[0] == 'G' && filebits[1] == 'I' && filebits[2] == 'F' && filebits[3] == '8' && filebits[4] == '9' && filebits[5] == 'a') {
-				/* If control structure is found, sequence 21 F9 04, we dont pass the gif to the API as it is likely animated
-				 * This is a much faster, more lightweight check than using a GIF library.
-				 */
-				for (size_t x = 0; x < file_content.length() - 3; ++x) {
-					if (filebits[x] == 0x21 && filebits[x + 1] == 0xF9 && filebits[x + 2] == 0x04) {
-						bot.log(dpp::ll_debug, "Detected animated gif, name: " + attach.filename + "; not scanning with IR");
-						return;
-					}
-				}
-			}
 			json& irconf = config::get("ir");
 			std::vector<std::string> fields = irconf["fields"];
 			std::string endpoint = irconf["host"];
@@ -125,14 +153,18 @@ namespace ocr {
 				answer = json::parse(rs[0].at("api"));
 				find_banned_type(answer, attach, bot, ev, file_content);
 			} else {
+				if (!flattened) {
+					file_content = flatten_gif(bot, attach, file_content);
+					flattened = true;
+				}
 				/* Make API request, upload the image, don't get the API to download it.
-				* This is more expensive for us in terms of bandwidth, but we are going
-				* to be able to check more images more of the time this way. We already
-				* have the image data in memory and can upload it straight to the API.
-				* Asking the API endpoint to download it via URL risks them being rate
-				* limited or blocked as they will be making many hundreds of requests
-				* per minute and we will not.
-				*/
+				 * This is more expensive for us in terms of bandwidth, but we are going
+				 * to be able to check more images more of the time this way. We already
+				 * have the image data in memory and can upload it straight to the API.
+				 * Asking the API endpoint to download it via URL risks them being rate
+				 * limited or blocked as they will be making many hundreds of requests
+				 * per minute and we will not.
+				 */
 				httplib::Client cli(endpoint.c_str());
 				cli.enable_server_certificate_verification(false);
 				httplib::MultipartFormDataItems items = {
