@@ -59,7 +59,8 @@ Insert data into database for your guild and patterns
 
 * Tesseract (libtesseract-dev)
 * Leptonica (libleptonica-dev)
-* libmysqlclient
+* ImageMagick Convert
+* libmysqlclient 8.x
 * g++ 11.4 or later
 * cmake
 * fmtlib
