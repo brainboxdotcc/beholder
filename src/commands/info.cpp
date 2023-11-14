@@ -28,19 +28,27 @@ dpp::slashcommand info_command::register_command(dpp::cluster& bot)
 	return dpp::slashcommand("info", "Show bot information", bot.me.id);
 }
 
-int64_t rss() {
-	int64_t ram = 0;
+int64_t proc_self_value(const std::string& find_token) {
+	int64_t ret = 0;
 	std::ifstream self_status("/proc/self/status");
 	while (self_status) {
 		std::string token;
 		self_status >> token;
-		if (token == "VmRSS:") {
-			self_status >> ram;
+		if (token == find_token) {
+			self_status >> ret;
 			break;
 		}
 	}
 	self_status.close();
-	return ram * 1024;
+	return ret;
+}
+
+int64_t rss() {
+	return proc_self_value("VmRSS:") * 1024;
+}
+
+bool is_gdb() {
+	return proc_self_value("TracerPid:") != 0;
 }
 
 void info_command::route(const dpp::slashcommand_t &event)
@@ -82,6 +90,9 @@ void info_command::route(const dpp::slashcommand_t &event)
 			.add_field("Concurrency", std::to_string(concurrent_images), true)
 			.add_field("Sentry Version", sentry::version(), true)
 			.add_field("Log Queue Length", std::to_string(sentry::queue_length()), true)
+			.add_field("Debugging", is_gdb() ? ":white_check_mark: Yes" : "<:wc_rs:667695516737470494> No", true)
+			.add_field("Guild Members Intent", ":white_check_mark: Yes", true)
+			.add_field("Message Content Intent", ":white_check_mark: Yes", true)
 			.add_field("Shard", std::to_string(event.from->shard_id) + "/" + std::to_string(bot->get_shards().size()), true)
 			.add_field("SQL cache size", std::to_string(db::cache_size()), true)
 			.add_field("SQL query count", std::to_string(db::query_count()), true);
