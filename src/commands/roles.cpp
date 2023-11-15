@@ -66,7 +66,7 @@ dpp::slashcommand roles_command::register_command(dpp::cluster& bot)
 	});
 
 	return dpp::slashcommand("roles", "Set roles that should bypass image scanning", bot.me.id)
-		.set_default_permissions(dpp::p_administrator | dpp::p_manage_guild);
+		.set_default_permissions(dpp::p_manage_guild);
 }
 
 

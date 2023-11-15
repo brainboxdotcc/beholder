@@ -85,7 +85,7 @@ dpp::slashcommand premium_command::register_command(dpp::cluster& bot)
 	return dpp::slashcommand("premium", "Premium bot features", bot.me.id)
 		.add_option(dpp::command_option(dpp::co_sub_command, "message", "Set embed to send for image recognition detection (premium only)"))
 		.add_option(dpp::command_option(dpp::co_sub_command, "patterns", "Set image recognition categories to block (premium only)"))
-		.set_default_permissions(dpp::p_administrator | dpp::p_manage_guild);
+		.set_default_permissions(dpp::p_manage_guild);
 }
 
 

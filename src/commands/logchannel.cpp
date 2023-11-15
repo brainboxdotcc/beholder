@@ -38,7 +38,7 @@ dpp::slashcommand logchannel_command::register_command(dpp::cluster& bot)
 	});
 
 	return dpp::slashcommand("logchannel", "Set the channel logs should be sent to", bot.me.id)
-		.set_default_permissions(dpp::p_administrator | dpp::p_manage_guild);
+		.set_default_permissions(dpp::p_manage_guild);
 }
 
 

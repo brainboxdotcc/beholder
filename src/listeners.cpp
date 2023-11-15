@@ -39,7 +39,7 @@ namespace listeners {
 	void on_ready(const dpp::ready_t &event) {
 		dpp::cluster& bot = *event.from->creator;
 		if (dpp::run_once<struct register_bot_commands>()) {
-			uint64_t default_permissions = dpp::p_administrator | dpp::p_manage_guild;
+			uint64_t default_permissions = dpp::p_manage_guild;
 			bot.global_bulk_command_create({
 				register_command<info_command>(bot),
 				register_command<premium_command>(bot),

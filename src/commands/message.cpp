@@ -46,7 +46,7 @@ dpp::slashcommand message_command::register_command(dpp::cluster& bot)
 		.add_option(dpp::command_option(dpp::co_sub_command, "content", "Set the message content and title"))
 		.add_option(dpp::command_option(dpp::co_sub_command, "enable", "Enable sending messages when deleting images"))
 		.add_option(dpp::command_option(dpp::co_sub_command, "disable", "Disable sending messages when deleting images"))
-		.set_default_permissions(dpp::p_administrator | dpp::p_manage_guild);	
+		.set_default_permissions(dpp::p_manage_guild);	
 }
 
 

@@ -46,7 +46,7 @@ dpp::slashcommand ignoredchannels_command::register_command(dpp::cluster& bot)
 		.add_option(dpp::command_option(dpp::co_sub_command, "add", "Add an ignord channel"))
 		.add_option(dpp::command_option(dpp::co_sub_command, "delete", "Remove an ignored channel"))
 		.add_option(dpp::command_option(dpp::co_sub_command, "list", "List an ignored channel"))
-		.set_default_permissions(dpp::p_administrator | dpp::p_manage_guild);
+		.set_default_permissions(dpp::p_manage_guild);
 }
 
 

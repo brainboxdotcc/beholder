@@ -30,7 +30,6 @@ void delete_message_and_warn(const std::string& image, dpp::cluster& bot, const 
 			if (rs.size() == 0) {
 				bot.message_create(dpp::message(ev.msg.channel_id, "Failed to delete this message! Please check bot permissions.").set_reference(ev.msg.id, ev.msg.guild_id, ev.msg.channel_id));
 			}
-			return;
 		}
 
 		db::resultset logchannel;
