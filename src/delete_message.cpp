@@ -20,17 +20,13 @@
 #include <dpp/dpp.h>
 #include <beholder/beholder.h>
 #include <beholder/database.h>
+#include <fmt/format.h>
 
-void delete_message_and_warn(const std::string& image, dpp::cluster& bot, const dpp::message_create_t ev, const dpp::attachment attach, const std::string text, bool premium)
+void delete_message_and_warn(const std::string& image, dpp::cluster& bot, const dpp::message_create_t ev, const dpp::attachment attach, const std::string text, bool premium, double trigger, double threshold)
 {
-	bot.message_delete(ev.msg.id, ev.msg.channel_id, [&bot, ev, attach, text, premium, image](const auto& cc) {
+	bot.message_delete(ev.msg.id, ev.msg.channel_id, [&bot, ev, attach, text, premium, image, trigger, threshold](const auto& cc) {
 
-		if (cc.is_error()) {
-			db::resultset rs = db::query("SELECT embeds_disabled FROM guild_config WHERE guild_id = ? AND embeds_disabled = 1", { ev.msg.guild_id.str() });
-			if (rs.size() == 0) {
-				bot.message_create(dpp::message(ev.msg.channel_id, "Failed to delete this message! Please check bot permissions.").set_reference(ev.msg.id, ev.msg.guild_id, ev.msg.channel_id));
-			}
-		}
+		bool delete_failed = cc.is_error();
 
 		db::resultset logchannel;
 		if (premium) {
@@ -68,6 +64,11 @@ void delete_message_and_warn(const std::string& image, dpp::cluster& bot, const 
 			}
 
 			if (logchannel[0].at("log_channel").length()) {
+
+				if (delete_failed) { 
+					bot.message_create(dpp::message(dpp::snowflake(logchannel[0].at("log_channel")), "Failed to delete message: " + dpp::utility::message_url(ev.msg.guild_id, ev.msg.channel_id, ev.msg.id) + " - Please check bot permissions."));
+				}
+
 				bot.message_create(
 					dpp::message(dpp::snowflake(logchannel[0].at("log_channel")), "")
 					.add_embed(
@@ -78,7 +79,9 @@ void delete_message_and_warn(const std::string& image, dpp::cluster& bot, const 
 							ev.msg.author.get_mention() + ")" +
 							"\nIn Channel: <#" + ev.msg.channel_id.str() + ">" +
 							"\nMatched pattern: `" +
-							text + "`\n[Image link](" + attach.url +")"
+							text
+							+ (premium && trigger ? fmt::format("\nProbability: `{:.1f}%`, Threshold: `{:.1f}%`", trigger * 100.0, threshold * 100) : "")
+							+ "`\n[Image link](" + attach.url +")"
 						)
 						.set_title("Bad Image Deleted")
 						.set_color(colours::good)

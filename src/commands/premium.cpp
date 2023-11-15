@@ -60,11 +60,12 @@ dpp::slashcommand premium_command::register_command(dpp::cluster& bot)
 				db::paramlist sql_parameters;
 
 				for (std::size_t i = 0; i < event.values.size(); ++i) {
-					sql_query += "(?, ?, 0.7)";
+					sql_query += "(?, ?, (SELECT default_threshold FROM premium_filter_model WHERE category = ? LIMIT 1))";
 					if (i != event.values.size() - 1) {
 						sql_query += ", ";
 					}
 					sql_parameters.emplace_back(event.command.guild_id.str());
+					sql_parameters.emplace_back(event.values[i]);
 					sql_parameters.emplace_back(event.values[i]);
 				}
 
