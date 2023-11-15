@@ -137,7 +137,7 @@ void premium_command::route(const dpp::slashcommand_t &event)
 	}
 	if (subcommand.name == "patterns") { // premium
 
-		dpp::message msg(event.command.channel_id, "Select which channel logs will be sent to");
+		dpp::message msg(event.command.channel_id, "Set the message displayed when images are blocked due to premium filters");
 
 		dpp::component select_menu;
 		select_menu.set_type(dpp::cot_selectmenu)

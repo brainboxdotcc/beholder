@@ -42,13 +42,21 @@ dpp::slashcommand message_command::register_command(dpp::cluster& bot)
 		}
 	});
 
-	return dpp::slashcommand("message", "Set the details of the embed to send when images have forbidden text", bot.me.id)
-		.set_default_permissions(dpp::p_administrator | dpp::p_manage_guild);
+	return dpp::slashcommand("message", "Set the details of the message to send when images have forbidden text", bot.me.id)
+		.add_option(dpp::command_option(dpp::co_sub_command, "content", "Set the message content and title"))
+		.add_option(dpp::command_option(dpp::co_sub_command, "enable", "Enable sending messages when deleting images"))
+		.add_option(dpp::command_option(dpp::co_sub_command, "disable", "Disable sending messages when deleting images"))
+		.set_default_permissions(dpp::p_administrator | dpp::p_manage_guild);	
 }
 
 
 void message_command::route(const dpp::slashcommand_t &event)
 {
+	dpp::command_interaction cmd_data = event.command.get_command_interaction();
+	auto subcommand = cmd_data.options[0];
+
+	if (subcommand.name == "content") {
+
 	db::resultset embed = db::query("SELECT embed_body, embed_title FROM guild_config WHERE guild_id = ?", { event.command.guild_id.str() });
 	std::string embed_body, embed_title;
 	if (!embed.empty()) {
@@ -84,4 +92,12 @@ void message_command::route(const dpp::slashcommand_t &event)
 			.set_text_style(dpp::text_paragraph)
 	);
 	event.dialog(modal);
+
+	} else if (subcommand.name == "enable") {
+		db::query("UPDATE guild_config SET embeds_disabled = 0 WHERE guild_id = ?", { event.command.guild_id });
+		event.reply(dpp::message("✅ Messages __**will be sent**__ to the channel where beholder deletes images.").set_flags(dpp::m_ephemeral));
+	} else if (subcommand.name == "disable") {
+		db::query("UPDATE guild_config SET embeds_disabled = 1 WHERE guild_id = ?", { event.command.guild_id });
+		event.reply(dpp::message("✅ Messages __**will not be sent**__ to the channel where beholder deletes images\nBeholder will still send audit log entries, if configured.").set_flags(dpp::m_ephemeral));
+	}
 }

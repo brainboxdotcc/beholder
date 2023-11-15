@@ -32,6 +32,7 @@
 #include <beholder/commands/premium.h>
 #include <beholder/commands/info.h>
 #include <beholder/commands/ping.h>
+#include <beholder/commands/ignoredchannels.h>
 
 namespace listeners {
 
@@ -47,6 +48,7 @@ namespace listeners {
 				register_command<message_command>(bot),
 				register_command<logchannel_command>(bot),
 				register_command<ping_command>(bot),
+				register_command<ignoredchannels_command>(bot),
 			});
 
 			auto set_presence = [&bot]() {
@@ -149,8 +151,14 @@ namespace listeners {
 			}
 		}
 
+		/* Check for channels that are ignored */
+		db::resultset bypass_channel = db::query("SELECT * FROM guild_ignored_channels WHERE guild_id = ? AND channel_id = ?", { event.msg.guild_id, event.msg.channel_id });
+		if (bypass_channel.size() > 0) {
+			return;
+		}
+
 		/* Loop through all bypass roles in database */
-		db::resultset bypass_roles = db::query("SELECT * FROM guild_bypass_roles WHERE guild_id = ?", { event.msg.guild_id.str() });
+		db::resultset bypass_roles = db::query("SELECT * FROM guild_bypass_roles WHERE guild_id = ?", { event.msg.guild_id });
 		for (const db::row& role : bypass_roles) {
 			const auto& roles = guild_member.get_roles();
 			if (std::find(roles.begin(), roles.end(), dpp::snowflake(role.at("role_id"))) != roles.end()) {
