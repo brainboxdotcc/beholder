@@ -76,6 +76,7 @@ void delete_message_and_warn(const std::string& image, dpp::cluster& bot, const 
 							"Attachment: `" + attach.filename + "`\nSent by: `" +
 							ev.msg.author.format_username() + "` (" +
 							ev.msg.author.get_mention() + ")" +
+							"\nIn Channel: <#" + ev.msg.channel_id.str() + ">" +
 							"\nMatched pattern: `" +
 							text + "`\n[Image link](" + attach.url +")"
 						)

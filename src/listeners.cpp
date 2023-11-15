@@ -17,6 +17,7 @@
  * limitations under the License.
  *
  ************************************************************************************/
+#include <set>
 #include <fmt/format.h>
 #include <CxxUrl/url.hpp>
 #include <beholder/listeners.h>
@@ -232,6 +233,8 @@ namespace listeners {
 			}
 		}
 
+		/* Used to deduplicate the urls */
+		std::set<std::string> checked;
 		/* Check each word in the message looking for URLs */
 		for (std::string& possibly_url : parts) {
 			size_t size = possibly_url.length();
@@ -252,7 +255,10 @@ namespace listeners {
 				catch (const std::exception&) {
 					attach.filename = fs::path(possibly_url).filename();
 				}
-				download_image(attach, *event.from->creator, event);
+				if (checked.find(possibly_url) == checked.end()) {
+					download_image(attach, *event.from->creator, event);
+					checked.emplace(possibly_url);
+				}
 			}
 		}
 	}

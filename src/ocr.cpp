@@ -41,6 +41,9 @@ namespace ocr {
 	 * @return std::string new file content
 	 */
 	std::string flatten_gif(dpp::cluster& bot, const dpp::attachment attach, std::string file_content) {
+		if (!attach.filename.ends_with(".gif") && !attach.filename.ends_with(".GIF")) {
+			return file_content;
+		}
 		/* Animated gifs require a control structure only available in GIF89a, GIF87a is fine and anything that is
 		 * neither is not a GIF file.
 		 * By the way, it's pronounced GIF, as in GOLF, not JIF, as in JUMP! 🤣
@@ -148,7 +151,6 @@ namespace ocr {
 			std::string endpoint = irconf["host"];
 			db::resultset m = db::query("SELECT GROUP_CONCAT(DISTINCT model) AS selected FROM premium_filter_model");
 			std::string active_models = m[0].at("selected");
-			db::query("UPDATE guild_config SET calls_this_month = calls_this_month + 1 WHERE guild_id = ?", {ev.msg.guild_id.str() });
 
 			json answer;
 			db::resultset rs = db::query("SELECT * FROM api_cache WHERE hash = ?", { hash });
@@ -187,6 +189,7 @@ namespace ocr {
 						}
 						find_banned_type(answer, attach, bot, ev, file_content);
 						db::query("INSERT INTO api_cache (hash, api) VALUES(?,?) ON DUPLICATE KEY UPDATE api = ?", { hash, res->body, res->body });
+						db::query("UPDATE guild_config SET calls_this_month = calls_this_month + 1 WHERE guild_id = ?", {ev.msg.guild_id.str() });
 					} else {
 						bot.log(dpp::ll_warning, "API Error: '" + res->body + "' status: " + std::to_string(res->status));
 					}
