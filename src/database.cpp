@@ -239,9 +239,13 @@ namespace db {
 			}
 
 			/* Allocate memory for awful C stuff 🐉 */
-			cc.bindings = new MYSQL_BIND[expected_param_count];
-			cc.lengths = new unsigned long[expected_param_count];
-			memset(cc.lengths, 0, sizeof(cc.lengths));
+			cc.bindings = nullptr;
+			cc.lengths = nullptr;
+			if (expected_param_count) {
+				cc.bindings = new MYSQL_BIND[expected_param_count];
+				cc.lengths = new unsigned long[expected_param_count];
+				memset(cc.lengths, 0, sizeof(cc.lengths));
+			}
 
 			/* Determine if this query expects results by the first keyword */
 			std::vector<std::string> q = (dpp::utility::tokenize(dpp::trim(dpp::lowercase(format)), " "));
@@ -251,11 +255,11 @@ namespace db {
 			cached_queries.emplace(format, cc);
 			creator->log(dpp::ll_debug, "SQL: New cached prepared statement: " + format);
 		}
-		memset(cc.bindings, 0, sizeof(cc.bindings));
 
 		if (parameters.size()) {
 
 			/* Parameters are expected for this query, bind them to the prepared statement */
+			memset(cc.bindings, 0, sizeof(cc.bindings));
 			cc.bufs.clear();
 			cc.bufs.reserve(parameters.size());
 			int v = 0;
