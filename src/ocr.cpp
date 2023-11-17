@@ -155,39 +155,31 @@ namespace ocr {
 			std::vector<std::string> active = dpp::utility::tokenize(active_models, ",");
 			std::vector<std::string> models = active;
 			json merge;
-			if (std::find(active.begin(), active.end(), "wad") != active.end()) {
-				db::resultset rs = db::query("SELECT * FROM api_cache_wad WHERE hash = ?", { hash });
-				if (rs.size()) {
-					active.erase(std::remove(active.begin(), active.end(), "wad"), active.end());
-					json p = json::parse(rs[0].at("api"));
-					merge["weapon"] = p[0].get<double>();
-					merge["alcohol"] = p[1].get<double>();
-					merge["drugs"] = p[2].get<double>();
-					bot.log(dpp::ll_debug, "Got cached WAD: " + merge.dump());
-				}
-			}
-			if (std::find(active.begin(), active.end(), "gore") != active.end()) {
-				db::resultset rs = db::query("SELECT * FROM api_cache_gore WHERE hash = ?", { hash });
-				if (rs.size()) {
-					active.erase(std::remove(active.begin(), active.end(), "gore"), active.end());
-					merge["gore"] = json::parse(rs[0].at("api"));
-					bot.log(dpp::ll_debug, "Got cached gore: " + json::parse(rs[0].at("api")).dump());
-				}
-			}
-			if (std::find(active.begin(), active.end(), "nudity-2.0") != active.end()) {
-				db::resultset rs = db::query("SELECT * FROM api_cache_nudity WHERE hash = ?", { hash });
-				if (rs.size()) {
-					active.erase(std::remove(active.begin(), active.end(), "nudity-2.0"), active.end());
-					merge["nudity"] = json::parse(rs[0].at("api"));
-					bot.log(dpp::ll_debug, "Got cached nudity-2.0: " + json::parse(rs[0].at("api")).dump());
-				}
-			}
-			if (std::find(active.begin(), active.end(), "offensive") != active.end()) {
-				db::resultset rs = db::query("SELECT * FROM api_cache_offensive WHERE hash = ?", { hash });
-				if (rs.size()) {
-					active.erase(std::remove(active.begin(), active.end(), "offensive"), active.end());
-					merge["offensive"] = json::parse(rs[0].at("api"));
-					bot.log(dpp::ll_debug, "Got cached offensive: " + json::parse(rs[0].at("api")).dump());
+
+			/* Mapping of models to cache tables */
+			constexpr const std::pair<std::string_view, std::string_view> cache_model[4]{
+				{ "wad", "wad" },
+				{ "gore", "gore" },
+				{ "nudity-2.0", "nudity" },
+				{ "offensive", "offensive" },
+			};
+
+			/* Retrieve models from cache */
+			for (const auto& detail : cache_model) {
+				if (std::find(active.begin(), active.end(), detail.first) != active.end()) {
+					db::resultset rs = db::query(fmt::format("SELECT * FROM api_cache_{} WHERE hash = ?", detail.second), { hash });
+					if (rs.size()) {
+						active.erase(std::remove(active.begin(), active.end(), detail.first), active.end());
+						if (detail.first == "wad") {
+							json p = json::parse(rs[0].at("api"));
+							merge["weapon"] = p[0].get<double>();
+							merge["alcohol"] = p[1].get<double>();
+							merge["drugs"] = p[2].get<double>();
+						} else {
+							merge[std::string(detail.second)] = json::parse(rs[0].at("api"));
+						}
+						bot.log(dpp::ll_debug, fmt::format("Got cached {}", detail.first));
+					}
 				}
 			}
 			active_models.clear();
@@ -238,29 +230,22 @@ namespace ocr {
 						if (res->status < 400) {
 							bot.log(dpp::ll_info, "API response ID: " + answer["request"]["id"].get<std::string>() + " with models: " + original_active);
 							find_banned_type(answer, attach, bot, ev, file_content);
-							
-							if (std::find(models.begin(), models.end(), "nudity-2.0") != models.end()) {
-								std::string v{answer.at("nudity").dump()};
-								db::query("INSERT INTO api_cache_nudity (hash, api) VALUES(?,?) ON DUPLICATE KEY UPDATE api = ?", { hash, v, v });
-								bot.log(dpp::ll_debug, "Cached nudity-2.0: " + v);
-							}
-							if (std::find(models.begin(), models.end(), "gore") != models.end()) {
-								std::string v{answer.at("gore").dump()};
-								db::query("INSERT INTO api_cache_gore (hash, api) VALUES(?,?) ON DUPLICATE KEY UPDATE api = ?", { hash, v, v });
-								bot.log(dpp::ll_debug, "Cached gore: " + v);
-							}
-							if (std::find(models.begin(), models.end(), "offensive") != models.end()) {
-								std::string v{answer.at("offensive").dump()};
-								db::query("INSERT INTO api_cache_offensive (hash, api) VALUES(?,?) ON DUPLICATE KEY UPDATE api = ?", { hash, v, v });
-								bot.log(dpp::ll_debug, "Cached offensive: " + v);
-							}
-							if (std::find(models.begin(), models.end(), "wad") != models.end()) {
-								std::string v = "[" + 
-									std::to_string(answer.at("weapon").get<double>()) + "," +
-									std::to_string(answer.at("alcohol").get<double>()) + "," +
-									std::to_string(answer.at("drugs").get<double>()) + "]";
-								db::query("INSERT INTO api_cache_wad (hash, api) VALUES(?,?) ON DUPLICATE KEY UPDATE api = ?", { hash, v, v });
-								bot.log(dpp::ll_debug, "Cached wad: " + v);
+
+							/* Cache each model to its cache */
+							for (const auto& detail : cache_model) {
+								if (std::find(models.begin(), models.end(), detail.first) != models.end()) {
+									std::string v;
+									if (detail.first == "wad") {
+										v = "[" +
+											std::to_string(answer.at("weapon").get<double>()) + "," +
+											std::to_string(answer.at("alcohol").get<double>()) + "," +
+											std::to_string(answer.at("drugs").get<double>()) + "]";
+									} else {
+										v = answer.at(std::string(detail.second)).dump();
+									}
+									db::query(fmt::format("INSERT INTO api_cache_{} (hash, api) VALUES(?,?) ON DUPLICATE KEY UPDATE api = ?", detail.second), { hash, v, v });
+									bot.log(dpp::ll_debug, fmt::format("Cached {}", detail.first));
+								}
 							}
 							db::query("UPDATE guild_config SET calls_this_month = calls_this_month + 1 WHERE guild_id = ?", {ev.msg.guild_id.str() });
 						} else {
