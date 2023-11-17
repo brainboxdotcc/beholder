@@ -249,7 +249,7 @@ namespace db {
 
 			/* Determine if this query expects results by the first keyword */
 			std::vector<std::string> q = (dpp::utility::tokenize(dpp::trim(dpp::lowercase(format)), " "));
-			cc.expects_results = (q.size() > 0 && q[0] == "select" || q[0] == "show" || q[0] == "describe" || q[0] == "explain");
+			cc.expects_results = (q.size() > 0 && (q[0] == "select" || q[0] == "show" || q[0] == "describe" || q[0] == "explain"));
 
 			/* Store to cache */
 			cached_queries.emplace(format, cc);
@@ -336,11 +336,12 @@ namespace db {
 						delete[] string_buffers[i];
 					}
 					mysql_free_result(a_res);
+					sentry::end_span(qspan);
+					sentry::end_transaction(qlog);
 					return rv;
 				}
 
 				result = mysql_stmt_execute(cc.st);
-
 				if (result == 0) {
 
 					/* Build resultset */
@@ -368,10 +369,10 @@ namespace db {
 							rv.emplace_back(thisrow);
 						}
 					}
-					mysql_free_result(a_res);
-					for (int i = 0; i < field_count; ++i) {
-						delete[] string_buffers[i];
-					}
+				}
+				mysql_free_result(a_res);
+				for (int i = 0; i < field_count; ++i) {
+					delete[] string_buffers[i];
 				}
 				sentry::set_span_status(qspan, sentry::STATUS_OK);
 			} else {
