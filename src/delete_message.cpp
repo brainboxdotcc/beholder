@@ -30,9 +30,9 @@ void delete_message_and_warn(const std::string& image, dpp::cluster& bot, const 
 
 		db::resultset logchannel;
 		if (premium) {
-			logchannel = db::query("SELECT embeds_disabled, log_channel, premium_title as embed_title, premium_body as embed_body FROM guild_config WHERE guild_id = ?", { ev.msg.guild_id.str() });
+			logchannel = db::query("SELECT embeds_disabled, log_channel, premium_title as embed_title, premium_body as embed_body FROM guild_config WHERE guild_id = ?", { ev.msg.guild_id });
 		} else {
-			logchannel = db::query("SELECT embeds_disabled, log_channel, embed_title, embed_body FROM guild_config WHERE guild_id = ?", { ev.msg.guild_id.str() });
+			logchannel = db::query("SELECT embeds_disabled, log_channel, embed_title, embed_body FROM guild_config WHERE guild_id = ?", { ev.msg.guild_id });
 		}
 
 		if (logchannel.size()) {
@@ -80,7 +80,7 @@ void delete_message_and_warn(const std::string& image, dpp::cluster& bot, const 
 							"\nIn Channel: <#" + ev.msg.channel_id.str() + ">" +
 							"\nMatched pattern: `" + text + "`"
 							+ (premium && trigger ? fmt::format("\nProbability: `{:.1f}%`, Threshold: `{:.1f}%`", trigger * 100.0, threshold * 100) : "")
-							+ "`\n[Image link](" + attach.url +")"
+							+ "\n[Image link](" + attach.url +")"
 						)
 						.set_title("Bad Image Deleted")
 						.set_color(colours::good)

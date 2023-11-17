@@ -31,6 +31,11 @@
 
 namespace ocr {
 
+	struct model_mapping {
+		std::string_view model;
+		std::string_view table_suffix;
+	};
+
 	/**
 	 * @brief Given an image file, check if it is a gif, and if it is animated.
 	 * If it is, flatten it by extracting just the first frame using imagemagick.
@@ -85,7 +90,7 @@ namespace ocr {
 		bool flattened = false;
 		std::string hash = sha256(file_content);
 
-		db::resultset pattern_count = db::query("SELECT COUNT(guild_id) AS total FROM guild_patterns WHERE guild_id = ?", { ev.msg.guild_id.str() });
+		db::resultset pattern_count = db::query("SELECT COUNT(guild_id) AS total FROM guild_patterns WHERE guild_id = ?", { ev.msg.guild_id });
 		if (pattern_count.size() > 0 && atoi(pattern_count[0].at("total").c_str()) > 0) {
 			try {
 				db::resultset rs = db::query("SELECT * FROM scan_cache WHERE hash = ?", { hash });
@@ -121,7 +126,7 @@ namespace ocr {
 			if (!ocr.empty()) {
 				std::vector<std::string> lines = dpp::utility::tokenize(ocr, "\n");
 				bot.log(dpp::ll_debug, "Read " + std::to_string(lines.size()) + " lines of text from image with total size " + std::to_string(ocr.length()));
-				db::resultset patterns = db::query("SELECT * FROM guild_patterns WHERE guild_id = ?", { ev.msg.guild_id.str() });
+				db::resultset patterns = db::query("SELECT * FROM guild_patterns WHERE guild_id = ?", { ev.msg.guild_id });
 				bot.log(dpp::ll_debug, "Checking image content against " + std::to_string(patterns.size()) + " patterns...");
 				for (const std::string& line : lines) {
 					for (const db::row& pattern : patterns) {
@@ -140,7 +145,7 @@ namespace ocr {
 			bot.log(dpp::ll_debug, "No OCR patterns configured in guild " + ev.msg.guild_id.str());
 		}
 
-		db::resultset settings = db::query("SELECT premium_subscription FROM guild_config WHERE guild_id = ? AND calls_this_month <= calls_limit", { ev.msg.guild_id.str() });
+		db::resultset settings = db::query("SELECT premium_subscription FROM guild_config WHERE guild_id = ? AND calls_this_month <= calls_limit", { ev.msg.guild_id });
 		/* Only images of >= 50 pixels in both dimensions and smaller than 12mb are supported by the API. Anything else we dont scan. 
 		 * In the event we dont have the dimensions, scan it anyway.
 		 */
@@ -157,7 +162,7 @@ namespace ocr {
 			json merge;
 
 			/* Mapping of models to cache tables */
-			constexpr const std::pair<std::string_view, std::string_view> cache_model[4]{
+			constexpr model_mapping cache_model[4]{
 				{ "wad", "wad" },
 				{ "gore", "gore" },
 				{ "nudity-2.0", "nudity" },
@@ -166,19 +171,19 @@ namespace ocr {
 
 			/* Retrieve models from cache */
 			for (const auto& detail : cache_model) {
-				if (std::find(active.begin(), active.end(), detail.first) != active.end()) {
-					db::resultset rs = db::query(fmt::format("SELECT * FROM api_cache_{} WHERE hash = ?", detail.second), { hash });
+				if (std::find(active.begin(), active.end(), detail.model) != active.end()) {
+					db::resultset rs = db::query(fmt::format("SELECT * FROM api_cache_{} WHERE hash = ?", detail.table_suffix), { hash });
 					if (rs.size()) {
-						active.erase(std::remove(active.begin(), active.end(), detail.first), active.end());
-						if (detail.first == "wad") {
+						active.erase(std::remove(active.begin(), active.end(), detail.model), active.end());
+						if (detail.model == "wad") {
 							json p = json::parse(rs[0].at("api"));
 							merge["weapon"] = p[0].get<double>();
 							merge["alcohol"] = p[1].get<double>();
 							merge["drugs"] = p[2].get<double>();
 						} else {
-							merge[std::string(detail.second)] = json::parse(rs[0].at("api"));
+							merge[std::string(detail.table_suffix)] = json::parse(rs[0].at("api"));
 						}
-						bot.log(dpp::ll_debug, fmt::format("Got cached {}", detail.first));
+						bot.log(dpp::ll_debug, fmt::format("Got cached {}", detail.table_suffix));
 					}
 				}
 			}
@@ -233,21 +238,21 @@ namespace ocr {
 
 							/* Cache each model to its cache */
 							for (const auto& detail : cache_model) {
-								if (std::find(models.begin(), models.end(), detail.first) != models.end()) {
+								if (std::find(models.begin(), models.end(), detail.model) != models.end()) {
 									std::string v;
-									if (detail.first == "wad") {
+									if (detail.model == "wad") {
 										v = "[" +
 											std::to_string(answer.at("weapon").get<double>()) + "," +
 											std::to_string(answer.at("alcohol").get<double>()) + "," +
 											std::to_string(answer.at("drugs").get<double>()) + "]";
 									} else {
-										v = answer.at(std::string(detail.second)).dump();
+										v = answer.at(std::string(detail.table_suffix)).dump();
 									}
-									db::query(fmt::format("INSERT INTO api_cache_{} (hash, api) VALUES(?,?) ON DUPLICATE KEY UPDATE api = ?", detail.second), { hash, v, v });
-									bot.log(dpp::ll_debug, fmt::format("Cached {}", detail.first));
+									db::query(fmt::format("INSERT INTO api_cache_{} (hash, api) VALUES(?,?) ON DUPLICATE KEY UPDATE api = ?", detail.table_suffix), { hash, v, v });
+									bot.log(dpp::ll_debug, fmt::format("Cached {}", detail.table_suffix));
 								}
 							}
-							db::query("UPDATE guild_config SET calls_this_month = calls_this_month + 1 WHERE guild_id = ?", {ev.msg.guild_id.str() });
+							db::query("UPDATE guild_config SET calls_this_month = calls_this_month + 1 WHERE guild_id = ?", {ev.msg.guild_id });
 						} else {
 							if (answer.contains("error") && answer.contains("request")) {
 								bot.log(dpp::ll_warning, "API Error: '" + std::to_string(answer["error"]["code"].get<int>()) + "; " + answer["error"]["message"].get<std::string>()  + "' status: " + std::to_string(res->status) + " id: " + answer["request"]["id"].get<std::string>());

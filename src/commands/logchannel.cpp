@@ -32,7 +32,7 @@ dpp::slashcommand logchannel_command::register_command(dpp::cluster& bot)
 				return;
 			}
 
-			db::query("INSERT INTO guild_config (guild_id, log_channel) VALUES(?, ?) ON DUPLICATE KEY UPDATE log_channel = ?", { event.command.guild_id.str(), event.values[0], event.values[0] });
+			db::query("INSERT INTO guild_config (guild_id, log_channel) VALUES(?, ?) ON DUPLICATE KEY UPDATE log_channel = ?", { event.command.guild_id, event.values[0], event.values[0] });
 			event.reply(dpp::message("✅ Log channel set").set_flags(dpp::m_ephemeral));
 		}
 	});

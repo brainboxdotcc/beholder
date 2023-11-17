@@ -407,7 +407,7 @@ CREATE TABLE scan_cache (
   hash varchar(64) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci NOT NULL COMMENT 'SHA256 of image url',
   ocr text CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci COMMENT 'Previous OCR results',
   cached_at timestamp NULL DEFAULT CURRENT_TIMESTAMP COMMENT 'Last update time/date'
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='OCR and IR previous cached scans hashed by sha256 of file content'
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='OCR cached scans hashed by sha256 of file content'
 PARTITION BY KEY (`hash`)
 (
 PARTITION p0 ENGINE=InnoDB,

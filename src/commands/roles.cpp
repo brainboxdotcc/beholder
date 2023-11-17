@@ -28,7 +28,7 @@ dpp::slashcommand roles_command::register_command(dpp::cluster& bot)
 		if (event.custom_id == "add_roles_select_menu") {
 
 			db::transaction();
-			db::query("DELETE FROM guild_bypass_roles WHERE guild_id = ?", { event.command.guild_id.str() });
+			db::query("DELETE FROM guild_bypass_roles WHERE guild_id = ?", { event.command.guild_id });
 
 			if (!db::error().empty()) {
 				/* We get out the transaction in the event of a failure. */
@@ -47,7 +47,7 @@ dpp::slashcommand roles_command::register_command(dpp::cluster& bot)
 					if (i != event.values.size() - 1) {
 						sql_query += ", ";
 					}
-					sql_parameters.emplace_back(event.command.guild_id.str());
+					sql_parameters.emplace_back(event.command.guild_id);
 					sql_parameters.emplace_back(event.values[i]);
 				}
 

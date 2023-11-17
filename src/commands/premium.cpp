@@ -30,7 +30,7 @@ dpp::slashcommand premium_command::register_command(dpp::cluster& bot)
 			std::string embed_body = std::get<std::string>(event.components[1].components[0].value);
 			db::query(
 				"INSERT INTO guild_config (guild_id, premium_title, premium_body) VALUES(?, ?, ?) ON DUPLICATE KEY UPDATE premium_title = ?, premium_body = ?",
-				{ event.command.guild_id.str(), embed_title, embed_body, embed_title, embed_body }
+				{ event.command.guild_id, embed_title, embed_body, embed_title, embed_body }
 			);
 			/* Replace @user with the user's mention for preview */
 			embed_body = replace_string(embed_body, "@user", "<@" + event.command.usr.id.str() + ">");
@@ -45,7 +45,7 @@ dpp::slashcommand premium_command::register_command(dpp::cluster& bot)
 	bot.on_select_click([&bot](const dpp::select_click_t& event) {
 		if (event.custom_id == "premium_patterns_select_menu") {
 			db::transaction();
-			db::query("DELETE FROM premium_filters WHERE guild_id = ?", { event.command.guild_id.str() });
+			db::query("DELETE FROM premium_filters WHERE guild_id = ?", { event.command.guild_id });
 
 			if (!db::error().empty()) {
 				/* We get out the transaction in the event of a failure. */
@@ -64,7 +64,7 @@ dpp::slashcommand premium_command::register_command(dpp::cluster& bot)
 					if (i != event.values.size() - 1) {
 						sql_query += ", ";
 					}
-					sql_parameters.emplace_back(event.command.guild_id.str());
+					sql_parameters.emplace_back(event.command.guild_id);
 					sql_parameters.emplace_back(event.values[i]);
 					sql_parameters.emplace_back(event.values[i]);
 				}
@@ -94,7 +94,7 @@ void premium_command::route(const dpp::slashcommand_t &event)
 {
 	dpp::command_interaction cmd_data = event.command.get_command_interaction();
 	auto subcommand = cmd_data.options[0];
-	db::resultset embed = db::query("SELECT premium_subscription, premium_body, premium_title FROM guild_config WHERE guild_id = ?", { event.command.guild_id.str() });
+	db::resultset embed = db::query("SELECT premium_subscription, premium_body, premium_title FROM guild_config WHERE guild_id = ?", { event.command.guild_id });
 	if (embed.empty() || embed[0].at("premium_subscription").empty()) {
 		event.reply("You don't appear to be a Beholder Premium subscriber!");
 	}
@@ -146,7 +146,7 @@ void premium_command::route(const dpp::slashcommand_t &event)
 			.set_max_values(25)
 			.set_id("premium_patterns_select_menu");
 
-		db::resultset rows = db::query("SELECT * FROM premium_filter_model LEFT JOIN premium_filters ON guild_id = ? AND category = pattern", { event.command.guild_id.str() });
+		db::resultset rows = db::query("SELECT * FROM premium_filter_model LEFT JOIN premium_filters ON guild_id = ? AND category = pattern", { event.command.guild_id });
 		for (const auto& row : rows) {
 			auto opt = dpp::select_option(row.at("description"), row.at("category"), row.at("detail"));
 			if (!row.at("pattern").empty()) {

@@ -63,7 +63,7 @@ void info_command::route(const dpp::slashcommand_t &event)
 		}
 		std::string pattern_count{"0"}, prem_count{"0"}, log_channel;
 		bool has_premium = false;
-		db::resultset config = db::query("SELECT *, (SELECT COUNT(pattern) FROM guild_patterns WHERE guild_id = ?) AS patterns, (SELECT COUNT(pattern) FROM premium_filters WHERE guild_id = ?) AS premium_patterns FROM guild_config WHERE guild_id = ?", { event.command.guild_id.str(), event.command.guild_id.str(), event.command.guild_id.str() });
+		db::resultset config = db::query("SELECT *, (SELECT COUNT(pattern) FROM guild_patterns WHERE guild_id = ?) AS patterns, (SELECT COUNT(pattern) FROM premium_filters WHERE guild_id = ?) AS premium_patterns FROM guild_config WHERE guild_id = ?", { event.command.guild_id, event.command.guild_id, event.command.guild_id });
 		if (!config.empty()) {
 			pattern_count = config[0].at("patterns");
 			prem_count = config[0].at("premium_patterns");
