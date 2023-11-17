@@ -24,12 +24,6 @@
 
 bool find_banned_type(const json& response, const dpp::attachment attach, dpp::cluster& bot, const dpp::message_create_t ev, const std::string& content)
 {
-	std::string status = response.at("status");
-	if (status != "success") {
-		bot.log(dpp::ll_info, "API status was: " + status);
-		return false;
-	}
-
 	db::resultset premium_filters = db::query("SELECT * FROM premium_filters WHERE guild_id = ?", { ev.msg.guild_id.str() });
 	bot.log(dpp::ll_debug, std::to_string(premium_filters.size()) + " premium filters to check");
 	for (const db::row& row : premium_filters) {

@@ -149,57 +149,129 @@ namespace ocr {
 			json& irconf = config::get("ir");
 			std::vector<std::string> fields = irconf["fields"];
 			std::string endpoint = irconf["host"];
-			db::resultset m = db::query("SELECT GROUP_CONCAT(DISTINCT model) AS selected FROM premium_filter_model");
+			db::resultset m = db::query("SELECT GROUP_CONCAT(DISTINCT model) AS selected FROM premium_filter_model WHERE category IN (SELECT pattern FROM premium_filters WHERE guild_id = ?)", {ev.msg.guild_id});
 			std::string active_models = m[0].at("selected");
-
-			json answer;
-			db::resultset rs = db::query("SELECT * FROM api_cache WHERE hash = ?", { hash });
-			if (!rs.empty()) {
-				bot.log(dpp::ll_info, fmt::format("image {} is in API cache", hash));
-				answer = json::parse(rs[0].at("api"));
-				find_banned_type(answer, attach, bot, ev, file_content);
-			} else {
-				if (!flattened) {
-					file_content = flatten_gif(bot, attach, file_content);
-					flattened = true;
+			std::string original_active = active_models;
+			std::vector<std::string> active = dpp::utility::tokenize(active_models, ",");
+			std::vector<std::string> models = active;
+			json merge;
+			if (std::find(active.begin(), active.end(), "wad") != active.end()) {
+				db::resultset rs = db::query("SELECT * FROM api_cache_wad WHERE hash = ?", { hash });
+				if (rs.size()) {
+					active.erase(std::remove(active.begin(), active.end(), "wad"), active.end());
+					json p = json::parse(rs[0].at("api"));
+					merge["weapon"] = p[0].get<double>();
+					merge["alcohol"] = p[1].get<double>();
+					merge["drugs"] = p[2].get<double>();
+					bot.log(dpp::ll_debug, "Got cached WAD: " + merge.dump());
 				}
-				/* Make API request, upload the image, don't get the API to download it.
-				 * This is more expensive for us in terms of bandwidth, but we are going
-				 * to be able to check more images more of the time this way. We already
-				 * have the image data in memory and can upload it straight to the API.
-				 * Asking the API endpoint to download it via URL risks them being rate
-				 * limited or blocked as they will be making many hundreds of requests
-				 * per minute and we will not.
-				 */
-				httplib::Client cli(endpoint.c_str());
-				cli.enable_server_certificate_verification(false);
-				httplib::MultipartFormDataItems items = {
-					{ fields[4], file_content, attach.filename, "application/octet-stream" },
-					{ fields[1], irconf["credentials"]["username"], "", "" },
-					{ fields[2], irconf["credentials"]["password"], "", "" },
-					{ fields[0], active_models, "", "" },
-				};
-				auto res = cli.Post(irconf["path"].get<std::string>().c_str(), items);
+			}
+			if (std::find(active.begin(), active.end(), "gore") != active.end()) {
+				db::resultset rs = db::query("SELECT * FROM api_cache_gore WHERE hash = ?", { hash });
+				if (rs.size()) {
+					active.erase(std::remove(active.begin(), active.end(), "gore"), active.end());
+					merge["gore"] = json::parse(rs[0].at("api"));
+					bot.log(dpp::ll_debug, "Got cached gore: " + json::parse(rs[0].at("api")).dump());
+				}
+			}
+			if (std::find(active.begin(), active.end(), "nudity-2.0") != active.end()) {
+				db::resultset rs = db::query("SELECT * FROM api_cache_nudity WHERE hash = ?", { hash });
+				if (rs.size()) {
+					active.erase(std::remove(active.begin(), active.end(), "nudity-2.0"), active.end());
+					merge["nudity"] = json::parse(rs[0].at("api"));
+					bot.log(dpp::ll_debug, "Got cached nudity-2.0: " + json::parse(rs[0].at("api")).dump());
+				}
+			}
+			if (std::find(active.begin(), active.end(), "offensive") != active.end()) {
+				db::resultset rs = db::query("SELECT * FROM api_cache_offensive WHERE hash = ?", { hash });
+				if (rs.size()) {
+					active.erase(std::remove(active.begin(), active.end(), "offensive"), active.end());
+					merge["offensive"] = json::parse(rs[0].at("api"));
+					bot.log(dpp::ll_debug, "Got cached offensive: " + json::parse(rs[0].at("api")).dump());
+				}
+			}
+			active_models.clear();
+			for (const std::string a : active) {
+				active_models.append(a).append(",");
+			}
+			if (active_models.length()) {
+				active_models = active_models.substr(0, active_models.length() - 1);
+			}
 
-				if (res) {
-					try {
-						answer = json::parse(res->body);
+			if (!original_active.empty()) {
+
+				json answer;
+
+				if (active.empty()) {
+					bot.log(dpp::ll_info, fmt::format("image {} has all models in API cache ({})", hash, original_active));
+					answer = merge;
+					find_banned_type(answer, attach, bot, ev, file_content);
+		 		} else {
+					if (!flattened) {
+						file_content = flatten_gif(bot, attach, file_content);
+						flattened = true;
 					}
-					catch (const std::exception &e) {
-					}
-					if (res->status < 400) {
-						bot.log(dpp::ll_info, "API response ID: " + answer["request"]["id"].get<std::string>());
-						find_banned_type(answer, attach, bot, ev, file_content);
-						db::query("INSERT INTO api_cache (hash, api) VALUES(?,?) ON DUPLICATE KEY UPDATE api = ?", { hash, res->body, res->body });
-						db::query("UPDATE guild_config SET calls_this_month = calls_this_month + 1 WHERE guild_id = ?", {ev.msg.guild_id.str() });
-					} else {
-						if (answer.contains("error") && answer.contains("request")) {
-							bot.log(dpp::ll_warning, "API Error: '" + std::to_string(answer["error"]["code"].get<int>()) + "; " + answer["error"]["message"].get<std::string>()  + "' status: " + std::to_string(res->status) + " id: " + answer["request"]["id"].get<std::string>());
+					/* Make API request, upload the image, don't get the API to download it.
+					* This is more expensive for us in terms of bandwidth, but we are going
+					* to be able to check more images more of the time this way. We already
+					* have the image data in memory and can upload it straight to the API.
+					* Asking the API endpoint to download it via URL risks them being rate
+					* limited or blocked as they will be making many hundreds of requests
+					* per minute and we will not.
+					*/
+					httplib::Client cli(endpoint.c_str());
+					cli.enable_server_certificate_verification(false);
+					httplib::MultipartFormDataItems items = {
+						{ fields[4], file_content, attach.filename, "application/octet-stream" },
+						{ fields[1], irconf["credentials"]["username"], "", "" },
+						{ fields[2], irconf["credentials"]["password"], "", "" },
+						{ fields[0], active_models, "", "" },
+					};
+					auto res = cli.Post(irconf["path"].get<std::string>().c_str(), items);
+
+					if (res) {
+						try {
+							answer.merge_patch(json::parse(res->body));
 						}
+						catch (const std::exception &e) {
+						}
+						if (res->status < 400) {
+							bot.log(dpp::ll_info, "API response ID: " + answer["request"]["id"].get<std::string>() + " with models: " + original_active);
+							find_banned_type(answer, attach, bot, ev, file_content);
+							
+							if (std::find(models.begin(), models.end(), "nudity-2.0") != models.end()) {
+								std::string v{answer.at("nudity").dump()};
+								db::query("INSERT INTO api_cache_nudity (hash, api) VALUES(?,?) ON DUPLICATE KEY UPDATE api = ?", { hash, v, v });
+								bot.log(dpp::ll_debug, "Cached nudity-2.0: " + v);
+							}
+							if (std::find(models.begin(), models.end(), "gore") != models.end()) {
+								std::string v{answer.at("gore").dump()};
+								db::query("INSERT INTO api_cache_gore (hash, api) VALUES(?,?) ON DUPLICATE KEY UPDATE api = ?", { hash, v, v });
+								bot.log(dpp::ll_debug, "Cached gore: " + v);
+							}
+							if (std::find(models.begin(), models.end(), "offensive") != models.end()) {
+								std::string v{answer.at("offensive").dump()};
+								db::query("INSERT INTO api_cache_offensive (hash, api) VALUES(?,?) ON DUPLICATE KEY UPDATE api = ?", { hash, v, v });
+								bot.log(dpp::ll_debug, "Cached offensive: " + v);
+							}
+							if (std::find(models.begin(), models.end(), "wad") != models.end()) {
+								std::string v = "[" + 
+									std::to_string(answer.at("weapon").get<double>()) + "," +
+									std::to_string(answer.at("alcohol").get<double>()) + "," +
+									std::to_string(answer.at("drugs").get<double>()) + "]";
+								db::query("INSERT INTO api_cache_wad (hash, api) VALUES(?,?) ON DUPLICATE KEY UPDATE api = ?", { hash, v, v });
+								bot.log(dpp::ll_debug, "Cached wad: " + v);
+							}
+							db::query("UPDATE guild_config SET calls_this_month = calls_this_month + 1 WHERE guild_id = ?", {ev.msg.guild_id.str() });
+						} else {
+							if (answer.contains("error") && answer.contains("request")) {
+								bot.log(dpp::ll_warning, "API Error: '" + std::to_string(answer["error"]["code"].get<int>()) + "; " + answer["error"]["message"].get<std::string>()  + "' status: " + std::to_string(res->status) + " id: " + answer["request"]["id"].get<std::string>());
+							}
+						}
+					} else {
+						auto err = res.error();
+						bot.log(dpp::ll_warning, fmt::format("API Error: {}", httplib::to_string(err)));
 					}
-				} else {
-					auto err = res.error();
-					bot.log(dpp::ll_warning, fmt::format("API Error: {}", httplib::to_string(err)));
 				}
 			}
 		}
