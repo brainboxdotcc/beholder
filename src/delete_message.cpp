@@ -78,8 +78,7 @@ void delete_message_and_warn(const std::string& image, dpp::cluster& bot, const 
 							ev.msg.author.format_username() + "` (" +
 							ev.msg.author.get_mention() + ")" +
 							"\nIn Channel: <#" + ev.msg.channel_id.str() + ">" +
-							"\nMatched pattern: `" +
-							text
+							"\nMatched pattern: `" + text + "`"
 							+ (premium && trigger ? fmt::format("\nProbability: `{:.1f}%`, Threshold: `{:.1f}%`", trigger * 100.0, threshold * 100) : "")
 							+ "`\n[Image link](" + attach.url +")"
 						)

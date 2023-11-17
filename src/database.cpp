@@ -326,18 +326,11 @@ namespace db {
 					for (int i = 0; i < field_count; ++i) {
 						delete[] string_buffers[i];
 					}
+					mysql_free_result(a_res);
 					return rv;
 				}
 
 				result = mysql_stmt_execute(cc.st);
-
-				if (mysql_stmt_store_result(cc.st)) {
-					log_error(format, mysql_stmt_error(cc.st));
-					for (int i = 0; i < field_count; ++i) {
-						delete[] string_buffers[i];
-					}
-					return rv;
-				}
 
 				if (result == 0) {
 
