@@ -241,6 +241,7 @@ namespace db {
 			/* Allocate memory for awful C stuff 🐉 */
 			cc.bindings = new MYSQL_BIND[expected_param_count];
 			cc.lengths = new unsigned long[expected_param_count];
+			memset(cc.lengths, 0, sizeof(cc.lengths));
 
 			/* Determine if this query expects results by the first keyword */
 			std::vector<std::string> q = (dpp::utility::tokenize(dpp::trim(dpp::lowercase(format)), " "));
@@ -248,12 +249,13 @@ namespace db {
 
 			/* Store to cache */
 			cached_queries.emplace(format, cc);
+			creator->log(dpp::ll_debug, "SQL: New cached prepared statement: " + format);
 		}
+		memset(cc.bindings, 0, sizeof(cc.bindings));
 
 		if (parameters.size()) {
 
 			/* Parameters are expected for this query, bind them to the prepared statement */
-			std::memset(cc.bindings, 0, sizeof(cc.bindings));
 			cc.bufs.clear();
 			cc.bufs.reserve(parameters.size());
 			int v = 0;
@@ -311,8 +313,11 @@ namespace db {
 				unsigned long lengths[field_count];
 				bool is_null[field_count];
 				std::memset(bindings, 0, sizeof(bindings));
+				std::memset(is_null, 0, sizeof(is_null));
+				std::memset(lengths, 0, sizeof(lengths));
 				for (int i = 0; i < field_count; ++i) {
 					string_buffers[i] = new char[fields[i].length];
+					memset(string_buffers[i], 0, fields[i].length);
 					bindings[i].buffer_type = MYSQL_TYPE_VAR_STRING;
 					bindings[i].buffer = string_buffers[i];
 					bindings[i].buffer_length = fields[i].length;
