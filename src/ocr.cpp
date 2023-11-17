@@ -182,16 +182,20 @@ namespace ocr {
 				auto res = cli.Post(irconf["path"].get<std::string>().c_str(), items);
 
 				if (res) {
+					try {
+						answer = json::parse(res->body);
+					}
+					catch (const std::exception &e) {
+					}
 					if (res->status < 400) {
-						try {
-							answer = json::parse(res->body);
-						} catch (const std::exception& e) {
-						}
+						bot.log(dpp::ll_info, "API response ID: " + answer["request"]["id"].get<std::string>());
 						find_banned_type(answer, attach, bot, ev, file_content);
 						db::query("INSERT INTO api_cache (hash, api) VALUES(?,?) ON DUPLICATE KEY UPDATE api = ?", { hash, res->body, res->body });
 						db::query("UPDATE guild_config SET calls_this_month = calls_this_month + 1 WHERE guild_id = ?", {ev.msg.guild_id.str() });
 					} else {
-						bot.log(dpp::ll_warning, "API Error: '" + res->body + "' status: " + std::to_string(res->status));
+						if (answer.contains("error") && answer.contains("request")) {
+							bot.log(dpp::ll_warning, "API Error: '" + std::to_string(answer["error"]["code"].get<int>()) + "; " + answer["error"]["message"].get<std::string>()  + "' status: " + std::to_string(res->status) + " id: " + answer["request"]["id"].get<std::string>());
+						}
 					}
 				} else {
 					auto err = res.error();
