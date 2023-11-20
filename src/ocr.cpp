@@ -31,11 +31,23 @@
 
 namespace ocr {
 
+	/**
+	 * @brief Mapping of model to cache table
+	 */
 	struct model_mapping {
 		std::string_view model;
 		std::string_view table_suffix;
 	};
 
+	/**
+	 * @brief Given two objects, deep copy them together into one.
+	 * nlohmann::json::update() and nlohmann::json::merge_patch() don't do this,
+	 * and only copy shallow.
+	 * 
+	 * @param lhs left hand side, will have keys replaced
+	 * @param rhs right hand side, has priority
+	 * @return nlohmann::json return value
+	 */
 	nlohmann::json object_merge(const json & lhs, const json & rhs) {
 		// start with the full LHS json, into which we'll copy everything from RHS
 		json j = lhs;
