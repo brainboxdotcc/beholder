@@ -95,7 +95,7 @@ namespace ocr {
 			for (size_t x = 0; x < file_content.length() - 3; ++x) {
 				if (filebits[x] == 0x21 && filebits[x + 1] == 0xF9 && filebits[x + 2] == 0x04) {
 					bot.log(dpp::ll_debug, "Detected animated gif, name: " + attach.filename + "; flattening with convert");
-					const char* const argv[] = {"/usr/bin/convert", "-[0]", "/dev/stdout", nullptr};
+					const char* const argv[] = {"/usr/bin/convert", "-[0]", "png:-", nullptr};
 					spawn convert(argv);
 					bot.log(dpp::ll_info, fmt::format("spawned convert; pid={}", convert.get_pid()));
 					convert.stdin.write(file_content.data(), file_content.length());
@@ -108,6 +108,24 @@ namespace ocr {
 					return file_content;
 				}
 			}
+		}
+		return file_content;
+	}
+
+	std::string enlarge_to_50(dpp::cluster& bot, const dpp::attachment attach, std::string file_content) {
+		bot.log(dpp::ll_debug, "Enlarging small image, name: " + attach.filename);
+		const char* const argv[] = {"/usr/bin/convert", "-[0]", "-resize", "128x128", "png:-", nullptr};
+		spawn convert(argv);
+		bot.log(dpp::ll_info, fmt::format("spawned convert; pid={} image len={}", convert.get_pid(), file_content.length()));
+		convert.stdin.write(file_content.data(), file_content.length());
+		convert.send_eof();
+		std::ostringstream stream;
+		stream << convert.stdout.rdbuf();
+		file_content = stream.str();
+		int ret = convert.wait();
+		bot.log(ret ? dpp::ll_error : dpp::ll_info, fmt::format("convert status {}", ret));
+		if (ret) {
+			bot.log(dpp::ll_debug, stream.str());
 		}
 		return file_content;
 	}
@@ -183,8 +201,15 @@ namespace ocr {
 		/* Only images of >= 50 pixels in both dimensions and smaller than 12mb are supported by the API. Anything else we dont scan. 
 		 * In the event we dont have the dimensions, scan it anyway.
 		 */
-		if (attach.size < 1024 * 1024 * 12 &&
-			(attach.width == 0 || attach.width >= 50) && (attach.height == 0 || attach.height >= 50) && settings.size() && settings[0].at("premium_subscription").length()) {
+		int enlarged = 0;
+		if (attach.size < 1024 * 1024 * 12 && (settings.size() && settings[0].at("premium_subscription").length())) {
+			search_again:
+			if (++enlarged > 2) {
+				bot.log(dpp::ll_warning, "Tried twice, with enlarged and normal image, could not resize");
+				return;
+			} else {
+				bot.log(dpp::ll_debug, "Pass " + std::to_string(enlarged));
+			}
 			json& irconf = config::get("ir");
 			std::vector<std::string> fields = irconf["fields"];
 			std::string endpoint = irconf["host"];
@@ -288,7 +313,13 @@ namespace ocr {
 							db::query("UPDATE guild_config SET calls_this_month = calls_this_month + 1 WHERE guild_id = ?", {ev.msg.guild_id });
 						} else {
 							if (answer.contains("error") && answer.contains("request")) {
-								bot.log(dpp::ll_warning, "API Error: '" + std::to_string(answer["error"]["code"].get<int>()) + "; " + answer["error"]["message"].get<std::string>()  + "' status: " + std::to_string(res->status) + " id: " + answer["request"]["id"].get<std::string>());
+								int code = answer["error"]["code"].get<int>();
+								std::string msg = answer["error"]["message"].get<std::string>();
+								if (code == 16 && msg == "Media too small, should be at least 50 pixels in height or width")  {
+									file_content = enlarge_to_50(bot, attach, file_content);
+									goto search_again;
+								}
+								bot.log(dpp::ll_warning, "API Error: '" + std::to_string(code) + "; " + msg  + "' status: " + std::to_string(res->status) + " id: " + answer["request"]["id"].get<std::string>());
 							}
 						}
 					} else {
