@@ -33,8 +33,15 @@ bool find_banned_type(const json& response, const dpp::attachment attach, dpp::c
 		if (row.at("score").length()) {
 			trigger_value = atof(row.at("score").c_str());
 		}
-		json::json_pointer ptr("/" + replace_string(filter_type, ".", "/"));
-		json value = response[ptr];
+		json value;
+		try {
+			json::json_pointer ptr("/" + replace_string(filter_type, ".", "/"));
+			value = response[ptr];
+		}
+		catch (json::exception &e) {
+			bot.log(dpp::ll_debug, "Missing filter in JSON " + filter_type + ": " + e.what());
+			continue;
+		}
 		if (!value.empty()) {
 			if (value.is_number_float() || value.is_number_integer()) {
 				found_value = value.get<double>();

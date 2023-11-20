@@ -36,6 +36,28 @@ namespace ocr {
 		std::string_view table_suffix;
 	};
 
+	nlohmann::json object_merge(const json & lhs, const json & rhs) {
+		// start with the full LHS json, into which we'll copy everything from RHS
+		json j = lhs;
+		// if a key exists in both LHS and RHS, then we keep RHS
+		for (auto it = rhs.cbegin(); it != rhs.cend(); ++it) {
+			const auto & key = it.key();
+			if (it->is_object()) {
+				if (lhs.contains(key)) {
+					// object already exists (must merge)
+					j[key] = object_merge(lhs[key], rhs[key]);
+				} else {
+					// object does not exist in LHS, so use the RHS
+					j[key] = rhs[key];
+				}
+			} else {
+				// this is an individual item, use RHS
+				j[key] = it.value();
+			}
+		}
+		return j;
+	}
+
 	/**
 	 * @brief Given an image file, check if it is a gif, and if it is animated.
 	 * If it is, flatten it by extracting just the first frame using imagemagick.
@@ -159,7 +181,7 @@ namespace ocr {
 			std::string original_active = active_models;
 			std::vector<std::string> active = dpp::utility::tokenize(active_models, ",");
 			std::vector<std::string> models = active;
-			json merge;
+			json merge = json::object();
 
 			/* Mapping of models to cache tables */
 			constexpr model_mapping cache_model[4]{
@@ -177,11 +199,11 @@ namespace ocr {
 						active.erase(std::remove(active.begin(), active.end(), detail.model), active.end());
 						if (detail.model == "wad") {
 							json p = json::parse(rs[0].at("api"));
-							merge["weapon"] = p[0].get<double>();
-							merge["alcohol"] = p[1].get<double>();
-							merge["drugs"] = p[2].get<double>();
+							merge.emplace("weapon", p[0].get<double>());
+							merge.emplace("alcohol", p[1].get<double>());
+							merge.emplace("drugs", p[2].get<double>());
 						} else {
-							merge[std::string(detail.table_suffix)] = json::parse(rs[0].at("api"));
+							merge.emplace(std::string(detail.table_suffix), json::parse(rs[0].at("api")));
 						}
 						bot.log(dpp::ll_debug, fmt::format("Got cached {}", detail.table_suffix));
 					}
@@ -197,11 +219,9 @@ namespace ocr {
 
 			if (!original_active.empty()) {
 
-				json answer;
-
+				json answer = merge;
 				if (active.empty()) {
 					bot.log(dpp::ll_info, fmt::format("image {} has all models in API cache ({})", hash, original_active));
-					answer = merge;
 					find_banned_type(answer, attach, bot, ev, file_content);
 		 		} else {
 					if (!flattened) {
@@ -227,10 +247,11 @@ namespace ocr {
 					auto res = cli.Post(irconf["path"].get<std::string>().c_str(), items);
 
 					if (res) {
-						try {
-							answer.merge_patch(json::parse(res->body));
-						}
-						catch (const std::exception &e) {
+						if (!answer.empty()) {
+							json body = json::parse(res->body);
+							answer = object_merge(answer, body);
+						} else {
+							answer = json::parse(res->body);
 						}
 						if (res->status < 400) {
 							bot.log(dpp::ll_info, "API response ID: " + answer["request"]["id"].get<std::string>() + " with models: " + original_active);
