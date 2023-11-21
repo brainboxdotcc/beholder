@@ -43,5 +43,7 @@ void route_command(const dpp::slashcommand_t &event)
 			sentry::end_transaction(slashlog);
 			sentry::unset_user();
 		}).detach();
+	} else {
+		event.from->creator->log(dpp::ll_error, "Unable to route command: " + event.command.get_command_name());
 	}
 }

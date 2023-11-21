@@ -35,6 +35,7 @@
 #include <beholder/commands/info.h>
 #include <beholder/commands/ping.h>
 #include <beholder/commands/ignoredchannels.h>
+#include <beholder/commands/addblock.h>
 
 namespace listeners {
 
@@ -51,6 +52,7 @@ namespace listeners {
 				register_command<logchannel_command>(bot),
 				register_command<ping_command>(bot),
 				register_command<ignoredchannels_command>(bot),
+				register_command<addblock_command>(bot),
 			});
 
 			auto set_presence = [&bot]() {
