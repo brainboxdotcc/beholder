@@ -74,31 +74,33 @@ namespace listeners {
 		bool good = false;
 		dpp::cluster& bot = *(event.from->creator);
 		std::vector<std::string> parts = dpp::utility::tokenize(event.custom_id, ";");
-		if (event.custom_id.starts_with("DN;")) {
-			/* Report false positive */
-			ours = true;
-			good = false;
-			event.reply(":+1: Thank you for reporting a possible **false positive**. This feedback will be used to train the AI.");
-		} else if (event.custom_id.starts_with("UP;")) {
-			/* Report good match */
-			ours = true;
-			good = true;
-			event.reply(":+1: Thank you for confirming this was a **good result**. This feedback will be used to train the AI.");
-		}
+		auto logchannel = db::query("SELECT embeds_disabled, log_channel, embed_title, embed_body FROM guild_config WHERE guild_id = ?", { event.command.guild_id });
+		if (logchannel.size()) {
+			dpp::snowflake channel_id(logchannel[0].at("log_channel"));
+			dpp::snowflake message_id = event.command.message_id;
+			if (event.custom_id.starts_with("DN;")) {
+				/* Report false positive */
+				ours = true;
+				good = false;
+				event.reply(":+1: Thank you for reporting a possible **false positive**. This feedback will be used to train the AI.");
+			} else if (event.custom_id.starts_with("UP;")) {
+				/* Report good match */
+				ours = true;
+				good = true;
+				event.reply(":+1: Thank you for confirming this was a **good result**. This feedback will be used to train the AI.");
+			}
 
-		if (ours) {
-			dpp::snowflake message_id(parts[1]);
-			dpp::snowflake channel_id(parts[2]);
-			bot.message_get(message_id, channel_id, [event, parts, good](const auto& cc) {
-				/* Clear components from message to prevent double reports */
-				if (cc.is_error()) {
-					return;
-				}
-				dpp::message m = std::get<dpp::message>(cc.value);
-				m.components.clear();
-				event.from->creator->message_edit(m);
-				premium_api::report(*(event.from->creator), good, m.id, m.channel_id, m.embeds[0].image->url, parts[3]);
-			});
+			if (ours) {
+				bot.message_get(message_id, channel_id, [event, good, message_id, channel_id, parts](const auto& cc) {
+					if (cc.is_error()) {
+						return;
+					}
+					dpp::message m = std::get<dpp::message>(cc.value);
+					if (m.embeds.size() && m.embeds[0].image.has_value()) {
+						premium_api::report(*(event.from->creator), good, message_id, channel_id, m.embeds[0].image->url, parts[1]);
+					}
+				});
+			}
 		}
 	}
 

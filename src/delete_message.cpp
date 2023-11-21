@@ -70,56 +70,48 @@ void delete_message_and_warn(const std::string& image, dpp::cluster& bot, const 
 					bot.message_create(dpp::message(dpp::snowflake(logchannel[0].at("log_channel")), "Failed to delete message: " + dpp::utility::message_url(ev.msg.guild_id, ev.msg.channel_id, ev.msg.id) + " - Please check bot permissions."));
 				}
 
-				bot.message_create(
-					dpp::message(dpp::snowflake(logchannel[0].at("log_channel")), "")
-					.add_embed(
-						dpp::embed()
-						.set_description(
-							"Attachment: `" + attach.filename + "`\nSent by: `" +
-							ev.msg.author.format_username() + "` (" +
-							ev.msg.author.get_mention() + ")" +
-							"\nIn Channel: <#" + ev.msg.channel_id.str() + ">" +
-							"\nMatched pattern: `" + text + "`"
-							+ (premium && trigger ? fmt::format("\nProbability: `{:.1f}%`, Threshold: `{:.1f}%`", trigger * 100.0, threshold * 100) : "")
-							+ "\n[Image link](" + attach.url +")"
-						)
-						.set_title("Bad Image Deleted")
-						.set_color(colours::good)
-						.set_image("attachment://" + attach.filename)
-						.set_url("https://beholder.cc/")
-						.set_thumbnail(bot.me.get_avatar_url())
-						.set_footer("Powered by Beholder - Message ID " + std::to_string(ev.msg.id), bot.me.get_avatar_url())
-					).add_file(attach.filename, image)
-				, [&bot, premium, trigger, text](const auto& cc) {
-					/* Edit the log message and put premium thumbs-up/thumbs-down on it if needed */
-					if (cc.is_error() || !premium) {
-						return;
+				dpp::message delete_msg;
+				delete_msg.set_channel_id(logchannel[0].at("log_channel")).add_embed(
+					dpp::embed()
+					.set_description(
+						"Attachment: `" + attach.filename + "`\nSent by: `" +
+						ev.msg.author.format_username() + "` (" +
+						ev.msg.author.get_mention() + ")" +
+						"\nIn Channel: <#" + ev.msg.channel_id.str() + ">" +
+						"\nMatched pattern: `" + text + "`"
+						+ (premium && trigger ? fmt::format("\nProbability: `{:.1f}%`, Threshold: `{:.1f}%`", trigger * 100.0, threshold * 100) : "")
+						+ "\n[Image link](" + attach.url +")"
+					)
+					.set_title("Bad Image Deleted")
+					.set_color(colours::good)
+					.set_image("attachment://" + attach.filename)
+					.set_url("https://beholder.cc/")
+					.set_thumbnail(bot.me.get_avatar_url())
+					.set_footer("Powered by Beholder - Message ID " + std::to_string(ev.msg.id), bot.me.get_avatar_url())
+				).add_file(attach.filename, image);
+				if (trigger >= 0.4) {
+					auto rs = db::query("SELECT model FROM premium_filter_model WHERE description = ?", { text });
+					if (rs.size()) {
+						delete_msg.add_component(
+							dpp::component()
+							.add_component(dpp::component()
+								.set_label("Good Match")
+								.set_type(dpp::cot_button)
+								.set_emoji(dpp::unicode_emoji::thumbsup)
+								.set_style(dpp::cos_success)
+								.set_id("UP;" + rs[0].at("model"))
+							)
+							.add_component(dpp::component()
+								.set_label("False Positive")
+								.set_type(dpp::cot_button)
+								.set_emoji(dpp::unicode_emoji::thumbsdown)
+								.set_style(dpp::cos_danger)
+								.set_id("DN;" + rs[0].at("model"))
+							)
+						);								
 					}
-					dpp::message m = std::get<dpp::message>(cc.value);
-					if (trigger >= 0.4) {
-						auto rs = db::query("SELECT model FROM premium_filter_model WHERE description = ?", { text });
-						if (rs.size()) {
-							m.add_component(
-								dpp::component()
-								.add_component(dpp::component()
-									.set_label("Good Match")
-									.set_type(dpp::cot_button)
-									.set_emoji(dpp::unicode_emoji::thumbsup)
-									.set_style(dpp::cos_success)
-									.set_id("UP;" + m.id.str() + ";" + m.channel_id.str() + ";" + rs[0].at("model"))
-								)							
-								.add_component(dpp::component()
-									.set_label("False Positive")
-									.set_type(dpp::cot_button)
-									.set_emoji(dpp::unicode_emoji::thumbsdown)
-									.set_style(dpp::cos_danger)
-									.set_id("DN;" + m.id.str() + ";" + m.channel_id.str() + ";" + rs[0].at("model"))
-								)							
-							);
-							bot.message_edit(m);
-						}
-					}
-				});
+				}
+				bot.message_create(delete_msg);
 			}
 		}
 	});
