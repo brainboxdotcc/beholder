@@ -51,4 +51,11 @@ namespace listeners {
 	 * @param event message_update_t
 	 */
 	void on_message_update(const dpp::message_update_t &event);
+
+	/**
+	 * @brief Handle button click (false positive, good match)
+	 * 
+	 * @param event button_click_t
+	 */
+	void on_button_click(const dpp::button_click_t &event);
 };

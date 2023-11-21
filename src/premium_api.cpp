@@ -29,7 +29,7 @@
 #include <dpp/json.h>
 #include "3rdparty/httplib.h"
 #include <fmt/format.h>
-
+#include <CxxUrl/url.hpp>
 
 namespace premium_api {
 
@@ -253,5 +253,46 @@ namespace premium_api {
 			}
 		}
 		return rv;
+	}
+
+	void report(dpp::cluster& bot, bool is_good, dpp::snowflake message_id, dpp::snowflake channel_id, const std::string& image_url, const std::string& model) {
+		bot.request(image_url, dpp::m_get, [&bot, is_good, message_id, channel_id, image_url, model](const dpp::http_request_completion_t& result) {
+			json& irconf = config::get("ir");
+			if (is_good) {
+				/* TODO */
+				return;
+			}
+			std::string feedback_class;
+			if (model == "nudity-2.0") {
+				feedback_class = "safe";
+			} else if (model == "offensive") {
+				feedback_class = "not-offensive";
+			} else {
+				feedback_class = "safe";
+			}
+			std::vector<std::string> fields = irconf["fields"];
+			std::string endpoint = irconf["host"];
+			httplib::Client cli(endpoint.c_str());
+			cli.enable_server_certificate_verification(false);
+			std::string path = image_url;
+			try {
+				Url u(image_url);
+				path = u.path();
+			}
+			catch (const std::exception& e) {
+			}
+			std::string filename = fs::path(path).filename();
+			httplib::MultipartFormDataItems items = {
+				{ fields[4], result.body, filename, "application/octet-stream" },
+				{ fields[1], irconf["credentials"]["username"], "", "" },
+				{ fields[2], irconf["credentials"]["password"], "", "" },
+				{ "model", model == "nudity-2.0" || model == "offensive" ? model : "unknown", "", "" },
+				{ "class", feedback_class, "", "" },
+			};
+			auto res = cli.Post("/1.0/feedback.json", items);
+			if (res) {
+				bot.log(dpp::ll_info, fmt::format("Reported message id {} on channel {} as {}", message_id, channel_id, is_good ? "good match" : "false positive"));
+			}
+		});
 	}
 }

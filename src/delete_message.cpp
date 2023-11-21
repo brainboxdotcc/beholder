@@ -18,6 +18,7 @@
  *
  ************************************************************************************/
 #include <dpp/dpp.h>
+#include <dpp/unicode_emoji.h>
 #include <beholder/beholder.h>
 #include <beholder/database.h>
 #include <fmt/format.h>
@@ -89,7 +90,36 @@ void delete_message_and_warn(const std::string& image, dpp::cluster& bot, const 
 						.set_thumbnail(bot.me.get_avatar_url())
 						.set_footer("Powered by Beholder - Message ID " + std::to_string(ev.msg.id), bot.me.get_avatar_url())
 					).add_file(attach.filename, image)
-				);
+				, [&bot, premium, trigger, text](const auto& cc) {
+					/* Edit the log message and put premium thumbs-up/thumbs-down on it if needed */
+					if (cc.is_error() || !premium) {
+						return;
+					}
+					dpp::message m = std::get<dpp::message>(cc.value);
+					if (trigger >= 0.4) {
+						auto rs = db::query("SELECT model FROM premium_filter_model WHERE description = ?", { text });
+						if (rs.size()) {
+							m.add_component(
+								dpp::component()
+								.add_component(dpp::component()
+									.set_label("Good Match")
+									.set_type(dpp::cot_button)
+									.set_emoji(dpp::unicode_emoji::thumbsup)
+									.set_style(dpp::cos_success)
+									.set_id("UP;" + m.id.str() + ";" + m.channel_id.str() + ";" + rs[0].at("model"))
+								)							
+								.add_component(dpp::component()
+									.set_label("False Positive")
+									.set_type(dpp::cot_button)
+									.set_emoji(dpp::unicode_emoji::thumbsdown)
+									.set_style(dpp::cos_danger)
+									.set_id("DN;" + m.id.str() + ";" + m.channel_id.str() + ";" + rs[0].at("model"))
+								)							
+							);
+							bot.message_edit(m);
+						}
+					}
+				});
 			}
 		}
 	});

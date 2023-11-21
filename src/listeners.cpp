@@ -25,6 +25,7 @@
 #include <beholder/beholder.h>
 #include <beholder/command.h>
 #include <beholder/sentry.h>
+#include <beholder/premium_api.h>
 
 #include <beholder/commands/logchannel.h>
 #include <beholder/commands/roles.h>
@@ -68,6 +69,38 @@ namespace listeners {
 		}
 	}
 
+	void on_button_click(const dpp::button_click_t &event) {
+		bool ours = false;
+		bool good = false;
+		dpp::cluster& bot = *(event.from->creator);
+		std::vector<std::string> parts = dpp::utility::tokenize(event.custom_id, ";");
+		if (event.custom_id.starts_with("DN;")) {
+			/* Report false positive */
+			ours = true;
+			good = false;
+			event.reply(":+1: Thank you for reporting a possible **false positive**. This feedback will be used to train the AI.");
+		} else if (event.custom_id.starts_with("UP;")) {
+			/* Report good match */
+			ours = true;
+			good = true;
+			event.reply(":+1: Thank you for confirming this was a **good result**. This feedback will be used to train the AI.");
+		}
+
+		if (ours) {
+			dpp::snowflake message_id(parts[1]);
+			dpp::snowflake channel_id(parts[2]);
+			bot.message_get(message_id, channel_id, [event, parts, good](const auto& cc) {
+				/* Clear components from message to prevent double reports */
+				if (cc.is_error()) {
+					return;
+				}
+				dpp::message m = std::get<dpp::message>(cc.value);
+				m.components.clear();
+				event.from->creator->message_edit(m);
+				premium_api::report(*(event.from->creator), good, m.id, m.channel_id, m.embeds[0].image->url, parts[3]);
+			});
+		}
+	}
 
 	void on_slashcommand(const dpp::slashcommand_t &event) {
 		event.from->creator->log(
