@@ -74,10 +74,6 @@ inline std::string trim(std::string s)
  */
 void download_image(const dpp::attachment attach, dpp::cluster& bot, const dpp::message_create_t ev);
 
-namespace ocr {
-	void image(std::string file_content, const dpp::attachment attach, dpp::cluster& bot, const dpp::message_create_t ev);
-}
-
 /**
  * @brief Delete a message and send a warning.
  * @param bot Bot reference.
@@ -90,8 +86,6 @@ namespace ocr {
 void delete_message_and_warn(const std::string& image, dpp::cluster& bot, const dpp::message_create_t ev, const dpp::attachment attach, const std::string text, bool premium, double trigger = 0.0, double threshold = 0.0);
 
 std::string replace_string(std::string subject, const std::string& search, const std::string& replace);
-
-bool find_banned_type(const json& response, const dpp::attachment attach, dpp::cluster& bot, const dpp::message_create_t ev, const std::string& content);
 
 std::string sha256(const std::string &buffer);
 

@@ -22,127 +22,20 @@
 #include <beholder/config.h>
 #include <beholder/beholder.h>
 #include <beholder/database.h>
-#include "3rdparty/httplib.h"
 #include <fmt/format.h>
 #include <beholder/proc/cpipe.h>
 #include <beholder/proc/spawn.h>
 #include <beholder/tessd.h>
 #include <beholder/sentry.h>
+#include <beholder/ocr.h>
+#include <beholder/premium_api.h>
+#include <beholder/image.h>
 
 namespace ocr {
 
-	/**
-	 * @brief Mapping of model to cache table
-	 */
-	struct model_mapping {
-		std::string_view model;
-		std::string_view table_suffix;
-	};
-
-	/**
-	 * @brief Given two objects, deep copy them together into one.
-	 * nlohmann::json::update() and nlohmann::json::merge_patch() don't do this,
-	 * and only copy shallow.
-	 * 
-	 * @param lhs left hand side, will have keys replaced
-	 * @param rhs right hand side, has priority
-	 * @return nlohmann::json return value
-	 */
-	nlohmann::json object_merge(const json & lhs, const json & rhs) {
-		// start with the full LHS json, into which we'll copy everything from RHS
-		json j = lhs;
-		// if a key exists in both LHS and RHS, then we keep RHS
-		for (auto it = rhs.cbegin(); it != rhs.cend(); ++it) {
-			const auto & key = it.key();
-			if (it->is_object()) {
-				if (lhs.contains(key)) {
-					// object already exists (must merge)
-					j[key] = object_merge(lhs[key], rhs[key]);
-				} else {
-					// object does not exist in LHS, so use the RHS
-					j[key] = rhs[key];
-				}
-			} else {
-				// this is an individual item, use RHS
-				j[key] = it.value();
-			}
-		}
-		return j;
-	}
-
-	/**
-	 * @brief Given an image file, check if it is a gif, and if it is animated.
-	 * If it is, flatten it by extracting just the first frame using imagemagick.
-	 * 
-	 * @param bot Reference to D++ cluster
-	 * @param attach message attachment
-	 * @param file_content file content
-	 * @return std::string new file content
-	 */
-	std::string flatten_gif(dpp::cluster& bot, const dpp::attachment attach, std::string file_content) {
-		if (!attach.filename.ends_with(".gif") && !attach.filename.ends_with(".GIF")) {
-			return file_content;
-		}
-		/* Animated gifs require a control structure only available in GIF89a, GIF87a is fine and anything that is
-		 * neither is not a GIF file.
-		 * By the way, it's pronounced GIF, as in GOLF, not JIF, as in JUMP! 🤣
-		 */
-		uint8_t* filebits = reinterpret_cast<uint8_t*>(file_content.data());
-		if (file_content.length() >= 6 && filebits[0] == 'G' && filebits[1] == 'I' && filebits[2] == 'F' && filebits[3] == '8' && filebits[4] == '9' && filebits[5] == 'a') {
-			/* If control structure is found, sequence 21 F9 04, we dont pass the gif to the API as it is likely animated
-			 * This is a much faster, more lightweight check than using a GIF library.
-			 */
-			for (size_t x = 0; x < file_content.length() - 3; ++x) {
-				if (filebits[x] == 0x21 && filebits[x + 1] == 0xF9 && filebits[x + 2] == 0x04) {
-					bot.log(dpp::ll_debug, "Detected animated gif, name: " + attach.filename + "; flattening with convert");
-					const char* const argv[] = {"/usr/bin/convert", "-[0]", "png:-", nullptr};
-					spawn convert(argv);
-					bot.log(dpp::ll_info, fmt::format("spawned convert; pid={}", convert.get_pid()));
-					convert.stdin.write(file_content.data(), file_content.length());
-					convert.send_eof();
-					std::ostringstream stream;
-					stream << convert.stdout.rdbuf();
-					file_content = stream.str();
-					int ret = convert.wait();
-					bot.log(ret ? dpp::ll_error : dpp::ll_info, fmt::format("convert status {}", ret));
-					return file_content;
-				}
-			}
-		}
-		return file_content;
-	}
-
-	std::string enlarge_to_50(dpp::cluster& bot, const dpp::attachment attach, std::string file_content) {
-		bot.log(dpp::ll_debug, "Enlarging small image, name: " + attach.filename);
-		const char* const argv[] = {"/usr/bin/convert", "-[0]", "-resize", "128x128", "png:-", nullptr};
-		spawn convert(argv);
-		bot.log(dpp::ll_info, fmt::format("spawned convert; pid={} image len={}", convert.get_pid(), file_content.length()));
-		convert.stdin.write(file_content.data(), file_content.length());
-		convert.send_eof();
-		std::ostringstream stream;
-		stream << convert.stdout.rdbuf();
-		file_content = stream.str();
-		int ret = convert.wait();
-		bot.log(ret ? dpp::ll_error : dpp::ll_info, fmt::format("convert status {}", ret));
-		if (ret) {
-			bot.log(dpp::ll_debug, stream.str());
-		}
-		return file_content;
-	}
-
-	void image(std::string file_content, const dpp::attachment attach, dpp::cluster& bot, const dpp::message_create_t ev) {
-		std::string ocr;
-		dpp::utility::set_thread_name("img-scan/" + std::to_string(concurrent_images));
-
-		on_thread_exit([&bot]() {
-			bot.log(dpp::ll_info, "Scanning thread completed");
-			concurrent_images--;
-		});
-
-		bool flattened = false;
-		std::string hash = sha256(file_content);
-
+	bool scan(bool &flattened, const std::string& hash, std::string& file_content, const dpp::attachment& attach, dpp::cluster& bot, const dpp::message_create_t ev) {
 		db::resultset pattern_count = db::query("SELECT COUNT(guild_id) AS total FROM guild_patterns WHERE guild_id = ?", { ev.msg.guild_id });
+		std::string ocr;
 		if (pattern_count.size() > 0 && atoi(pattern_count[0].at("total").c_str()) > 0) {
 			try {
 				db::resultset rs = db::query("SELECT * FROM scan_cache WHERE hash = ?", { hash });
@@ -151,7 +44,7 @@ namespace ocr {
 					bot.log(dpp::ll_info, fmt::format("image {} is in OCR cache", hash));
 				} else {
 					if (!flattened) {
-						file_content = flatten_gif(bot, attach, file_content);
+						file_content = image::flatten_gif(bot, attach, file_content);
 						flattened = true;
 					}
 					const char* const argv[] = {"./tessd", nullptr};
@@ -186,7 +79,7 @@ namespace ocr {
 						std::string pattern_wild = "*" + p + "*";
 						if (line.length() && p.length() && match(line.c_str(), pattern_wild.c_str())) {
 							delete_message_and_warn(file_content, bot, ev, attach, p, false);
-							return;
+							return true;
 						}
 					}
 				}
@@ -196,139 +89,6 @@ namespace ocr {
 		} else {
 			bot.log(dpp::ll_debug, "No OCR patterns configured in guild " + ev.msg.guild_id.str());
 		}
-
-		db::resultset settings = db::query("SELECT premium_subscription FROM guild_config WHERE guild_id = ? AND calls_this_month <= calls_limit", { ev.msg.guild_id });
-		/* Only images of >= 50 pixels in both dimensions and smaller than 12mb are supported by the API. Anything else we dont scan. 
-		 * In the event we dont have the dimensions, scan it anyway.
-		 */
-		int enlarged = 0;
-		if (attach.size < 1024 * 1024 * 12 && (settings.size() && settings[0].at("premium_subscription").length())) {
-			search_again:
-			if (++enlarged > 2) {
-				bot.log(dpp::ll_warning, "Tried twice, with enlarged and normal image, could not resize");
-				return;
-			} else {
-				bot.log(dpp::ll_debug, "Pass " + std::to_string(enlarged));
-			}
-			json& irconf = config::get("ir");
-			std::vector<std::string> fields = irconf["fields"];
-			std::string endpoint = irconf["host"];
-			db::resultset m = db::query("SELECT GROUP_CONCAT(DISTINCT model) AS selected FROM premium_filter_model WHERE category IN (SELECT pattern FROM premium_filters WHERE guild_id = ?)", {ev.msg.guild_id});
-			std::string active_models = m[0].at("selected");
-			std::string original_active = active_models;
-			std::vector<std::string> active = dpp::utility::tokenize(active_models, ",");
-			std::vector<std::string> models = active;
-			json merge = json::object();
-
-			/* Mapping of models to cache tables */
-			constexpr model_mapping cache_model[4]{
-				{ "wad", "wad" },
-				{ "gore", "gore" },
-				{ "nudity-2.0", "nudity" },
-				{ "offensive", "offensive" },
-			};
-
-			/* Retrieve models from cache */
-			for (const auto& detail : cache_model) {
-				if (std::find(active.begin(), active.end(), detail.model) != active.end()) {
-					db::resultset rs = db::query(fmt::format("SELECT * FROM api_cache_{} WHERE hash = ?", detail.table_suffix), { hash });
-					if (rs.size()) {
-						active.erase(std::remove(active.begin(), active.end(), detail.model), active.end());
-						if (detail.model == "wad") {
-							json p = json::parse(rs[0].at("api"));
-							merge.emplace("weapon", p[0].get<double>());
-							merge.emplace("alcohol", p[1].get<double>());
-							merge.emplace("drugs", p[2].get<double>());
-						} else {
-							merge.emplace(std::string(detail.table_suffix), json::parse(rs[0].at("api")));
-						}
-						bot.log(dpp::ll_debug, fmt::format("Got cached {}", detail.table_suffix));
-					}
-				}
-			}
-			active_models.clear();
-			for (const std::string a : active) {
-				active_models.append(a).append(",");
-			}
-			if (active_models.length()) {
-				active_models = active_models.substr(0, active_models.length() - 1);
-			}
-
-			if (!original_active.empty()) {
-
-				json answer = merge;
-				if (active.empty()) {
-					bot.log(dpp::ll_info, fmt::format("image {} has all models in API cache ({})", hash, original_active));
-					find_banned_type(answer, attach, bot, ev, file_content);
-		 		} else {
-					if (!flattened) {
-						file_content = flatten_gif(bot, attach, file_content);
-						flattened = true;
-					}
-					/* Make API request, upload the image, don't get the API to download it.
-					* This is more expensive for us in terms of bandwidth, but we are going
-					* to be able to check more images more of the time this way. We already
-					* have the image data in memory and can upload it straight to the API.
-					* Asking the API endpoint to download it via URL risks them being rate
-					* limited or blocked as they will be making many hundreds of requests
-					* per minute and we will not.
-					*/
-					httplib::Client cli(endpoint.c_str());
-					cli.enable_server_certificate_verification(false);
-					httplib::MultipartFormDataItems items = {
-						{ fields[4], file_content, attach.filename, "application/octet-stream" },
-						{ fields[1], irconf["credentials"]["username"], "", "" },
-						{ fields[2], irconf["credentials"]["password"], "", "" },
-						{ fields[0], active_models, "", "" },
-					};
-					auto res = cli.Post(irconf["path"].get<std::string>().c_str(), items);
-
-					if (res) {
-						if (!answer.empty()) {
-							json body = json::parse(res->body);
-							answer = object_merge(answer, body);
-						} else {
-							answer = json::parse(res->body);
-						}
-						if (res->status < 400) {
-							bot.log(dpp::ll_info, "API response ID: " + answer["request"]["id"].get<std::string>() + " with models: " + original_active);
-							find_banned_type(answer, attach, bot, ev, file_content);
-
-							/* Cache each model to its cache */
-							for (const auto& detail : cache_model) {
-								if (std::find(models.begin(), models.end(), detail.model) != models.end()) {
-									std::string v;
-									if (detail.model == "wad") {
-										v = "[" +
-											std::to_string(answer.at("weapon").get<double>()) + "," +
-											std::to_string(answer.at("alcohol").get<double>()) + "," +
-											std::to_string(answer.at("drugs").get<double>()) + "]";
-									} else {
-										v = answer.at(std::string(detail.table_suffix)).dump();
-									}
-									db::query(fmt::format("INSERT INTO api_cache_{} (hash, api) VALUES(?,?) ON DUPLICATE KEY UPDATE api = ?", detail.table_suffix), { hash, v, v });
-									bot.log(dpp::ll_debug, fmt::format("Cached {}", detail.table_suffix));
-								}
-							}
-							db::query("UPDATE guild_config SET calls_this_month = calls_this_month + 1 WHERE guild_id = ?", {ev.msg.guild_id });
-						} else {
-							if (answer.contains("error") && answer.contains("request")) {
-								int code = answer["error"]["code"].get<int>();
-								std::string msg = answer["error"]["message"].get<std::string>();
-								if (code == 16 && msg == "Media too small, should be at least 50 pixels in height or width")  {
-									file_content = enlarge_to_50(bot, attach, file_content);
-									goto search_again;
-								}
-								bot.log(dpp::ll_warning, "API Error: '" + std::to_string(code) + "; " + msg  + "' status: " + std::to_string(res->status) + " id: " + answer["request"]["id"].get<std::string>());
-							}
-						}
-					} else {
-						auto err = res.error();
-						bot.log(dpp::ll_warning, fmt::format("API Error: {}", httplib::to_string(err)));
-					}
-				}
-			}
-		}
+		return false;
 	}
-
 }

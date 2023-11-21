@@ -21,8 +21,9 @@
 #include <dpp/dpp.h>
 #include <beholder/beholder.h>
 #include <beholder/database.h>
-#include <dpp/json.h>
 #include <beholder/whitelist.h>
+#include <beholder/image.h>
+#include <dpp/json.h>
 #include <CxxUrl/url.hpp>
 #include <beholder/sentry.h>
 
@@ -67,7 +68,7 @@ void download_image(const dpp::attachment attach, dpp::cluster& bot, const dpp::
 			 * before we try to download it, a url does not. 
 			 */
 			concurrent_images++;
-			std::thread hard_work(ocr::image, result.body, attach, std::ref(bot), ev);
+			std::thread hard_work(image::worker_thread, result.body, attach, std::ref(bot), ev);
 			hard_work.detach();
 		});
 	}
