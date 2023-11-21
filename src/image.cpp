@@ -85,6 +85,12 @@ namespace image {
 		bool flattened = false;
 		std::string hash = sha256(file_content);
 
+		db::resultset block_list = db::query("SELECT hash FROM block_list_items WHERE guild_id = ? AND hash = ?", { ev.msg.guild_id, hash });
+		if (!block_list.empty()) {
+			delete_message_and_warn(hash, file_content, bot, ev, attach, "Image is on the block list", false);
+			return;
+		}
+
 		if (!ocr::scan(flattened, hash, file_content, attach, bot, ev)) {
 			premium_api::perform_api_scan(1, flattened, hash, file_content, attach, bot, ev);
 		}

@@ -78,7 +78,7 @@ namespace ocr {
 						const std::string& p = pattern.at("pattern");
 						std::string pattern_wild = "*" + p + "*";
 						if (line.length() && p.length() && match(line.c_str(), pattern_wild.c_str())) {
-							delete_message_and_warn(file_content, bot, ev, attach, p, false);
+							delete_message_and_warn(hash, file_content, bot, ev, attach, p, false);
 							return true;
 						}
 					}

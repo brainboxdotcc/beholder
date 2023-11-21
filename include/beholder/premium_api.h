@@ -30,7 +30,7 @@ namespace premium_api {
 		std::string_view table_suffix;
 	};
 
-	bool find_banned_type(const json& response, const dpp::attachment& attach, dpp::cluster& bot, const dpp::message_create_t ev, const std::string& content);
+	bool find_banned_type(const std::string& hash, const json& response, const dpp::attachment& attach, dpp::cluster& bot, const dpp::message_create_t ev, const std::string& content);
 
 	bool perform_api_scan(int pass, bool &flattened, const std::string& hash, std::string& file_content, const dpp::attachment& attach, dpp::cluster& bot, const dpp::message_create_t ev);
 

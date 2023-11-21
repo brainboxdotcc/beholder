@@ -83,7 +83,7 @@ void download_image(const dpp::attachment attach, dpp::cluster& bot, const dpp::
  * @param premium prefer premium message
  * @param trigger premium trigger threshold
  */
-void delete_message_and_warn(const std::string& image, dpp::cluster& bot, const dpp::message_create_t ev, const dpp::attachment attach, const std::string text, bool premium, double trigger = 0.0, double threshold = 0.0);
+void delete_message_and_warn(const std::string& hash, const std::string& image, dpp::cluster& bot, const dpp::message_create_t ev, const dpp::attachment attach, const std::string text, bool premium, double trigger = 0.0, double threshold = 0.0);
 
 std::string replace_string(std::string subject, const std::string& search, const std::string& replace);
 

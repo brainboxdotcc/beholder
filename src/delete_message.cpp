@@ -23,9 +23,9 @@
 #include <beholder/database.h>
 #include <fmt/format.h>
 
-void delete_message_and_warn(const std::string& image, dpp::cluster& bot, const dpp::message_create_t ev, const dpp::attachment attach, const std::string text, bool premium, double trigger, double threshold)
+void delete_message_and_warn(const std::string& hash, const std::string& image, dpp::cluster& bot, const dpp::message_create_t ev, const dpp::attachment attach, const std::string text, bool premium, double trigger, double threshold)
 {
-	bot.message_delete(ev.msg.id, ev.msg.channel_id, [&bot, ev, attach, text, premium, image, trigger, threshold](const auto& cc) {
+	bot.message_delete(ev.msg.id, ev.msg.channel_id, [hash, &bot, ev, attach, text, premium, image, trigger, threshold](const auto& cc) {
 
 		bool delete_failed = cc.is_error();
 
@@ -73,42 +73,56 @@ void delete_message_and_warn(const std::string& image, dpp::cluster& bot, const 
 				dpp::message delete_msg;
 				delete_msg.set_channel_id(logchannel[0].at("log_channel")).add_embed(
 					dpp::embed()
-					.set_description(
-						"Attachment: `" + attach.filename + "`\nSent by: `" +
-						ev.msg.author.format_username() + "` (" +
-						ev.msg.author.get_mention() + ")" +
-						"\nIn Channel: <#" + ev.msg.channel_id.str() + ">" +
-						"\nMatched pattern: `" + text + "`"
-						+ (premium && trigger ? fmt::format("\nProbability: `{:.1f}%`, Threshold: `{:.1f}%`", trigger * 100.0, threshold * 100) : "")
-						+ "\n[Image link](" + attach.url +")"
-					)
-					.set_title("Bad Image Deleted")
+					.set_description("**Attachment:** `" + attach.filename + "`\n🔗 [Image link](" + attach.url +")")
+					.add_field("Sent By", "`" + ev.msg.author.format_username() + "`", true)
+					.add_field("Mention", ev.msg.author.get_mention(), true)
+					.add_field("In Channel", "<#" + ev.msg.channel_id.str() + ">", true)
+					.set_title("🚫 Image Deleted!")
 					.set_color(colours::good)
 					.set_image("attachment://" + attach.filename)
 					.set_url("https://beholder.cc/")
-					.set_thumbnail(bot.me.get_avatar_url())
 					.set_footer("Powered by Beholder - Message ID " + std::to_string(ev.msg.id), bot.me.get_avatar_url())
 				).add_file(attach.filename, image);
-				if (trigger >= 0.4) {
+				if (premium && trigger) {
+					delete_msg.embeds[0].add_field("AI Probability", fmt::format("`{:.1f}%`", trigger * 100.0), true);
+					delete_msg.embeds[0].add_field("AI Trigger Setting", fmt::format("`{:.1f}%`", threshold * 100), true);
+				}
+				delete_msg.embeds[0].add_field("Matched Pattern", "```\n" + text + "\n```", false);
+				delete_msg.add_component(
+					dpp::component()
+					.add_component(dpp::component()
+						.set_label("Block")
+						.set_type(dpp::cot_button)
+						.set_emoji(dpp::unicode_emoji::no_entry)
+						.set_style(dpp::cos_danger)
+						.set_id("BL;*;" + hash)
+					)
+					.add_component(dpp::component()
+						.set_label("Unblock")
+						.set_type(dpp::cot_button)
+						.set_emoji(dpp::unicode_emoji::white_check_mark)
+						.set_style(dpp::cos_success)
+						.set_id("UB;*;" + hash)
+					)
+				);					
+				if (premium && trigger >= 0.4) {
 					auto rs = db::query("SELECT model FROM premium_filter_model WHERE description = ?", { text });
 					if (rs.size()) {
-						delete_msg.add_component(
-							dpp::component()
-							.add_component(dpp::component()
-								.set_label("Good Match")
-								.set_type(dpp::cot_button)
-								.set_emoji(dpp::unicode_emoji::thumbsup)
-								.set_style(dpp::cos_success)
-								.set_id("UP;" + rs[0].at("model"))
-							)
-							.add_component(dpp::component()
-								.set_label("False Positive")
-								.set_type(dpp::cot_button)
-								.set_emoji(dpp::unicode_emoji::thumbsdown)
-								.set_style(dpp::cos_danger)
-								.set_id("DN;" + rs[0].at("model"))
-							)
-						);								
+						delete_msg.components[0]
+						.add_component(dpp::component()
+							.set_label("False Positive")
+							.set_type(dpp::cot_button)
+							.set_emoji(dpp::unicode_emoji::thumbsdown)
+							.set_style(dpp::cos_danger)
+							.set_id("DN;" + rs[0].at("model") + ";" + hash)
+						)
+						.add_component(dpp::component()
+							.set_label("Good Match")
+							.set_type(dpp::cot_button)
+							.set_emoji(dpp::unicode_emoji::thumbsup)
+							.set_style(dpp::cos_success)
+							.set_id("UP;" + rs[0].at("model") + ";" + hash)
+						);
 					}
 				}
 				bot.message_create(delete_msg);

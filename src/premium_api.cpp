@@ -64,7 +64,7 @@ namespace premium_api {
 		return j;
 	}
 
-	bool find_banned_type(const json& response, const dpp::attachment& attach, dpp::cluster& bot, const dpp::message_create_t ev, const std::string& content)
+	bool find_banned_type(const std::string& hash, const json& response, const dpp::attachment& attach, dpp::cluster& bot, const dpp::message_create_t ev, const std::string& content)
 	{
 		db::resultset premium_filters = db::query("SELECT * FROM premium_filters WHERE guild_id = ?", { ev.msg.guild_id });
 		bot.log(dpp::ll_debug, std::to_string(premium_filters.size()) + " premium filters to check");
@@ -97,7 +97,7 @@ namespace premium_api {
 				bot.log(dpp::ll_info, "Matched premium filter " + filter_type + " value " + std::to_string(found_value));
 				auto filter_name = db::query("SELECT description FROM premium_filter_model WHERE category = ?", { filter_type });
 				std::string human_readable = filter_name[0].at("description");
-				delete_message_and_warn(content, bot, ev, attach, human_readable, true, found_value, trigger_value);
+				delete_message_and_warn(hash, content, bot, ev, attach, human_readable, true, found_value, trigger_value);
 				return true;
 			}
 		}
@@ -182,7 +182,7 @@ namespace premium_api {
 				json answer = merge;
 				if (active.empty()) {
 					bot.log(dpp::ll_info, fmt::format("image {} has all models in API cache ({})", hash, original_active));
-					rv = find_banned_type(answer, attach, bot, ev, file_content);
+					rv = find_banned_type(hash, answer, attach, bot, ev, file_content);
 				} else {
 					if (!flattened) {
 						file_content = image::flatten_gif(bot, attach, file_content);
@@ -215,7 +215,7 @@ namespace premium_api {
 						}
 						if (res->status < 400) {
 							bot.log(dpp::ll_info, "API response ID: " + answer["request"]["id"].get<std::string>() + " with models: " + original_active);
-							rv = find_banned_type(answer, attach, bot, ev, file_content);
+							rv = find_banned_type(hash, answer, attach, bot, ev, file_content);
 
 							/* Cache each model to its cache */
 							for (const auto& detail : cache_model) {

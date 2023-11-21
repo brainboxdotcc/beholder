@@ -78,16 +78,26 @@ namespace listeners {
 		if (logchannel.size()) {
 			dpp::snowflake channel_id(logchannel[0].at("log_channel"));
 			dpp::snowflake message_id = event.command.message_id;
-			if (event.custom_id.starts_with("DN;")) {
+			if (parts[0] == "DN") {
 				/* Report false positive */
 				ours = true;
 				good = false;
-				event.reply(":+1: Thank you for reporting a possible **false positive**. This feedback will be used to train the AI.");
-			} else if (event.custom_id.starts_with("UP;")) {
+				event.reply(":+1: Thank you for reporting a possible **false positive**, " + event.command.usr.get_mention() + ". This feedback will be used to train the AI.");
+			} else if (parts[0] == "UP") {
 				/* Report good match */
 				ours = true;
 				good = true;
-				event.reply(":+1: Thank you for confirming this was a **good result**. This feedback will be used to train the AI.");
+				event.reply(":+1: Thank you for confirming this was a **good result**, " + event.command.usr.get_mention() + ". This feedback will be used to train the AI.");
+			} else if (parts[0] == "BL") {
+				/* Report good match */
+				std::string hash = parts[2];				
+				db::query("INSERT INTO block_list_items (guild_id, hash) VALUES(?,?) ON DUPLICATE KEY UPDATE hash = ?", { event.command.guild_id, hash, hash });
+				event.reply(":no_entry: This image has been **added to the block list** by " + event.command.usr.get_mention() + ". It will be **instantly deleted** without performing any further checks.");
+			} else if (parts[0] == "UB") {
+				/* Report good match */
+				std::string hash = parts[2];
+				db::query("DELETE FROM block_list_items WHERE guild_id = ? AND hash = ?", { event.command.guild_id, hash });
+				event.reply(":white_check_mark: This image has been **removed from the block list** by " + event.command.usr.get_mention() + ". It will now be **checked normally**.");
 			}
 
 			if (ours) {
