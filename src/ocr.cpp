@@ -77,7 +77,7 @@ namespace ocr {
 				bot.log(dpp::ll_debug, "Checking image content against " + std::to_string(patterns.size()) + " patterns...");
 				for (const std::string& line : lines) {
 					for (const db::row& pattern : patterns) {
-						const std::string& p = pattern.at("pattern");
+						const std::string& p = replace_string(pattern.at("pattern"), "\r", "");
 						std::string pattern_wild = "*" + p + "*";
 						if (line.length() && p.length() && match(line.c_str(), pattern_wild.c_str())) {
 							delete_message_and_warn(hash, file_content, bot, ev, attach, p, false);
