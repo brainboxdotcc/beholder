@@ -168,6 +168,8 @@ namespace db {
 			delete[] cc.second.bindings;
 			delete[] cc.second.lengths;
 		}
+		cached_queries = {};
+		mysql_library_end();
 		return true;
 	}
 
@@ -179,6 +181,10 @@ namespace db {
 	void log_error(const std::string& format, const std::string& error) {
 		if (!format.empty()) {
 			last_error = fmt::format("{} (query: {})", error, format);
+			if (error == "Lost connection to MySQL server during query") {
+				db::close();
+				db::init(*creator);
+			}
 		} else {
 			last_error = error;
 		}
