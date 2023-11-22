@@ -187,12 +187,14 @@ namespace premium_api {
 				json answer = merge;
 				if (active.empty()) {
 					bot.log(dpp::ll_info, fmt::format("image {} has all models in API cache ({})", hash, original_active));
+					INCREMENT_STATISTIC("cache_hit", ev.msg.guild_id);
 					rv = find_banned_type(hash, answer, attach, bot, ev, file_content);
 				} else {
 					if (!flattened) {
 						file_content = image::flatten_gif(bot, attach, file_content);
 						flattened = true;
 					}
+					INCREMENT_STATISTIC("cache_miss", ev.msg.guild_id);
 					/* Make API request, upload the image, don't get the API to download it.
 					* This is more expensive for us in terms of bandwidth, but we are going
 					* to be able to check more images more of the time this way. We already
