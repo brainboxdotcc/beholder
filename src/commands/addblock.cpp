@@ -47,6 +47,12 @@ dpp::slashcommand addblock_command::register_command(dpp::cluster& bot)
 			)
 		);
 
+		dpp::permission p = event.command.get_resolved_permission(event.command.usr.id);
+		if (!p.has(dpp::p_manage_guild)) {
+			event.edit_response(dpp::message(event.command.channel_id, "You require the manage server permission to add images to the block list.").set_flags(dpp::m_ephemeral));
+			return;
+		}
+
 		if (msg.attachments.size() > 0) {
 			for (const dpp::attachment& attach : msg.attachments) {
 				attaches.emplace_back(attach);
@@ -146,7 +152,9 @@ dpp::slashcommand addblock_command::register_command(dpp::cluster& bot)
 				added++;
 			}
 		}
-		if (added == 1) {
+		if (added == 0) {
+			event.edit_response(dpp::message(event.command.channel_id, "No images or stickers found in this message.").set_flags(dpp::m_ephemeral));
+		} else if (added == 1) {
 			event.edit_response(dpp::message(event.command.channel_id, ":no_entry: **" + std::to_string(added) + "** image has been **added to the block list**. It will be **instantly deleted** without performing any further checks.").set_flags(dpp::m_ephemeral));
 		} else {
 			event.edit_response(dpp::message(event.command.channel_id, ":no_entry: **" + std::to_string(added) + "** images have been **added to the block list**. They will be **instantly deleted** without performing any further checks.").set_flags(dpp::m_ephemeral));
@@ -154,8 +162,8 @@ dpp::slashcommand addblock_command::register_command(dpp::cluster& bot)
 	});
 
 	return dpp::slashcommand("Add images to block list", "Add any images found in this mesage to the block list", bot.me.id)
-	.set_type(dpp::ctxm_message)
-	.set_default_permissions(dpp::p_manage_guild);
+		.set_type(dpp::ctxm_message)
+		.set_default_permissions(dpp::p_manage_guild);
 }
 
 void addblock_command::route(const dpp::slashcommand_t &event)

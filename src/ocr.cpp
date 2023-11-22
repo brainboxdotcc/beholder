@@ -42,11 +42,13 @@ namespace ocr {
 				if (!rs.empty()) {
 					ocr = rs[0].at("ocr");
 					bot.log(dpp::ll_info, fmt::format("image {} is in OCR cache", hash));
+					INCREMENT_STATISTIC("cache_hit", ev.msg.guild_id);
 				} else {
 					if (!flattened) {
 						file_content = image::flatten_gif(bot, attach, file_content);
 						flattened = true;
 					}
+					INCREMENT_STATISTIC("cache_miss", ev.msg.guild_id);
 					const char* const argv[] = {"./tessd", nullptr};
 					spawn tessd(argv);
 					bot.log(dpp::ll_info, fmt::format("spawned tessd; pid={}", tessd.get_pid()));
@@ -79,6 +81,7 @@ namespace ocr {
 						std::string pattern_wild = "*" + p + "*";
 						if (line.length() && p.length() && match(line.c_str(), pattern_wild.c_str())) {
 							delete_message_and_warn(hash, file_content, bot, ev, attach, p, false);
+							INCREMENT_STATISTIC("images_ocr", ev.msg.guild_id);
 							return true;
 						}
 					}

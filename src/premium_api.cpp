@@ -95,8 +95,13 @@ namespace premium_api {
 			}
 			if (found_value >= trigger_value && found_value != 0.0) {
 				bot.log(dpp::ll_info, "Matched premium filter " + filter_type + " value " + std::to_string(found_value));
-				auto filter_name = db::query("SELECT description FROM premium_filter_model WHERE category = ?", { filter_type });
+				auto filter_name = db::query("SELECT description, model FROM premium_filter_model WHERE category = ?", { filter_type });
 				std::string human_readable = filter_name[0].at("description");
+				std::string model = "images_" + filter_name[0].at("model");
+				if (model == "images_nudity-2.0") {
+					model = "images_nudity";
+				}
+				db::query("INSERT INTO guild_statistics (guild_id, stat_date, " + model + ") VALUES(?,NOW(),1) ON DUPLICATE KEY UPDATE " + model + " = " + model + " + 1", { ev.msg.guild_id });
 				delete_message_and_warn(hash, content, bot, ev, attach, human_readable, true, found_value, trigger_value);
 				return true;
 			}

@@ -34,6 +34,12 @@ namespace colours {
 	constexpr uint32_t good = 0x7aff7a;
 };
 
+#define INCREMENT_STATISTIC(STAT_NAME, GUILD_ID) \
+		db::query("INSERT INTO guild_statistics (guild_id, stat_date, " STAT_NAME ") VALUES(?,NOW(),1) ON DUPLICATE KEY UPDATE " STAT_NAME " = " STAT_NAME " + 1", { GUILD_ID });
+
+#define INCREMENT_STATISTIC2(STAT_NAME1, STAT_NAME2, GUILD_ID) \
+		db::query("INSERT INTO guild_statistics (guild_id, stat_date, " STAT_NAME1 ", " STAT_NAME2 ") VALUES(?,NOW(),1,1) ON DUPLICATE KEY UPDATE " STAT_NAME1 " = " STAT_NAME1 " + 1, " STAT_NAME2 " = " STAT_NAME2 " + 1", { GUILD_ID });
+
 extern std::atomic<int> concurrent_images;
 
 using json = dpp::json;

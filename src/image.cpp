@@ -88,11 +88,13 @@ namespace image {
 		db::resultset block_list = db::query("SELECT hash FROM block_list_items WHERE guild_id = ? AND hash = ?", { ev.msg.guild_id, hash });
 		if (!block_list.empty()) {
 			delete_message_and_warn(hash, file_content, bot, ev, attach, "Image is on the block list", false);
+			INCREMENT_STATISTIC2("images_scanned", "images_blocked", ev.msg.guild_id);
 			return;
 		}
 
 		if (!ocr::scan(flattened, hash, file_content, attach, bot, ev)) {
 			premium_api::perform_api_scan(1, flattened, hash, file_content, attach, bot, ev);
 		}
+		INCREMENT_STATISTIC("images_scanned", ev.msg.guild_id);
 	}
 }

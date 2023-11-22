@@ -74,6 +74,11 @@ namespace listeners {
 	void on_button_click(const dpp::button_click_t &event) {
 		bool ours = false;
 		bool good = false;
+		dpp::permission p = event.command.get_resolved_permission(event.command.usr.id);
+		if (!p.has(dpp::p_manage_guild)) {
+			event.reply(dpp::message(event.command.channel_id, "You require the manage server permission to add images to the block list.").set_flags(dpp::m_ephemeral));
+			return;
+		}
 		dpp::cluster& bot = *(event.from->creator);
 		std::vector<std::string> parts = dpp::utility::tokenize(event.custom_id, ";");
 		auto logchannel = db::query("SELECT embeds_disabled, log_channel, embed_title, embed_body FROM guild_config WHERE guild_id = ?", { event.command.guild_id });
