@@ -35,13 +35,15 @@ int main(int argc, char const *argv[])
 
 	dpp::cluster bot(
 		config::get("token"),
-		dpp::i_guild_messages | dpp::i_message_content | dpp::i_guild_members,
+		dpp::i_guild_messages | dpp::i_message_content | dpp::i_guild_members | dpp::i_guilds,
 		1, 0, 1, true, dpp::cache_policy::cpol_none
 	);
 
 	sentry::init(bot);
 
 	bot.on_log(&logger::log);
+	bot.on_guild_create(&listeners::on_guild_create);
+	bot.on_guild_delete(&listeners::on_guild_delete);
 	bot.on_slashcommand(&listeners::on_slashcommand);
 	bot.on_message_create(&listeners::on_message_create);
 	bot.on_message_update(&listeners::on_message_update);

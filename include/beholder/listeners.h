@@ -39,6 +39,20 @@ namespace listeners {
 	void on_slashcommand(const dpp::slashcommand_t& event);
 
 	/**
+	 * @brief handle guild join
+	 * 
+	 * @param event guild_create_t
+	 */
+	void on_guild_create(const dpp::guild_create_t &event);
+
+	/**
+	 * @brief handle guild join
+	 * 
+	 * @param event guild_create_t
+	 */
+	void on_guild_delete(const dpp::guild_delete_t &event);
+
+	/**
 	 * @brief handle message creation
 	 * 
 	 * @param event message_create_t

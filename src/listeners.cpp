@@ -71,6 +71,17 @@ namespace listeners {
 		}
 	}
 
+	void on_guild_create(const dpp::guild_create_t &event) {
+		if (event.created->is_unavailable()) {
+			return;
+		}
+		db::query("INSERT INTO guild_cache (id, owner_id, name) VALUES(?,?,?) ON DUPLICATE KEY UPDATE owner_id = ?, name = ?", { event.created->id, event.created->owner_id, event.created->name, event.created->owner_id, event.created->name });
+	}
+
+	void on_guild_delete(const dpp::guild_delete_t &event) {
+		db::query("DELETE FROM guild_cache  WHERE id = ?", { event.deleted.id });
+	}
+
 	void on_button_click(const dpp::button_click_t &event) {
 		bool ours = false;
 		bool good = false;
