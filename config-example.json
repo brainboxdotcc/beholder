@@ -20,4 +20,13 @@
 		"database": "mysql database",
 		"port": 3306
 	}
+	,
+	"botlists": {
+		"top.gg": {
+			"token": "top.gg bot list token"
+		},
+		"other compatible bot list": {
+			"token": "their token..."
+		}
+	}
 }

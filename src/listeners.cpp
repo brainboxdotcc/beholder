@@ -37,6 +37,9 @@
 #include <beholder/commands/ignoredchannels.h>
 #include <beholder/commands/addblock.h>
 
+#include <beholder/botlist.h>
+#include <beholder/botlists/topgg.h>
+
 namespace listeners {
 
 	void on_ready(const dpp::ready_t &event) {
@@ -67,7 +70,14 @@ namespace listeners {
 			bot.start_timer([&bot, set_presence](dpp::timer t) {
 				set_presence();
 			}, 240);
+			bot.start_timer([&bot](dpp::timer t) {
+				post_botlists(bot);
+			}, 60 * 15);
+
 			set_presence();
+
+			register_botlist<topgg>();
+			post_botlists(bot);
 		}
 	}
 
