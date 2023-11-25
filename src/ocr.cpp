@@ -34,7 +34,7 @@
 namespace ocr {
 
 	bool scan(bool &flattened, const std::string& hash, std::string& file_content, const dpp::attachment& attach, dpp::cluster& bot, const dpp::message_create_t ev) {
-		db::resultset pattern_count = db::query("SELECT COUNT(guild_id) AS total FROM guild_patterns WHERE guild_id = ?", { ev.msg.guild_id });
+		db::resultset pattern_count = db::query("SELECT COUNT(guild_id) AS total FROM guild_patterns WHERE guild_id = ? AND pattern NOT LIKE '!%'", { ev.msg.guild_id });
 		std::string ocr;
 		if (pattern_count.size() > 0 && atoi(pattern_count[0].at("total").c_str()) > 0) {
 			try {
@@ -73,7 +73,7 @@ namespace ocr {
 			if (!ocr.empty()) {
 				std::vector<std::string> lines = dpp::utility::tokenize(ocr, "\n");
 				bot.log(dpp::ll_debug, "Read " + std::to_string(lines.size()) + " lines of text from image with total size " + std::to_string(ocr.length()));
-				db::resultset patterns = db::query("SELECT * FROM guild_patterns WHERE guild_id = ?", { ev.msg.guild_id });
+				db::resultset patterns = db::query("SELECT * FROM guild_patterns WHERE guild_id = ? AND pattern NOT LIKE '!%'", { ev.msg.guild_id });
 				bot.log(dpp::ll_debug, "Checking image content against " + std::to_string(patterns.size()) + " patterns...");
 				for (const std::string& line : lines) {
 					for (const db::row& pattern : patterns) {

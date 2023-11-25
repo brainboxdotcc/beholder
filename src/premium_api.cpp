@@ -131,6 +131,9 @@ namespace premium_api {
 	bool perform_api_scan(int pass, bool &flattened, const std::string& hash, std::string& file_content, const dpp::attachment& attach, dpp::cluster& bot, const dpp::message_create_t ev) {
 		bool rv = false;
 		db::resultset settings = db::query("SELECT premium_subscription FROM guild_config WHERE guild_id = ? AND calls_this_month <= calls_limit", { ev.msg.guild_id });
+		if (settings.empty()) {
+			return false;
+		}
 		/* Only images of >= 50 pixels in both dimensions and smaller than 12mb are supported by the API. Anything else we dont scan. 
 		* In the event we dont have the dimensions, scan it anyway.
 		*/

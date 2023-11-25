@@ -29,6 +29,7 @@
 #include <beholder/sentry.h>
 #include <beholder/ocr.h>
 #include <beholder/premium_api.h>
+#include <beholder/label.h>
 
 namespace image {
 
@@ -92,8 +93,11 @@ namespace image {
 			return;
 		}
 
+
 		if (!ocr::scan(flattened, hash, file_content, attach, bot, ev)) {
-			premium_api::perform_api_scan(1, flattened, hash, file_content, attach, bot, ev);
+			if (!premium_api::perform_api_scan(1, flattened, hash, file_content, attach, bot, ev)) {
+				label::scan(flattened, hash, file_content, attach, bot, ev);
+			}
 		}
 		INCREMENT_STATISTIC("images_scanned", ev.msg.guild_id);
 	}

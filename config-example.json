@@ -11,7 +11,9 @@
 			"username": "username",
 			"password": "password"
 		},
-		"fields": []
+		"fields": [],
+		"label_runner": "resnet-50 endpoint url",
+		"label_key": "resnet key"
 	},
 	"database": {
 		"host": "localhost",
