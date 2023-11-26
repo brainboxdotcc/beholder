@@ -33,6 +33,14 @@
 
 namespace image {
 
+	using scanner_function = auto (*)(bool&, const std::string&, std::string&, const dpp::attachment&, dpp::cluster&, const dpp::message_create_t, int) -> bool;
+
+	constexpr std::array<scanner_function, 3> scanners{
+		ocr::scan,
+		premium_api::scan,
+		label::scan,
+	};
+
 	/**
 	 * @brief Given an image file, check if it is a gif, and if it is animated.
 	 * If it is, flatten it by extracting just the first frame using imagemagick.
@@ -93,12 +101,13 @@ namespace image {
 			return;
 		}
 
-
-		if (!ocr::scan(flattened, hash, file_content, attach, bot, ev)) {
-			if (!premium_api::perform_api_scan(1, flattened, hash, file_content, attach, bot, ev)) {
-				label::scan(flattened, hash, file_content, attach, bot, ev);
+		/* Execute each of the scanners in turn on the image, if any return true, stop the process */
+		for (auto& scanner : scanners) {
+			if ((*scanner)(flattened, hash, file_content, attach, bot, ev, 1)) {
+				break;
 			}
 		}
+
 		INCREMENT_STATISTIC("images_scanned", ev.msg.guild_id);
 	}
 }

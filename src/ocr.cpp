@@ -33,7 +33,7 @@
 
 namespace ocr {
 
-	bool scan(bool &flattened, const std::string& hash, std::string& file_content, const dpp::attachment& attach, dpp::cluster& bot, const dpp::message_create_t ev) {
+	bool scan(bool &flattened, const std::string& hash, std::string& file_content, const dpp::attachment& attach, dpp::cluster& bot, const dpp::message_create_t ev, int pass) {
 		db::resultset pattern_count = db::query("SELECT COUNT(guild_id) AS total FROM guild_patterns WHERE guild_id = ? AND pattern NOT LIKE '!%'", { ev.msg.guild_id });
 		std::string ocr;
 		if (pattern_count.size() > 0 && atoi(pattern_count[0].at("total").c_str()) > 0) {

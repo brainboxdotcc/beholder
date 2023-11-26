@@ -128,7 +128,7 @@ namespace premium_api {
 		return file_content;
 	}
 
-	bool perform_api_scan(int pass, bool &flattened, const std::string& hash, std::string& file_content, const dpp::attachment& attach, dpp::cluster& bot, const dpp::message_create_t ev) {
+	bool scan(bool &flattened, const std::string& hash, std::string& file_content, const dpp::attachment& attach, dpp::cluster& bot, const dpp::message_create_t ev, int pass) {
 		bool rv = false;
 		db::resultset settings = db::query("SELECT premium_subscription FROM guild_config WHERE guild_id = ? AND calls_this_month <= calls_limit", { ev.msg.guild_id });
 		if (settings.empty()) {
@@ -250,7 +250,7 @@ namespace premium_api {
 								std::string msg = answer["error"]["message"].get<std::string>();
 								if (code == 16 && msg == "Media too small, should be at least 50 pixels in height or width")  {
 									file_content = enlarge(bot, attach, file_content);
-									return perform_api_scan(pass + 1, flattened, hash, file_content, attach, bot, ev);
+									return scan(flattened, hash, file_content, attach, bot, ev, pass + 1);
 								}
 								bot.log(dpp::ll_warning, "API Error: '" + std::to_string(code) + "; " + msg  + "' status: " + std::to_string(res->status) + " id: " + answer["request"]["id"].get<std::string>());
 							}

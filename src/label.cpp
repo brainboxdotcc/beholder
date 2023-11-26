@@ -32,7 +32,7 @@
 
 namespace label {
 
-	bool scan(bool &flattened, const std::string& hash, std::string& file_content, const dpp::attachment& attach, dpp::cluster& bot, const dpp::message_create_t ev) {
+	bool scan(bool &flattened, const std::string& hash, std::string& file_content, const dpp::attachment& attach, dpp::cluster& bot, const dpp::message_create_t ev, int pass) {
 		db::resultset settings = db::query("SELECT guild_id FROM guild_config WHERE guild_id = ? AND objects_this_month <= object_limit", { ev.msg.guild_id });
 		if (settings.empty()) {
 			/* Not configured, or out of quota */
@@ -87,7 +87,7 @@ namespace label {
 					std::string label_name = json_label.at("label");
 					double confidence = json_label.at("score").get<double>();
 					bot.log(dpp::ll_debug, "LABEL: " + label_name + " Confidence: " + std::to_string(confidence * 100) + "%");
-					if (confidence > 0.5) {
+					if (confidence > 0.1) {
 						for (const db::row& pattern : label_patterns) {
 							std::string pat = pattern.at("pattern");
 							std::string pattern_wild = "*" + replace_string(pat.substr(1, pat.length() - 1), "\r", "") + "*";
