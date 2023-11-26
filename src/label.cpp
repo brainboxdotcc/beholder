@@ -78,26 +78,37 @@ namespace label {
 			}
 
 			if (!answer.empty()) {
+			
 				bot.log(dpp::ll_debug, "Checking image labels against " + std::to_string(label_patterns.size()) + " patterns...");
-				json found_labels = answer.at("result");
-				for (const json& json_label : found_labels) {
-					if (!json_label.contains("label") || !json_label.contains("score")) {
-						continue;
+				std::string query{"SELECT hash, group_concat(label) as labels FROM vw_label_confidence WHERE hash = ? GROUP BY hash HAVING (1=1 "};
+				std::string human{"Contains"};
+				db::paramlist params;
+				params.emplace_back(hash);
+				size_t pos = 0;
+				for (const db::row& pattern : label_patterns) {
+					std::string pat = pattern.at("pattern");
+					pat = replace_string(pat.substr(1, pat.length() - 1), "\r", "");
+					if (pat[0] == '!') {
+						query += "AND (labels NOT LIKE ?)";
+						std::string thing = pat.substr(1, pat.length() - 1);
+						params.emplace_back('%' + thing + '%');
+						human += fmt::format(" no '{0}'", thing);
+					} else {
+						query += "AND (labels LIKE ?)";
+						params.emplace_back('%' + pat + '%');
+						human += fmt::format(" any '{0}'", pat);
 					}
-					std::string label_name = json_label.at("label");
-					double confidence = json_label.at("score").get<double>();
-					bot.log(dpp::ll_debug, "LABEL: " + label_name + " Confidence: " + std::to_string(confidence * 100) + "%");
-					if (confidence > 0.1) {
-						for (const db::row& pattern : label_patterns) {
-							std::string pat = pattern.at("pattern");
-							std::string pattern_wild = "*" + replace_string(pat.substr(1, pat.length() - 1), "\r", "") + "*";
-							if (label_name.length() && pat.length() && match(label_name.c_str(), pattern_wild.c_str())) {
-								delete_message_and_warn(hash, file_content, bot, ev, attach, pat.substr(1, pat.length() - 1), false);
-								INCREMENT_STATISTIC("images_label", ev.msg.guild_id);
-								return true;
-							}
-						}
+					if (pos++ != label_patterns.size() - 1) {
+						human += ", and ";
 					}
+				}
+				query += ")";
+				auto check = db::query(query, params);
+				if (!check.empty()) {
+					delete_message_and_warn(hash, file_content, bot, ev, attach, human, false);
+					INCREMENT_STATISTIC("images_label", ev.msg.guild_id);
+					return true;
+
 				}
 			} else {
 				bot.log(dpp::ll_debug, "No label content in image");
