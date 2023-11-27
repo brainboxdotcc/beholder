@@ -50,7 +50,7 @@ namespace tensorflow_api {
 						if (res->status < 400) {
 							answer = json::parse(res->body);
 							if (!answer.contains("error")) {
-								db::query("INSERT INTO basic_cache (hash, basic) VALUES(?,?) ON DUPLICATE KEY UPDATE label = ?", { hash, res->body, res->body });
+								db::query("INSERT INTO basic_cache (hash, basic) VALUES(?,?) ON DUPLICATE KEY UPDATE hash = ?", { hash, res->body, res->body });
 							} else {
 								bot.log(dpp::ll_warning, fmt::format("Basic NSFW API Error: {}", answer.at("error")));
 								return false;
@@ -59,11 +59,13 @@ namespace tensorflow_api {
 					} else {
 						auto err = res.error();
 						bot.log(dpp::ll_warning, fmt::format("Basic NSFW API Error: {}", httplib::to_string(err)));
+						return false;
 					}
 					INCREMENT_STATISTIC("cache_miss", ev.msg.guild_id);
 				}
 			} catch (const std::runtime_error& e) {
 				bot.log(dpp::ll_error, e.what());
+				return false;
 			}
 
 			if (!answer.empty()) {
