@@ -96,6 +96,7 @@ namespace tensorflow_api {
 				}
 
 				if (!block_reason.empty()) {
+					bot.log(dpp::ll_debug, "Detected Basic NSFW: " + block_reason);
 					delete_message_and_warn(hash, file_content, bot, ev, attach, block_reason, false);
 					INCREMENT_STATISTIC("images_nsfw", ev.msg.guild_id);
 					return true;
