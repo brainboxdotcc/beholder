@@ -23,10 +23,6 @@
 #include <beholder/beholder.h>
 #include <beholder/database.h>
 #include <fmt/format.h>
-#include <beholder/proc/cpipe.h>
-#include <beholder/proc/spawn.h>
-#include <beholder/tessd.h>
-#include <beholder/sentry.h>
 #include <beholder/image.h>
 #include "3rdparty/httplib.h"
 
