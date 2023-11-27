@@ -72,25 +72,25 @@ namespace tensorflow_api {
 				std::string block_reason;
 				if (settings[0].at("basic_nsfw_suggestive") == "1") {
 					double score = answer.at("sexy").get<double>();
-					if (score > 0.75) {
+					if (score > 0.8) {
 						block_reason = fmt::format("Basic NSFW: Suggestive ({0:.02f}{1})", score * 100, '%');
 					}
 				}
 				if (settings[0].at("basic_nsfw_porn") == "1") {
 					double score = answer.at("porn").get<double>();
-					if (score > 0.75) {
+					if (score > 0.8) {
 						block_reason = fmt::format("Basic NSFW: Pornography ({0:.02f}{1})", score * 100, '%');
 					}
 				}
 				if (settings[0].at("basic_nsfw_drawing") == "1") {
 					double score = answer.at("drawing").get<double>();
-					if (score > 0.75) {
+					if (score > 0.8) {
 						block_reason = fmt::format("Basic NSFW: Drawing ({0:.02f}{1})", score * 100, '%');
 					}
 				}
 				if (settings[0].at("basic_nsfw_hentai") == "1") {
 					double score = answer.at("hentai").get<double>();
-					if (score > 0.75) {
+					if (score > 0.8) {
 						block_reason = fmt::format("Basic NSFW: Hentai ({0:.02f}{1})", score * 100, '%');
 					}
 				}
