@@ -84,7 +84,7 @@ namespace tensorflow_api {
 				}
 				if (settings[0].at("basic_nsfw_drawing") == "1") {
 					double score = answer.at("drawing").get<double>();
-					if (score > 0.8) {
+					if (score > 0.95) {
 						block_reason = fmt::format("Basic NSFW: Drawing ({0:.02f}{1})", score * 100, '%');
 					}
 				}
