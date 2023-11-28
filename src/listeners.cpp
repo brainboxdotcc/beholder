@@ -40,6 +40,7 @@
 
 #include <beholder/botlist.h>
 #include <beholder/botlists/topgg.h>
+#include <beholder/botlists/discordbotlist.h>
 
 namespace listeners {
 
@@ -79,6 +80,7 @@ namespace listeners {
 			set_presence();
 
 			register_botlist<topgg>();
+			register_botlist<discordbotlist>();
 			post_botlists(bot);
 		}
 	}
