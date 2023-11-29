@@ -17,7 +17,6 @@
  * limitations under the License.
  *
  ************************************************************************************/
-#include <typeinfo>
 #include <dpp/dpp.h>
 #include <beholder/config.h>
 #include <beholder/beholder.h>
@@ -26,14 +25,13 @@
 #include <beholder/proc/cpipe.h>
 #include <beholder/proc/spawn.h>
 #include <beholder/tessd.h>
-#include <beholder/sentry.h>
 #include <beholder/ocr.h>
-#include <beholder/premium_api.h>
 #include <beholder/image.h>
+#include <exception>
 
 namespace ocr {
 
-	bool scan(bool &flattened, const std::string& hash, std::string& file_content, const dpp::attachment& attach, dpp::cluster& bot, const dpp::message_create_t ev, int pass) {
+	bool scan(bool &flattened, const std::string& hash, std::string& file_content, const dpp::attachment& attach, dpp::cluster& bot, const dpp::message_create_t ev, int pass, bool delete_message) {
 		db::resultset pattern_count = db::query("SELECT COUNT(guild_id) AS total FROM guild_patterns WHERE guild_id = ? AND pattern NOT LIKE '!%'", { ev.msg.guild_id });
 		std::string ocr;
 		if (pattern_count.size() > 0 && atoi(pattern_count[0].at("total").c_str()) > 0) {
@@ -80,7 +78,11 @@ namespace ocr {
 						const std::string& p = replace_string(pattern.at("pattern"), "\r", "");
 						std::string pattern_wild = "*" + p + "*";
 						if (line.length() && p.length() && match(line.c_str(), pattern_wild.c_str())) {
-							delete_message_and_warn(hash, file_content, bot, ev, attach, p, false);
+							if (delete_message) {
+								delete_message_and_warn(hash, file_content, bot, ev, attach, p, false);
+							} else {
+								throw std::runtime_error(p.c_str());
+							}
 							INCREMENT_STATISTIC("images_ocr", ev.msg.guild_id);
 							return true;
 						}

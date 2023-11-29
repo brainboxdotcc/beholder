@@ -21,12 +21,10 @@
 #include <beholder/beholder.h>
 #include <beholder/database.h>
 #include <beholder/premium_api.h>
-#include <beholder/ocr.h>
 #include <beholder/config.h>
 #include <beholder/proc/cpipe.h>
 #include <beholder/proc/spawn.h>
 #include <beholder/image.h>
-#include <dpp/json.h>
 #include "3rdparty/httplib.h"
 #include <fmt/format.h>
 #include <CxxUrl/url.hpp>
@@ -64,7 +62,7 @@ namespace premium_api {
 		return j;
 	}
 
-	bool find_banned_type(const std::string& hash, const json& response, const dpp::attachment& attach, dpp::cluster& bot, const dpp::message_create_t ev, const std::string& content)
+	bool find_banned_type(const std::string& hash, const json& response, const dpp::attachment& attach, dpp::cluster& bot, const dpp::message_create_t ev, const std::string& content, bool delete_message)
 	{
 		db::resultset premium_filters = db::query("SELECT * FROM premium_filters WHERE guild_id = ?", { ev.msg.guild_id });
 		bot.log(dpp::ll_debug, std::to_string(premium_filters.size()) + " premium filters to check");
@@ -102,7 +100,11 @@ namespace premium_api {
 					model = "images_nudity";
 				}
 				db::query("INSERT INTO guild_statistics (guild_id, stat_date, " + model + ") VALUES(?,NOW(),1) ON DUPLICATE KEY UPDATE " + model + " = " + model + " + 1", { ev.msg.guild_id });
-				delete_message_and_warn(hash, content, bot, ev, attach, human_readable, true, found_value, trigger_value);
+				if (delete_message) {
+					delete_message_and_warn(hash, content, bot, ev, attach, human_readable, true, found_value, trigger_value);
+				} else {
+					throw std::runtime_error(fmt::format("{0} ({1:.02f}{2}, trigger value is {3:.02f}{4})", human_readable, found_value * 100, '%', trigger_value * 100, '%'));
+				}
 				return true;
 			}
 		}
@@ -128,7 +130,7 @@ namespace premium_api {
 		return file_content;
 	}
 
-	bool scan(bool &flattened, const std::string& hash, std::string& file_content, const dpp::attachment& attach, dpp::cluster& bot, const dpp::message_create_t ev, int pass) {
+	bool scan(bool &flattened, const std::string& hash, std::string& file_content, const dpp::attachment& attach, dpp::cluster& bot, const dpp::message_create_t ev, int pass, bool delete_message) {
 		bool rv = false;
 		db::resultset settings = db::query("SELECT premium_subscription FROM guild_config WHERE guild_id = ? AND calls_this_month <= calls_limit", { ev.msg.guild_id });
 		if (settings.empty()) {
@@ -191,7 +193,7 @@ namespace premium_api {
 				if (active.empty()) {
 					bot.log(dpp::ll_info, fmt::format("image {} has all models in API cache ({})", hash, original_active));
 					INCREMENT_STATISTIC("cache_hit", ev.msg.guild_id);
-					rv = find_banned_type(hash, answer, attach, bot, ev, file_content);
+					rv = find_banned_type(hash, answer, attach, bot, ev, file_content, delete_message);
 				} else {
 					if (!flattened) {
 						file_content = image::flatten_gif(bot, attach, file_content);
@@ -225,7 +227,7 @@ namespace premium_api {
 						}
 						if (res->status < 400) {
 							bot.log(dpp::ll_info, "API response ID: " + answer["request"]["id"].get<std::string>() + " with models: " + original_active);
-							rv = find_banned_type(hash, answer, attach, bot, ev, file_content);
+							rv = find_banned_type(hash, answer, attach, bot, ev, file_content, delete_message);
 
 							/* Cache each model to its cache */
 							for (const auto& detail : cache_model) {
@@ -250,7 +252,7 @@ namespace premium_api {
 								std::string msg = answer["error"]["message"].get<std::string>();
 								if (code == 16 && msg == "Media too small, should be at least 50 pixels in height or width")  {
 									file_content = enlarge(bot, attach, file_content);
-									return scan(flattened, hash, file_content, attach, bot, ev, pass + 1);
+									return scan(flattened, hash, file_content, attach, bot, ev, pass + 1, delete_message);
 								}
 								bot.log(dpp::ll_warning, "API Error: '" + std::to_string(code) + "; " + msg  + "' status: " + std::to_string(res->status) + " id: " + answer["request"]["id"].get<std::string>());
 							}

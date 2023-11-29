@@ -30,9 +30,9 @@ namespace premium_api {
 		std::string_view table_suffix;
 	};
 
-	bool find_banned_type(const std::string& hash, const json& response, const dpp::attachment& attach, dpp::cluster& bot, const dpp::message_create_t ev, const std::string& content);
+	bool find_banned_type(const std::string& hash, const json& response, const dpp::attachment& attach, dpp::cluster& bot, const dpp::message_create_t ev, const std::string& content, bool delete_message);
 
-	bool scan(bool &flattened, const std::string& hash, std::string& file_content, const dpp::attachment& attach, dpp::cluster& bot, const dpp::message_create_t ev, int pass);
+	bool scan(bool &flattened, const std::string& hash, std::string& file_content, const dpp::attachment& attach, dpp::cluster& bot, const dpp::message_create_t ev, int pass, bool delete_message);
 
 	void report(dpp::cluster& bot, bool is_good, dpp::snowflake message_id, dpp::snowflake channel_id, const std::string& image_url, const std::string& model);
 };

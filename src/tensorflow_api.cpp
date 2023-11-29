@@ -17,7 +17,6 @@
  * limitations under the License.
  *
  ************************************************************************************/
-#include <typeinfo>
 #include <dpp/dpp.h>
 #include <beholder/config.h>
 #include <beholder/beholder.h>
@@ -28,7 +27,7 @@
 
 namespace tensorflow_api {
 
-	bool scan(bool &flattened, const std::string& hash, std::string& file_content, const dpp::attachment& attach, dpp::cluster& bot, const dpp::message_create_t ev, int pass) {
+	bool scan(bool &flattened, const std::string& hash, std::string& file_content, const dpp::attachment& attach, dpp::cluster& bot, const dpp::message_create_t ev, int pass, bool delete_message) {
 		db::resultset settings = db::query("SELECT basic_nsfw_suggestive, basic_nsfw_porn, basic_nsfw_drawing, basic_nsfw_hentai FROM guild_config WHERE guild_id = ?", { ev.msg.guild_id });
 
 		if (settings.size() > 0) {
@@ -97,7 +96,11 @@ namespace tensorflow_api {
 
 				if (!block_reason.empty()) {
 					bot.log(dpp::ll_debug, "Detected Basic NSFW: " + block_reason);
-					delete_message_and_warn(hash, file_content, bot, ev, attach, block_reason, false);
+					if (delete_message) {
+						delete_message_and_warn(hash, file_content, bot, ev, attach, block_reason, false);
+					} else {
+						throw std::runtime_error(block_reason);
+					}
 					INCREMENT_STATISTIC("images_nsfw", ev.msg.guild_id);
 					return true;
 				}

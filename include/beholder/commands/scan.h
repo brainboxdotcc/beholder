@@ -18,10 +18,11 @@
  *
  ************************************************************************************/
 #pragma once
-#include <dpp/dpp.h>
+#include <beholder/beholder.h>
+#include <beholder/command.h>
 
-namespace label {
-
-	bool scan(bool &flattened, const std::string& hash, std::string& file_content, const dpp::attachment& attach, dpp::cluster& bot, const dpp::message_create_t ev, int pass, bool delete_message);
-
-}
+struct scan_command : public command {
+	static constexpr std::string_view name{"scan"};
+	static dpp::slashcommand register_command(dpp::cluster& bot);
+	static void route(const dpp::slashcommand_t &event);
+};

@@ -37,6 +37,7 @@
 #include <beholder/commands/ignoredchannels.h>
 #include <beholder/commands/addblock.h>
 #include <beholder/commands/showtags.h>
+#include <beholder/commands/scan.h>
 
 #include <beholder/botlist.h>
 #include <beholder/botlists/topgg.h>
@@ -60,6 +61,7 @@ namespace listeners {
 				register_command<ignoredchannels_command>(bot),
 				register_command<addblock_command>(bot),
 				register_command<showtags_command>(bot),
+				register_command<scan_command>(bot),
 			});
 
 			auto set_presence = [&bot]() {

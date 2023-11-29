@@ -19,8 +19,29 @@
  ************************************************************************************/
 #pragma once
 #include <dpp/dpp.h>
+#include <beholder/ocr.h>
+#include <beholder/tensorflow_api.h>
+#include <beholder/premium_api.h>
+#include <beholder/label.h>
 
 namespace image {
+
+
+	using scanner_function = auto (*)(bool&, const std::string&, std::string&, const dpp::attachment&, dpp::cluster&, const dpp::message_create_t, int, bool) -> bool;
+
+	constexpr inline std::array<const char*, 4> scanner_names{
+		"Text Recognition Rules",
+		"Basic NSFW Rules",
+		"Premium NSFW Rules",
+		"Image Label Rules",
+	};
+
+	constexpr inline std::array<scanner_function, 4> scanners{
+		ocr::scan,
+		tensorflow_api::scan,
+		premium_api::scan,
+		label::scan,
+	};	
 
 	std::string flatten_gif(dpp::cluster& bot, const dpp::attachment attach, std::string file_content);
 
