@@ -30,7 +30,8 @@
 
 dpp::slashcommand scan_command::register_command(dpp::cluster& bot)
 {
-	dpp::slashcommand c = dpp::slashcommand("scan", "Scan an image (will use quota)", bot.me.id);
+	dpp::slashcommand c = dpp::slashcommand("scan", "Scan an image (will use quota)", bot.me.id)
+		.set_default_permissions(dpp::p_manage_guild);
 	c.add_option(dpp::command_option(dpp::co_attachment, "file", "Select an image to scan", true));
 	return c;
 }
