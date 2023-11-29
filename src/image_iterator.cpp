@@ -1,6 +1,7 @@
 #include <dpp/dpp.h>
 #include <beholder/image_iterator.h>
 #include <beholder/beholder.h>
+#include <beholder/config.h>
 #include <CxxUrl/url.hpp>
 #include "3rdparty/httplib.h"
 #include <set>
@@ -103,6 +104,7 @@ namespace image {
 			std::string host = url.scheme() + "://" + url.host();
 			httplib::Client cli(host.c_str());
 			cli.enable_server_certificate_verification(false);
+			cli.set_interface(config::get("tunnel_interface"));
 			auto res = cli.Get(url.path());
 			if (res) {
 				std::string hash = sha256(res->body);

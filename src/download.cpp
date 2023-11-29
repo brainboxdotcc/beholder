@@ -17,15 +17,15 @@
  * limitations under the License.
  *
  ************************************************************************************/
-#include <typeinfo>
 #include <dpp/dpp.h>
 #include <beholder/beholder.h>
 #include <beholder/database.h>
 #include <beholder/whitelist.h>
+#include <beholder/config.h>
 #include <beholder/image.h>
-#include <dpp/json.h>
-#include <CxxUrl/url.hpp>
 #include <beholder/sentry.h>
+#include "3rdparty/httplib.h"
+#include <CxxUrl/url.hpp>
 
 std::atomic<int> concurrent_images{0};
 
@@ -62,15 +62,30 @@ void download_image(const dpp::attachment attach, dpp::cluster& bot, const dpp::
 			return;
 		}
 		std::string url_front = attach.url;
-		bot.request(attach.url, dpp::m_get, [attach, ev, &bot](const dpp::http_request_completion_t& result) {
-			/**
-			 * Check size of downloaded file again here, because an attachment gives us the size
-			 * before we try to download it, a url does not. 
-			 */
-			concurrent_images++;
-			std::thread hard_work(image::worker_thread, result.body, attach, std::ref(bot), ev);
-			hard_work.detach();
-		});
+
+		std::thread([attach, ev, &bot]() {
+			try {
+				Url u(attach.url);
+				std::string path = u.path();
+				std::string host = u.host();
+				std::string scheme = u.scheme();
+				host = scheme + "://" + host;
+				httplib::Client cli(host.c_str());
+				cli.enable_server_certificate_verification(false);
+				cli.set_interface(config::get("tunnel_interface"));
+				auto res = cli.Get(u.path());
+				if (res) {
+					if (res->status < 400) {
+						concurrent_images++;
+						std::thread hard_work(image::worker_thread, res->body, attach, std::ref(bot), ev);
+						hard_work.detach();
+					}
+				}
+			}
+			catch (const std::exception &e) {
+				bot.log(dpp::ll_warning, e.what());
+			}
+
+		}).detach();
 	}
 }
-
