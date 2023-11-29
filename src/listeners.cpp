@@ -41,6 +41,7 @@
 #include <beholder/botlist.h>
 #include <beholder/botlists/topgg.h>
 #include <beholder/botlists/discordbotlist.h>
+#include <beholder/botlists/infinitybots.h>
 
 namespace listeners {
 
@@ -81,6 +82,8 @@ namespace listeners {
 
 			register_botlist<topgg>();
 			register_botlist<discordbotlist>();
+			register_botlist<infinitybots>();
+
 			post_botlists(bot);
 		}
 	}
