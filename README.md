@@ -25,14 +25,21 @@ Create a config.json in the directory above the build directory:
 ```json
 {
 	"token": "token goes here", 
+	"tunnel_interface": "GRE tunnel interface IP",
 	"log": "log path goes here",
+	"environment": "environment name",
+	"sentry_dsn": "sentry dsn",
+	"sentry_sample_rate": 0.2,
 	"ir": {
-		"endpoint": "image recognition endpoint",
+		"host": "image recognition endpoint",
+		"path": "image recognition endpoint",
 		"credentials": {
 			"username": "username",
 			"password": "password"
 		},
-		"fields": []
+		"fields": [],
+		"label_runner": "resnet-50 endpoint url",
+		"label_key": "resnet key"
 	},
 	"database": {
 		"host": "localhost",
@@ -41,7 +48,17 @@ Create a config.json in the directory above the build directory:
 		"database": "mysql database",
 		"port": 3306
 	}
+	,
+	"botlists": {
+		"top.gg": {
+			"token": "top.gg bot list token"
+		},
+		"other compatible bot list": {
+			"token": "their token..."
+		}
+	}
 }
+
 ```
 
 **Note**: Leave the values under the `ir` key as empty strings. Self-hosting the premium image recognition API is not supported at this time.
@@ -55,10 +72,13 @@ Enter password:
 
 Insert data into database for your guild and patterns
 
-## Dependencies
+## Software Dependencies
 
-* Tesseract (libtesseract-dev)
-* Leptonica (libleptonica-dev)
+* [D++](https://github.com/brainboxdotcc/dpp) v10.0.28 or later
+* sentry-native
+* libcrypto/libssl
+* libtesseract-dev
+* libleptonica-dev
 * ImageMagick Convert
 * libmysqlclient 8.x
 * g++ 11.4 or later
@@ -66,13 +86,22 @@ Insert data into database for your guild and patterns
 * fmtlib
 * spdlog
 * CxxUrl
-* sentry-native
-* libcrypto/libssl
-* [D++](https://github.com/brainboxdotcc/dpp) v10.0.27 or later
+* screen
+* [Beholder NSFW Scanning container](https://github.com/brainboxdotcc/beholder-nsfw-server):
+  * Docker
+  * Docker Compose
+  * node.js 20.x
+  * Tensorflow
+  * tfjs-node
+  * express
 
-Start the bot:
+## Other Dependencies
+
+To offer premium services, various paid subscription APIs are required. These are configured in the `ir` tag in `config.json` You should also subscribe to an **anti-DDOS tunnel service**, which can be bound to as an interface for making unsafe web requests to fetch image content. Without this, your server's IP is left exposed to the neer-do-wells of Discord. Configure this in `tunnel_interface`.
+
+## Starting the bot
 
 ```bash
-cd build
-./beholder
+cd beholder
+screen -dmS beholder ./run.sh
 ```

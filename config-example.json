@@ -1,5 +1,6 @@
 {
 	"token": "token goes here", 
+	"tunnel_interface": "GRE tunnel interface IP",
 	"log": "log path goes here",
 	"environment": "environment name",
 	"sentry_dsn": "sentry dsn",
