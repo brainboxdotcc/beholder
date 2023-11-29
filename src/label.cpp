@@ -52,6 +52,7 @@ namespace label {
 					}
 					httplib::Client cli("https://api.cloudflare.com");
 					cli.enable_server_certificate_verification(false);
+					cli.set_interface(config::get("safe_interface"));
 					cli.set_default_headers({
 						{"Authorization", "Bearer " + key}
 					});

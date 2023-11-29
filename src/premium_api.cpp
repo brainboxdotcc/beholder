@@ -210,6 +210,7 @@ namespace premium_api {
 					*/
 					httplib::Client cli(endpoint.c_str());
 					cli.enable_server_certificate_verification(false);
+					cli.set_interface(config::get("safe_interface"));
 					httplib::MultipartFormDataItems items = {
 						{ fields[4], file_content, attach.filename, "application/octet-stream" },
 						{ fields[1], irconf["credentials"]["username"], "", "" },
@@ -286,6 +287,7 @@ namespace premium_api {
 			std::string endpoint = irconf["host"];
 			httplib::Client cli(endpoint.c_str());
 			cli.enable_server_certificate_verification(false);
+			cli.set_interface(config::get("safe_interface"));
 			std::string path = image_url;
 			try {
 				Url u(image_url);

@@ -103,6 +103,7 @@ namespace sentry {
 			Url dsn(config::get("sentry_dsn"));
 			httplib::Client cli(dsn.scheme() + "://" + dsn.host());
 			cli.enable_server_certificate_verification(false);
+			cli.set_interface(config::get("safe_interface"));
 			auto res = cli.Post("/api" + dsn.path() + "/envelope/?sentry_key=" + dsn.user_info() + "&sentry_version=7&sentry_client=sentry.native/7.77.0", send_envelope, "application/json");
 			if (res) {
 				/* Handle rate limits if headers provided */

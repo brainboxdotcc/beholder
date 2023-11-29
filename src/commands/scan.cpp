@@ -21,6 +21,7 @@
 #include <dpp/unicode_emoji.h>
 #include <beholder/beholder.h>
 #include <beholder/database.h>
+#include <beholder/config.h>
 #include <beholder/commands/scan.h>
 #include <beholder/image.h>
 #include "../3rdparty/httplib.h"
@@ -63,6 +64,7 @@ void scan_command::route(const dpp::slashcommand_t &event)
 	host = scheme + "://" + host;
 	httplib::Client cli(host.c_str());
 	cli.enable_server_certificate_verification(false);
+	cli.set_interface(config::get("safe_interface"));
 	auto res = cli.Get(u.path());
 	if (res) {
 		if (res->status < 400) {
