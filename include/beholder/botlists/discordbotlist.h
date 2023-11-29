@@ -22,7 +22,7 @@
 #include <beholder/botlist.h>
 
 /**
- * @brief top.gg botlist (formerly DBL)
+ * @brief discordbotlist.com
  */
 struct discordbotlist : public botlist {
 	static constexpr std::string_view name{"discordbotlist.com"};
