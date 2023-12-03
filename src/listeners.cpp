@@ -94,7 +94,7 @@ namespace listeners {
 		if (event.created->is_unavailable()) {
 			return;
 		}
-		db::query("INSERT INTO guild_cache (id, owner_id, name) VALUES(?,?,?) ON DUPLICATE KEY UPDATE owner_id = ?, name = ?", { event.created->id, event.created->owner_id, event.created->name, event.created->owner_id, event.created->name });
+		db::query("INSERT INTO guild_cache (id, owner_id, name, user_count) VALUES(?,?,?,?) ON DUPLICATE KEY UPDATE owner_id = ?, name = ?, user_count = ?", { event.created->id, event.created->owner_id, event.created->name, event.created->member_count, event.created->owner_id, event.created->name, event.created->member_count });
 	}
 
 	void on_guild_delete(const dpp::guild_delete_t &event) {
