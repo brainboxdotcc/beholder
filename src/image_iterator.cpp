@@ -72,6 +72,7 @@ namespace image {
 			auto cloaked_url_pos = possibly_url.find("](http");
 			if (cloaked_url_pos != std::string::npos && possibly_url.length() - cloaked_url_pos - 3 > 7) {
 				possibly_url = possibly_url.substr(cloaked_url_pos + 2, possibly_url.length() - cloaked_url_pos - 3);
+				original_url = original_url.substr(cloaked_url_pos + 2, original_url.length() - cloaked_url_pos - 3);
 			}
 			if ((size >= 9 && possibly_url.substr(0, 8) == "https://") ||
 			(size >= 8 && possibly_url.substr(0, 7) == "http://")) {
