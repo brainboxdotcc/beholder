@@ -80,7 +80,7 @@ void download_image(const dpp::attachment attach, dpp::cluster& bot, const dpp::
 						std::thread hard_work(image::worker_thread, res->body, attach, std::ref(bot), ev);
 						hard_work.detach();
 					} else {
-						bot.log(dpp::ll_warning, "Unable to fetch image: " + std::to_string(res->status));	
+						bot.log(dpp::ll_warning, "Unable to fetch image: " + std::to_string(res->status)+ " - " + attach.url);	
 					}
 				} else {
 					bot.log(dpp::ll_warning, httplib::to_string(res.error()));
