@@ -25,8 +25,10 @@
 #include <mysql/mysql.h>
 #include <fmt/format.h>
 #include <iostream>
+#include <unordered_map>
 #include <mutex>
 #include <sstream>
+#include <type_traits>
 
 #ifdef MARIADB_VERSION_ID
 	#define CONNECT_STRING "SET @@SESSION.max_statement_time=3000"
@@ -103,6 +105,70 @@ namespace db {
 	 * @brief Query cache, a map of cached_query
 	 */
 	std::map<std::string, cached_query> cached_queries;
+
+	/**
+	 * @brief Cached query result parameters
+	 */
+	struct cached_query_results {
+		const std::string format;
+		const paramlist parameters;
+	};
+
+	/**
+	 * @brief Cached query result records with expiry
+	 */
+	struct cached_query_result_set {
+		const resultset results;
+		const double expiry;
+	};
+
+	template<class> inline constexpr bool always_false_v = false;
+
+	struct cached_query_hash {
+		std::size_t operator()(const cached_query_results& k) const {
+			size_t x = std::hash<std::string>()(k.format);
+			for (const auto& param : k.parameters) {
+				std::visit([&x](auto &&p) {
+					using T = std::decay_t<decltype(p)>;
+					// float, std::string, uint64_t, int64_t, bool, int32_t, uint32_t, double
+					if constexpr (std::is_same_v<T, float>) {
+						x ^= std::hash<float>()(p);
+					} else if constexpr (std::is_same_v<T, std::string>) {
+						x ^= std::hash<std::string>()(p);
+					} else if constexpr (std::is_same_v<T, uint64_t>) {
+						x ^= std::hash<uint64_t>()(p);
+					} else if constexpr (std::is_same_v<T, int64_t>) {
+						x ^= std::hash<int64_t>()(p);
+					} else if constexpr (std::is_same_v<T, bool>) {
+						x ^= std::hash<bool>()(p);
+					} else if constexpr (std::is_same_v<T, int32_t>) {
+						x ^= std::hash<int32_t>()(p);
+					} else if constexpr (std::is_same_v<T, uint32_t>) {
+						x ^= std::hash<uint32_t>()(p);
+					} else if constexpr (std::is_same_v<T, double>) {
+						x ^= std::hash<double>()(p);
+					} else {
+						static_assert(always_false_v<T>, "non-exhaustive visitor!");
+					}
+				}, param);
+			}
+			return x;
+		}
+	};
+	
+	struct cached_query_equal {
+		bool operator()(const cached_query_results& lhs, const cached_query_results& rhs) const {
+			if (lhs.format != rhs.format || lhs.parameters.size() != rhs.parameters.size()) {
+				return false;
+			}
+			return lhs.parameters == rhs.parameters;
+		}
+	};
+
+	/**
+	 * @brief A map of cached, executed queries with results and expiries
+	 */
+	std::unordered_map<cached_query_results, cached_query_result_set, cached_query_hash, cached_query_equal> cached_query_res;
 
 	size_t cache_size() {
 		std::lock_guard<std::mutex> db_lock(db_mutex);
@@ -197,6 +263,21 @@ namespace db {
 		return rows_affected;
 	}
 
+	resultset query(const std::string &format, const paramlist &parameters, double lifetime) {
+		double now = dpp::utility::time_f();
+		cached_query_results r{ .format = format, .parameters = parameters };
+		auto f = cached_query_res.find(r);
+		if (f != cached_query_res.end()) {
+			if (now < f->second.expiry) {
+				return f->second.results;
+			}
+			cached_query_res.erase(f);
+		}
+		cached_query_result_set rs{ .results = query(format, parameters), .expiry = now + lifetime };
+		cached_query_res.emplace(r, rs);
+		return rs.results;
+	}
+
 	resultset query(const std::string &format, const paramlist &parameters) {
 
 		/**
@@ -270,10 +351,19 @@ namespace db {
 			cc.bufs.reserve(parameters.size());
 			int v = 0;
 			for (const auto& param : parameters) {
-				std::visit([parameters, &cc, &v](const auto &p) {
-					std::ostringstream x;
-					x << p;
-					std::string s_param(x.str());
+				std::visit([parameters, &cc, &v](auto &&p) {
+					std::string s_param;
+					using T = std::decay_t<decltype(p)>;
+					if constexpr (std::is_same_v<T, float> || std::is_same_v<T, uint64_t> || std::is_same_v<T, int64_t> ||
+						std::is_same_v<T, bool> || std::is_same_v<T, int32_t> || std::is_same_v<T, uint32_t> ||
+						std::is_same_v<T, double>) {
+						s_param = std::to_string(p);
+					} else if constexpr (std::is_same_v<T, std::string>) {
+						s_param = p;
+					} else {
+						static_assert(always_false_v<T>, "non-exhaustive visitor!");
+					}
+
 					cc.bufs.push_back(s_param);
 					cc.lengths[v] = s_param.length();
 					cc.bindings[v].buffer_type = MYSQL_TYPE_VAR_STRING;

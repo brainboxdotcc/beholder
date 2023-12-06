@@ -40,10 +40,15 @@ namespace db {
 	using resultset = std::vector<row>;
 
 	/**
+	 * @brief Possible parameter types for SQL parameters
+	 */
+	using parameter_type = std::variant<float, std::string, uint64_t, int64_t, bool, int32_t, uint32_t, double>;
+
+	/**
 	 * @brief A list of database query parameters.
 	 * These will be translated into prepared statement arguments.
 	 */
-	using paramlist = std::vector<std::variant<float, std::string, uint64_t, int64_t, bool, int32_t, uint32_t, double>>;
+	using paramlist = std::vector<parameter_type>;
 
 	/**
 	 * @brief Initialise database connection
@@ -74,6 +79,9 @@ namespace db {
 	/**
 	 * @brief Run a mysql query, with automatic escaping of parameters to prevent SQL injection.
 	 * 
+	 * @param format Format string, where each parameter should be indicated by a ? symbol
+	 * @param parameters Parameters to prepare into the query in place of the ?'s
+	 * 
 	 * The parameters given should be a vector of strings. You can instantiate this using "{}".
 	 * The queries are cached as prepared statements and therefore do not need quote symbols
 	 * to be placed around parameters in the query. These will be automatically added if required.
@@ -87,6 +95,30 @@ namespace db {
 	 * Returns a resultset of the results as rows. Avoid returning massive resultsets if you can.
 	 */
 	resultset query(const std::string &format, const paramlist &parameters = {});
+
+	/**
+	 * @brief Run a mysql query, with automatic escaping of parameters to prevent SQL injection.
+	 * 
+	 * @param format Format string, where each parameter should be indicated by a ? symbol
+	 * @param parameters Parameters to prepare into the query in place of the ?'s
+	 * @param lifetime How long to cache this query's resultset in memory for
+	 * 
+	 * @note If the query is already cached in memory, the cached resultset will be returned instead
+	 * of querying the database.
+	 * 
+	 * The parameters given should be a vector of strings. You can instantiate this using "{}".
+	 * The queries are cached as prepared statements and therefore do not need quote symbols
+	 * to be placed around parameters in the query. These will be automatically added if required.
+	 * 
+	 * For example:
+	 * 
+	 * ```cpp
+	 * 	db::query("UPDATE foo SET bar = ? WHERE id = ?", { "baz", 3 });
+	 * ```
+	 * 
+	 * Returns a resultset of the results as rows. Avoid returning massive resultsets if you can.
+	 */
+	resultset query(const std::string &format, const paramlist &parameters, double lifetime);
 
 	/**
 	 * @brief Returns number of affected rows from an UPDATE, INSERT, DELETE

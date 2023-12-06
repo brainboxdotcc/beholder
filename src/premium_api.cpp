@@ -228,8 +228,6 @@ namespace premium_api {
 						}
 						if (res->status < 400) {
 							bot.log(dpp::ll_info, "API response ID: " + answer["request"]["id"].get<std::string>() + " with models: " + original_active);
-							rv = find_banned_type(hash, answer, attach, bot, ev, file_content, delete_message);
-
 							/* Cache each model to its cache */
 							for (const auto& detail : cache_model) {
 								if (std::find(models.begin(), models.end(), detail.model) != models.end()) {
@@ -246,7 +244,8 @@ namespace premium_api {
 								}
 							}
 							db::query("UPDATE guild_config SET calls_this_month = calls_this_month + 1 WHERE guild_id = ?", {ev.msg.guild_id });
-							return rv;
+							/* Note: Must come last, as when used in /scan it throws, and if it throws we dont subtract quota! */
+							return find_banned_type(hash, answer, attach, bot, ev, file_content, delete_message);
 						} else {
 							if (answer.contains("error") && answer.contains("request")) {
 								int code = answer["error"]["code"].get<int>();
