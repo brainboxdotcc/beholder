@@ -320,6 +320,7 @@ namespace listeners {
 		/* Check each word in the message looking for URLs */
 		for (std::string& possibly_url : parts) {
 			size_t size = possibly_url.length();
+			std::string original_url = possibly_url;
 			possibly_url = dpp::lowercase(possibly_url);
 			/* Check for markdown cloaked urls: [descr potentially with spaces](url) */
 			auto cloaked_url_pos = possibly_url.find("](http");
@@ -329,17 +330,17 @@ namespace listeners {
 			if ((size >= 9 && possibly_url.substr(0, 8) == "https://") ||
 			(size >= 8 && possibly_url.substr(0, 7) == "http://")) {
 				dpp::attachment attach((dpp::message*)&event.msg);
-				attach.url = possibly_url;
+				attach.url = original_url;
 				try {
-					Url u(possibly_url);
+					Url u(original_url);
 					attach.filename = fs::path(u.path()).filename();
 				}
 				catch (const std::exception&) {
-					attach.filename = fs::path(possibly_url).filename();
+					attach.filename = fs::path(original_url).filename();
 				}
-				if (checked.find(possibly_url) == checked.end()) {
+				if (checked.find(original_url) == checked.end()) {
 					download_image(attach, *event.from->creator, event);
-					checked.emplace(possibly_url);
+					checked.emplace(original_url);
 				}
 			}
 		}

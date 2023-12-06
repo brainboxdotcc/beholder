@@ -67,6 +67,7 @@ namespace image {
 		std::set<std::string> checked;
 		for (std::string& possibly_url : parts) {
 			size_t size = possibly_url.length();
+			std::string original_url = possibly_url;
 			possibly_url = dpp::lowercase(possibly_url);
 			auto cloaked_url_pos = possibly_url.find("](http");
 			if (cloaked_url_pos != std::string::npos && possibly_url.length() - cloaked_url_pos - 3 > 7) {
@@ -75,17 +76,17 @@ namespace image {
 			if ((size >= 9 && possibly_url.substr(0, 8) == "https://") ||
 			(size >= 8 && possibly_url.substr(0, 7) == "http://")) {
 				dpp::attachment attach((dpp::message*)&msg);
-				attach.url = possibly_url;
+				attach.url = original_url;
 				try {
-					Url u(possibly_url);
+					Url u(original_url);
 					attach.filename = fs::path(u.path()).filename();
 				}
 				catch (const std::exception&) {
-					attach.filename = fs::path(possibly_url).filename();
+					attach.filename = fs::path(original_url).filename();
 				}
-				if (checked.find(possibly_url) == checked.end()) {
+				if (checked.find(original_url) == checked.end()) {
 					attaches.emplace_back(attach);
-					checked.emplace(possibly_url);
+					checked.emplace(original_url);
 				}
 			}
 		}
