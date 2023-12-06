@@ -351,24 +351,17 @@ namespace db {
 			cc.bufs.reserve(parameters.size());
 			int v = 0;
 			for (const auto& param : parameters) {
-				std::visit([parameters, &cc, &v](auto &&p) {
-					std::string s_param;
+				std::visit([&cc, &v](auto &&p) {
 					using T = std::decay_t<decltype(p)>;
-					if constexpr (std::is_same_v<T, float> || std::is_same_v<T, uint64_t> || std::is_same_v<T, int64_t> ||
-						std::is_same_v<T, bool> || std::is_same_v<T, int32_t> || std::is_same_v<T, uint32_t> ||
-						std::is_same_v<T, double>) {
-						s_param = std::to_string(p);
-					} else if constexpr (std::is_same_v<T, std::string>) {
-						s_param = p;
+					if constexpr (std::is_same_v<T, std::string>) {
+						cc.bufs.emplace_back(p);
 					} else {
-						static_assert(always_false_v<T>, "non-exhaustive visitor!");
+						cc.bufs.emplace_back(std::to_string(p));
 					}
-
-					cc.bufs.push_back(s_param);
-					cc.lengths[v] = s_param.length();
+					cc.lengths[v] = cc.bufs[v].length();
 					cc.bindings[v].buffer_type = MYSQL_TYPE_VAR_STRING;
-					cc.bindings[v].buffer = (char*)cc.bufs[v].c_str();
-					cc.bindings[v].buffer_length = s_param.length() + 1;
+					cc.bindings[v].buffer = const_cast<char*>(cc.bufs[v].c_str());
+					cc.bindings[v].buffer_length = cc.bufs[v].length() + 1;
 					cc.bindings[v].is_null = nullptr;
 					cc.bindings[v].length = &cc.lengths[v];
 					v++;
