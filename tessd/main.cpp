@@ -87,7 +87,9 @@ int main()
 	 * an error code. This is supremely dumb, but we can't do anything with these
 	 * errors and they pollute our OCR output. So, we silence them.
 	 */
-	std::freopen(nullptr, "rb", stdin);
+	if (!std::freopen(nullptr, "rb", stdin)) {
+		tessd::status(tessd::exit_code::read);
+	}
 	fclose(stderr);
 
 	std::size_t len{0};

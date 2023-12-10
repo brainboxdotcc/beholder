@@ -180,7 +180,7 @@ namespace premium_api {
 				}
 			}
 			active_models.clear();
-			for (const std::string a : active) {
+			for (const std::string& a : active) {
 				active_models.append(a).append(",");
 			}
 			if (active_models.length()) {

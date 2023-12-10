@@ -21,11 +21,11 @@
 #include <sys/wait.h>
 #include <stdexcept>
 
-const int cpipe::read_fd() const {
+int cpipe::read_fd() const {
 	return fd[0];
 }
 
-const int cpipe::write_fd() const {
+int cpipe::write_fd() const {
 	return fd[1];
 }
 

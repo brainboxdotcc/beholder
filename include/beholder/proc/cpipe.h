@@ -34,14 +34,14 @@ public:
 	 * 
 	 * @return const int 
 	 */
-	const int read_fd() const;
+	int read_fd() const;
 
 	/**
 	 * @brief Get the write side of the pipe fds
 	 * 
 	 * @return const int 
 	 */
-	const int write_fd() const;
+	int write_fd() const;
 
 	/**
 	 * @brief Construct a new cpipe object

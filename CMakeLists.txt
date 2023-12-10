@@ -13,7 +13,6 @@ aux_source_directory("src/3rdparty" coresrc)
 aux_source_directory("src/proc" coresrc)
 add_executable(${BOT_NAME} ${coresrc})
 
-
 find_package(CxxUrl REQUIRED)
 
 target_precompile_headers(${BOT_NAME} INTERFACE "src/3rdparty/httplib.h")
@@ -45,7 +44,7 @@ else()
 	find_package(OpenSSL REQUIRED)
 endif()
 
-set(CMAKE_CXX_FLAGS "-g -O0")
+set(CMAKE_CXX_FLAGS "-g -O2 -Wall -Wno-unused-private-field -Wno-psabi -Wempty-body -Wignored-qualifiers -Wimplicit-fallthrough -Wmissing-field-initializers -Wsign-compare -Wtype-limits -Wuninitialized -Wshift-negative-value")
 target_compile_definitions(${BOT_NAME} PUBLIC DPP_CORO=ON CPPHTTPLIB_OPENSSL_SUPPORT)
 target_compile_definitions("tessd" PUBLIC DPP_CORO=ON CPPHTTPLIB_OPENSSL_SUPPORT)
 

@@ -318,7 +318,7 @@ namespace db {
 			}
 
 			/* Check the parameter count provided matches that which MySQL expects */
-			int expected_param_count = mysql_stmt_param_count(cc.st);
+			size_t expected_param_count = mysql_stmt_param_count(cc.st);
 			if (parameters.size() != expected_param_count) {
 				log_error(format, "Incorrect number of parameters: " + format + " (" + std::to_string(parameters.size()) + " vs " + std::to_string(expected_param_count) + ")");
 				mysql_stmt_close(cc.st);
@@ -331,7 +331,7 @@ namespace db {
 			if (expected_param_count) {
 				cc.bindings = new MYSQL_BIND[expected_param_count];
 				cc.lengths = new unsigned long[expected_param_count];
-				memset(cc.lengths, 0, sizeof(cc.lengths));
+				memset(cc.lengths, 0, sizeof(unsigned long) * expected_param_count);
 			}
 
 			/* Determine if this query expects results by the first keyword */
@@ -346,7 +346,7 @@ namespace db {
 		if (parameters.size()) {
 
 			/* Parameters are expected for this query, bind them to the prepared statement */
-			memset(cc.bindings, 0, sizeof(cc.bindings));
+			memset(cc.bindings, 0, sizeof(*cc.bindings));
 			cc.bufs.clear();
 			cc.bufs.reserve(parameters.size());
 			int v = 0;
@@ -408,7 +408,7 @@ namespace db {
 				std::memset(bindings, 0, sizeof(bindings));
 				std::memset(is_null, 0, sizeof(is_null));
 				std::memset(lengths, 0, sizeof(lengths));
-				for (int i = 0; i < field_count; ++i) {
+				for (unsigned long i = 0; i < field_count; ++i) {
 					string_buffers[i] = new char[fields[i].length];
 					memset(string_buffers[i], 0, fields[i].length);
 					bindings[i].buffer_type = MYSQL_TYPE_VAR_STRING;
@@ -421,7 +421,7 @@ namespace db {
 				result = mysql_stmt_bind_result(cc.st, (MYSQL_BIND*)&bindings);
 				if (result) {
 					log_error(format, mysql_stmt_error(cc.st));
-					for (int i = 0; i < field_count; ++i) {
+					for (unsigned long i = 0; i < field_count; ++i) {
 						delete[] string_buffers[i];
 					}
 					mysql_free_result(a_res);
@@ -460,7 +460,7 @@ namespace db {
 					}
 				}
 				mysql_free_result(a_res);
-				for (int i = 0; i < field_count; ++i) {
+				for (unsigned long i = 0; i < field_count; ++i) {
 					delete[] string_buffers[i];
 				}
 				sentry::set_span_status(qspan, sentry::STATUS_OK);

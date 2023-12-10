@@ -72,9 +72,8 @@ spawn::spawn(const char* const argv[], const char* const envp[]): stdin(nullptr)
 		dup2(read_pipe.write_fd(), STDOUT_FILENO);
 		write_pipe.close();
 		read_pipe.close();
-		int result{-1};
 		try {
-			result = spawn_exec(const_cast<char* const*>(argv), const_cast<char* const*>(envp));
+			spawn_exec(const_cast<char* const*>(argv), const_cast<char* const*>(envp));
 		}
 		catch (const std::runtime_error& e) {
 			/* Note: no point writing to stdout here, it has been redirected */

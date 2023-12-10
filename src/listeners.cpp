@@ -49,7 +49,6 @@ namespace listeners {
 	void on_ready(const dpp::ready_t &event) {
 		dpp::cluster& bot = *event.from->creator;
 		if (dpp::run_once<struct register_bot_commands>()) {
-			uint64_t default_permissions = dpp::p_manage_guild;
 			bot.global_bulk_command_create({
 				register_command<info_command>(bot),
 				register_command<premium_command>(bot),
@@ -218,7 +217,6 @@ namespace listeners {
 
 	void on_message_create(const dpp::message_create_t &event) {
 		auto guild_member = event.msg.member;
-		bool should_bypass = false;
 
 		/* If the author is a bot or webhook, stop the event (no checking). */
 		if (event.msg.author.is_bot() || event.msg.author.id.empty()) {

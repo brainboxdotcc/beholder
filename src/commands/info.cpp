@@ -77,6 +77,7 @@ void info_command::route(const dpp::slashcommand_t &event)
 			.set_footer(dpp::embed_footer{ 
 				.text = "Requested by " + event.command.usr.format_username(), 
 				.icon_url = bot->me.get_avatar_url(), 
+				.proxy_url = "",
 			})
 			.set_colour(0x7aff7a)
 			.set_thumbnail("https://beholder.cc/img/beholder_animated.gif")
