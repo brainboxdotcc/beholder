@@ -36,33 +36,33 @@ void delete_message_and_warn(const std::string& hash, const std::string& image, 
 			logchannel = db::query("SELECT embeds_disabled, log_channel, embed_title, embed_body FROM guild_config WHERE guild_id = ?", { ev.msg.guild_id });
 		}
 
-		if (logchannel.size()) {
+		if (logchannel.size() == 0 || logchannel[0].at("embeds_disabled") == "0") {
+			std::string message_body = logchannel.size() == 0 ? "" : logchannel[0].at("embed_body");
+			std::string message_title = logchannel.size() == 0 ? "" : logchannel[0].at("embed_title");
 
-			if (logchannel[0].at("embeds_disabled") == "0") {
-				std::string message_body = logchannel[0].at("embed_body");
-				std::string message_title = logchannel[0].at("embed_title");
-
-				if (message_body.empty()) {
-					message_body = "Please set a message using " + std::string(premium ? "`/premium message`" : "`/message content`");
-				}
-				if (message_title.empty()) {
-					message_title = "Please set a title using " + std::string(premium ? "`/premium message`" : "`/message content`");
-				}
-				message_body = replace_string(message_body, "@user", ev.msg.author.get_mention());
-
-				bot.message_create(
-					dpp::message(ev.msg.channel_id, "")
-					.add_embed(
-						dpp::embed()
-						.set_description(message_body)
-						.set_title(message_title)
-						.set_color(colours::bad)
-						.set_url("https://beholder.cc/")
-						.set_thumbnail(bot.me.get_avatar_url())
-						.set_footer("Powered by Beholder", bot.me.get_avatar_url())
-					)
-				);
+			if (message_body.empty()) {
+				message_body = "Please set a message using " + std::string(premium ? "`/premium message`" : "`/message content`");
 			}
+			if (message_title.empty()) {
+				message_title = "Please set a title using " + std::string(premium ? "`/premium message`" : "`/message content`");
+			}
+			message_body = replace_string(message_body, "@user", ev.msg.author.get_mention());
+
+			bot.message_create(
+				dpp::message(ev.msg.channel_id, "")
+				.add_embed(
+					dpp::embed()
+					.set_description(message_body)
+					.set_title(message_title)
+					.set_color(colours::bad)
+					.set_url("https://beholder.cc/")
+					.set_thumbnail(bot.me.get_avatar_url())
+					.set_footer("Powered by Beholder", bot.me.get_avatar_url())
+				)
+			);
+		}
+
+		if (logchannel.size()) {
 
 			if (logchannel[0].at("log_channel").length()) {
 
