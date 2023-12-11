@@ -98,7 +98,7 @@ namespace listeners {
 
 	void on_guild_delete(const dpp::guild_delete_t &event) {
 		db::query("DELETE FROM guild_cache WHERE id = ?", { event.deleted.id });
-		db::query("DELETE FROM guild_config WHERE id = ?", { event.deleted.id });
+		db::query("DELETE FROM guild_config WHERE guild_id = ?", { event.deleted.id });
 		db::query("DELETE FROM guild_statistics WHERE guild_id = ?", { event.deleted.id });
 	}
 
