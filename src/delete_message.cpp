@@ -41,10 +41,10 @@ void delete_message_and_warn(const std::string& hash, const std::string& image, 
 			std::string message_title = logchannel.size() == 0 ? "" : logchannel[0].at("embed_title");
 
 			if (message_body.empty()) {
-				message_body = "Please set a message using " + std::string(premium ? "`/premium message`" : "`/message content`");
+				message_body = "This message contained disallowed image content!\n\nModerators can configure this message using " + std::string(premium ? "`/premium message`" : "`/message content`");
 			}
 			if (message_title.empty()) {
-				message_title = "Please set a title using " + std::string(premium ? "`/premium message`" : "`/message content`");
+				message_title = "Please set a title using " + std::string(premium ? "/premium message" : "/message content");
 			}
 			message_body = replace_string(message_body, "@user", ev.msg.author.get_mention());
 
