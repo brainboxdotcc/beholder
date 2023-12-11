@@ -46,6 +46,106 @@
 
 namespace listeners {
 
+	/**
+	 * @brief Welcome a new guild to the bot with some advice on getting started
+	 * 
+	 * @param bot 
+	 * @param guild_id 
+	 * @param channel_id 
+	 */
+	void send_welcome(dpp::cluster& bot, dpp::snowflake guild_id, dpp::snowflake channel_id) {
+		bot.message_create(
+			dpp::message(channel_id, "")
+			.add_embed(
+				dpp::embed()
+				.set_description("Thank you for inviting the **Beholder** Bot! You can configure this \
+bot either via application commands, or [through the Beholder Dashboard](https://beholder.cc/dashboard) \
+\n\n\
+To get started, use the `/logchannel` command to set the channel where the bot will send \
+alerts of blocked images, and use `/patterns` to set up words that are banned within images. \
+You can also use the `/ignorechannels` and `/roles` command to set up channels or roles that \
+Beholder will not scan images for. \
+\n\n\
+**Beholder's default settings will block various NSFW image types automatically,** so long as a log channel is configured. \
+\n\n\
+For more in depth configuration please see the [bot dashboard](https://beholder.cc/dashboard) - \
+You can get help with the bot on our [support server](https://discord.com/invite/Ac2duhZAr5). \
+\n\n\
+For advanced NSFW filtering, with 25 different categories, please consider subscribing to \
+[Beholder Premium](https://beholder.cc/premium) - Prices start at only £3 a month, less than a good cup of coffee! :coffee:\
+")
+				.set_title("Thank You for Inviting Beholder!")
+				.set_color(colours::good)
+				.set_url("https://beholder.cc/")
+				.set_thumbnail(bot.me.get_avatar_url())
+				.set_footer("Powered by Beholder", bot.me.get_avatar_url())
+			)
+		);
+		/* Probably successfully welcomed */
+		db::query("UPDATE guild_cache SET welcome_sent = 1 WHERE id = ?", {guild_id});
+	}
+
+	/**
+	 * @brief Check every 30 seconds for new guilds and welcome them
+	 * 
+	 * @param bot cluster ref
+	 */
+	void welcome_new_guilds(dpp::cluster& bot) {
+		auto result = db::query("SELECT id FROM guild_cache WHERE welcome_sent = 0");
+		for (const auto& row : result) {
+			/* Determine the correct channel to send to */
+			dpp::snowflake guild_id = row.at("id");
+			bot.guild_get(guild_id, [&bot, guild_id](const auto& cc) {
+				if (cc.is_error()) {
+					/* Couldn't fetch the guild - kicked within 30 secs of inviting, bummer. */
+					db::query("UPDATE guild_cache SET welcome_sent = 1 WHERE id = ?", {guild_id});
+					return;
+				}
+				dpp::guild guild = std::get<dpp::guild>(cc.value);
+				/* First try to send the message to system channel or safety alerts channel if defined */
+				if (!guild.system_channel_id.empty()) {
+					send_welcome(bot, guild.id, guild.system_channel_id);
+					return;
+				}
+				if (!guild.safety_alerts_channel_id.empty()) {
+					send_welcome(bot, guild.id, guild.safety_alerts_channel_id);
+					return;
+				}
+				/* As a last resort if they dont have one of those channels set up, find a named
+				 * text channel that looks like its the main general/chat channel
+				 */
+				bot.channels_get(guild_id, [&bot, guild_id, guild](const auto& cc) {
+					if (cc.is_error()) {
+						/* Couldn't fetch the channels - kicked within 30 secs of inviting, bummer. */
+						db::query("UPDATE guild_cache SET welcome_sent = 1 WHERE id = ?", {guild_id});
+						return;
+					}
+					dpp::channel_map channels = std::get<dpp::channel_map>(cc.value);
+					dpp::snowflake selected_channel_id, first_text_channel_id;
+					for (const auto& c : channels) {
+						const dpp::channel& channel = c.second;
+						std::string lowername = dpp::lowercase(channel.name);
+						if ((lowername == "general" || lowername == "chat" || lowername == "moderators") && channel.is_text_channel()) {
+							selected_channel_id = channel.id;
+							break;
+						} else if (channel.is_text_channel()) {
+							first_text_channel_id = channel.id;
+						}
+					}
+					if (selected_channel_id.empty() && !first_text_channel_id.empty()) {
+						selected_channel_id = first_text_channel_id;
+					}
+					if (!selected_channel_id.empty()) {
+						send_welcome(bot, guild_id, selected_channel_id);
+					} else {
+						/* What sort of server has NO text channels and invites an image moderation bot??? */
+						db::query("UPDATE guild_cache SET welcome_sent = 1 WHERE id = ?", {guild_id});
+					}
+				});
+			});
+		}
+	}
+
 	void on_ready(const dpp::ready_t &event) {
 		dpp::cluster& bot = *event.from->creator;
 		if (dpp::run_once<struct register_bot_commands>()) {
@@ -78,8 +178,12 @@ namespace listeners {
 			bot.start_timer([&bot](dpp::timer t) {
 				post_botlists(bot);
 			}, 60 * 15);
+			bot.start_timer([&bot](dpp::timer t) {
+				welcome_new_guilds(bot);
+			}, 30);
 
 			set_presence();
+			welcome_new_guilds(bot);
 
 			register_botlist<topgg>();
 			register_botlist<discordbotlist>();
