@@ -376,8 +376,6 @@ namespace db {
 		}
 
 		/* Start sentry transaction */
-		void *qlog = sentry::start_transaction(sentry::register_transaction_type("PID#" + std::to_string(getpid()), "db"));
-		void* qspan = sentry::span(qlog, format);
 		int result{0};
 
 		if (!cc.expects_results) {
@@ -387,10 +385,8 @@ namespace db {
 			result = mysql_stmt_execute(cc.st);
 			if (result) {
 				log_error(format, mysql_stmt_error(cc.st));
-				sentry::set_span_status(qspan, sentry::STATUS_INVALID_ARGUMENT);
 			} else {
 				rows_affected = mysql_stmt_affected_rows(cc.st);
-				sentry::set_span_status(qspan, sentry::STATUS_OK);
 			}
 		} else {
 			/**
@@ -425,8 +421,6 @@ namespace db {
 						delete[] string_buffers[i];
 					}
 					mysql_free_result(a_res);
-					sentry::end_span(qspan);
-					sentry::end_transaction(qlog);
 					return rv;
 				}
 
@@ -463,15 +457,10 @@ namespace db {
 				for (unsigned long i = 0; i < field_count; ++i) {
 					delete[] string_buffers[i];
 				}
-				sentry::set_span_status(qspan, sentry::STATUS_OK);
 			} else {
 				log_error(format, mysql_stmt_error(cc.st));
-				sentry::set_span_status(qspan, sentry::STATUS_INVALID_ARGUMENT);
 			}
 		}
-
-		sentry::end_span(qspan);
-		sentry::end_transaction(qlog);
 
 		return rv;
 	}
