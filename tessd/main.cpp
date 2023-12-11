@@ -148,6 +148,8 @@ int main()
 		tessd::status(tessd::exit_code::pix_read_mem);
 	}
 
+	image = pixConvertRGBToGrayFast(image);
+
 	/**
 	 * We may have already checked this value if discord gave it us as attachment metadata.
 	 * Just to be sure, and also in case we're processing an image given in a raw url, we check the
