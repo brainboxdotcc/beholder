@@ -95,6 +95,7 @@ For advanced NSFW filtering, with 25 different categories, please consider subsc
 		for (const auto& row : result) {
 			/* Determine the correct channel to send to */
 			dpp::snowflake guild_id = row.at("id");
+			bot.log(dpp::ll_info, "New guild: " + guild_id.str());
 			bot.guild_get(guild_id, [&bot, guild_id](const auto& cc) {
 				if (cc.is_error()) {
 					/* Couldn't fetch the guild - kicked within 30 secs of inviting, bummer. */
@@ -204,6 +205,7 @@ For advanced NSFW filtering, with 25 different categories, please consider subsc
 		db::query("DELETE FROM guild_cache WHERE id = ?", { event.deleted.id });
 		db::query("DELETE FROM guild_config WHERE guild_id = ?", { event.deleted.id });
 		db::query("DELETE FROM guild_statistics WHERE guild_id = ?", { event.deleted.id });
+		event.from->creator->log(dpp::ll_info, "Removed from guild: " + event.deleted.id.str());
 	}
 
 	void on_button_click(const dpp::button_click_t &event) {
@@ -260,10 +262,11 @@ For advanced NSFW filtering, with 25 different categories, please consider subsc
 		event.from->creator->log(
 			dpp::ll_info,
 			fmt::format(
-				"COMMAND: {} by {} ({})",
+				"COMMAND: {} by {} ({} Guild: {})",
 				event.command.get_command_name(),
 				event.command.usr.format_username(),
-				event.command.usr.id
+				event.command.usr.id,
+				event.command.guild_id
 			)
 		);
 		route_command(event);
