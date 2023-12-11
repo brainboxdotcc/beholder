@@ -151,6 +151,7 @@ void scan_command::route(const dpp::slashcommand_t &event)
 			);
 		}
 	}
+	bot->log(dpp::ll_info, "Manual scan: " + attach.url);
 	INCREMENT_STATISTIC("images_scanned", event.command.guild_id);
 
 	event.edit_response(msg);
