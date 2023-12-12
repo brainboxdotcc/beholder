@@ -49,7 +49,7 @@ dpp::slashcommand patterns_command::register_command(dpp::cluster& bot)
 						sql_query += ",";
 					}
 					sql_parameters.emplace_back(event.command.guild_id);
-					sql_parameters.emplace_back(list[i]);
+					sql_parameters.emplace_back(list[i].substr(0, 150));
 				}
 
 				db::query(sql_query, sql_parameters);
