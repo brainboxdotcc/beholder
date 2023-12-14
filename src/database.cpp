@@ -405,6 +405,10 @@ namespace db {
 				std::memset(is_null, 0, sizeof(is_null));
 				std::memset(lengths, 0, sizeof(lengths));
 				for (unsigned long i = 0; i < field_count; ++i) {
+					/* FIX: Cap max length of retrieved field at 128k, else it will try and new[]
+					 * a 4gb buffer, which is really REALLY slow!
+					 */
+					fields[i].length = std::min(fields[i].length, 131072UL);
 					string_buffers[i] = new char[fields[i].length];
 					memset(string_buffers[i], 0, fields[i].length);
 					bindings[i].buffer_type = MYSQL_TYPE_VAR_STRING;
