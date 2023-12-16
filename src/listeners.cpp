@@ -202,10 +202,12 @@ For advanced NSFW filtering, with 25 different categories, please consider subsc
 	}
 
 	void on_guild_delete(const dpp::guild_delete_t &event) {
-		db::query("DELETE FROM guild_cache WHERE id = ?", { event.deleted.id });
-		db::query("DELETE FROM guild_config WHERE guild_id = ?", { event.deleted.id });
-		db::query("DELETE FROM guild_statistics WHERE guild_id = ?", { event.deleted.id });
-		event.from->creator->log(dpp::ll_info, "Removed from guild: " + event.deleted.id.str());
+		if (!event.deleted.is_unavailable()) {
+			db::query("DELETE FROM guild_cache WHERE id = ?", { event.deleted.id });
+			db::query("DELETE FROM guild_config WHERE guild_id = ?", { event.deleted.id });
+			db::query("DELETE FROM guild_statistics WHERE guild_id = ?", { event.deleted.id });
+			event.from->creator->log(dpp::ll_info, "Removed from guild: " + event.deleted.id.str());
+		}
 	}
 
 	void on_button_click(const dpp::button_click_t &event) {
