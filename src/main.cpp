@@ -39,8 +39,6 @@ int main(int argc, char const *argv[])
 		1, 0, 1, true, dpp::cache_policy::cpol_none
 	);
 
-	sentry::init(bot);
-
 	bot.on_log(&logger::log);
 	bot.on_guild_create(&listeners::on_guild_create);
 	bot.on_guild_delete(&listeners::on_guild_delete);
@@ -55,7 +53,5 @@ int main(int argc, char const *argv[])
 	/* Start bot */
 	bot.set_websocket_protocol(dpp::ws_etf);
 	bot.start(dpp::st_wait);
-
-	sentry::close();
 }
 

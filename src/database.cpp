@@ -255,7 +255,6 @@ namespace db {
 			last_error = error;
 		}
 		creator->log(dpp::ll_error, last_error);
-		sentry::log_error("db", last_error);
 	}
 
 	size_t affected_rows() {
