@@ -180,15 +180,31 @@ namespace db {
 		return query_total;
 	}
 
-	bool connect(const std::string &host, const std::string &user, const std::string &pass, const std::string &db, int port) {
-		std::lock_guard<std::mutex> db_lock(db_mutex);
+	/**
+	 * @brief This is an internal connect function which has no locking, there is no public interface for this
+	 * 
+	 * @param host hostname
+	 * @param user username
+	 * @param pass password
+	 * @param db database
+	 * @param port port
+	 */
+	bool unsafe_connect(const std::string &host, const std::string &user, const std::string &pass, const std::string &db, int port) {
 		if (mysql_init(&connection) != nullptr) {
 			mysql_options(&connection, MYSQL_INIT_COMMAND, CONNECT_STRING);
-			return mysql_real_connect(&connection, host.c_str(), user.c_str(), pass.c_str(), db.c_str(), port, NULL, CLIENT_MULTI_RESULTS | CLIENT_MULTI_STATEMENTS | CLIENT_REMEMBER_OPTIONS);
+			int opts = CLIENT_MULTI_RESULTS | CLIENT_MULTI_STATEMENTS | CLIENT_REMEMBER_OPTIONS | CLIENT_IGNORE_SIGPIPE;
+			bool result = mysql_real_connect(&connection, host.c_str(), user.c_str(), pass.c_str(), db.c_str(), port, NULL, opts);
+			signal(SIGPIPE, SIG_IGN);
+			return result;
 		} else {
 			last_error = "mysql_init() failed";
 			return false;
 		}
+	}
+
+	bool connect(const std::string &host, const std::string &user, const std::string &pass, const std::string &db, int port) {
+		std::lock_guard<std::mutex> db_lock(db_mutex);
+		return unsafe_connect(host, user, pass, db, port);
 	}
 
 	void init (dpp::cluster& bot) {
@@ -285,6 +301,21 @@ namespace db {
 		 */
 		std::lock_guard<std::mutex> db_lock(db_mutex);
 		resultset rv;
+
+		if (mysql_ping(&connection)) {
+			creator->log(dpp::ll_error, "SQL: Connection has died, reconnecting...");
+			for (const auto& cc : cached_queries) {
+				mysql_stmt_close(cc.second.st);
+				delete[] cc.second.bindings;
+				delete[] cc.second.lengths;
+			}
+			cached_queries = {};
+			const json& dbconf = config::get("database");
+			if (!db::unsafe_connect(dbconf["host"], dbconf["username"], dbconf["password"], dbconf["database"], dbconf["port"])) {
+				creator->log(dpp::ll_critical, fmt::format("Database connection error connecting to {}: {}", dbconf["database"], mysql_error(&connection)));
+				return rv;
+			}
+		}
 
 		/**
 		 * Clear error status
