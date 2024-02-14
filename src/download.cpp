@@ -87,7 +87,6 @@ void download_image(const dpp::attachment attach, dpp::cluster& bot, const dpp::
 					path += "?" + x.str();
 				}
 				auto res = cli.Get(path);
-				std::cout << path << "\n";
 				if (res) {
 					if (res->status < 400) {
 						concurrent_images++;
