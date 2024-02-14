@@ -26,6 +26,8 @@
 #include <beholder/sentry.h>
 #include "3rdparty/httplib.h"
 #include <CxxUrl/url.hpp>
+#include <fmt/format.h>
+#include <fmt/ranges.h>
 
 std::atomic<int> concurrent_images{0};
 
@@ -73,14 +75,26 @@ void download_image(const dpp::attachment attach, dpp::cluster& bot, const dpp::
 				httplib::Client cli(host.c_str());
 				cli.enable_server_certificate_verification(false);
 				cli.set_interface(config::get("tunnel_interface"));
-				auto res = cli.Get(u.path());
+				if (host != "https://cdn.discordapp.com") {
+					cli.set_proxy("127.0.0.1", 9080);
+					bot.log(dpp::ll_debug, "Proxying via TOR to " + host);
+				}
+				if (!u.query().empty()) {
+					std::stringstream x;
+					for(const auto& p : u.query()) {
+						x << p.key() << "=" << p.val() << "&";
+					}
+					path += "?" + x.str();
+				}
+				auto res = cli.Get(path);
+				std::cout << path << "\n";
 				if (res) {
 					if (res->status < 400) {
 						concurrent_images++;
 						std::thread hard_work(image::worker_thread, res->body, attach, std::ref(bot), ev);
 						hard_work.detach();
 					} else {
-						bot.log(dpp::ll_warning, "Unable to fetch image: " + std::to_string(res->status)+ " - " + attach.url);	
+						bot.log(dpp::ll_warning, "Unable to fetch image: " + std::to_string(res->status)+ " - " + attach.url + " " + res->body);	
 					}
 				} else {
 					bot.log(dpp::ll_warning, httplib::to_string(res.error()));
