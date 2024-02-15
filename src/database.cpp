@@ -227,6 +227,7 @@ namespace db {
 	 * @return true query executed
 	 */
 	bool raw_query(const std::string& query) {
+		std::lock_guard<std::mutex> db_lock(db_mutex);
 		return mysql_real_query(&connection, query.c_str(), query.length()) == 0;
 	}
 
