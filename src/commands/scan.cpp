@@ -65,7 +65,14 @@ void scan_command::route(const dpp::slashcommand_t &event)
 	httplib::Client cli(host.c_str());
 	cli.enable_server_certificate_verification(false);
 	cli.set_interface(config::get("safe_interface"));
-	auto res = cli.Get(u.path());
+	if (!u.query().empty()) {
+		std::stringstream x;
+		for(const auto& p : u.query()) {
+			x << p.key() << "=" << p.val() << "&";
+		}
+		path += "?" + x.str();
+	}
+	auto res = cli.Get(path);
 	if (res) {
 		if (res->status < 400) {
 			file_content = res->body;
@@ -113,6 +120,7 @@ void scan_command::route(const dpp::slashcommand_t &event)
 		}
 	} else {
 		matches.emplace_back("Could not download file: " + attach.url);
+		match_names.emplace_back("No scans performed");
 	}
 
 	dpp::message msg;
