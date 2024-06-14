@@ -155,9 +155,11 @@ int main()
 	 * Just to be sure, and also in case we're processing an image given in a raw url, we check the
 	 * width and height again here.
 	 */
-	if (image->w * image->h > 33554432) {
+	if (!image || image->w * image->h > 33554432) {
 		delete api;
-		pixDestroy(&image);
+		if (image) {
+			pixDestroy(&image);
+		}
 		sentry::end_transaction(tx_do_tesseract);
 		sentry::close();
 		tessd::status(tessd::exit_code::image_size);
