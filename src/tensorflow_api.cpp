@@ -54,7 +54,7 @@ namespace tensorflow_api {
 						if (!answer.contains("error")) {
 							db::query("INSERT INTO basic_cache (hash, basic) VALUES(?,?) ON DUPLICATE KEY UPDATE hash = ?", { hash, res->body, res->body });
 						} else {
-							bot.log(dpp::ll_warning, fmt::format("Basic NSFW API Error: {}", answer.at("error")));
+							bot.log(dpp::ll_warning, fmt::format("Basic NSFW API Error: {}", answer.at("error").get<std::string>()));
 							return false;
 						}
 					}

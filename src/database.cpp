@@ -211,10 +211,10 @@ namespace db {
 		creator = &bot;
 		const json& dbconf = config::get("database");
 		if (!db::connect(dbconf["host"], dbconf["username"], dbconf["password"], dbconf["database"], dbconf["port"])) {
-			creator->log(dpp::ll_critical, fmt::format("Database connection error connecting to {}: {}", dbconf["database"], mysql_error(&connection)));
+			creator->log(dpp::ll_critical, fmt::format("Database connection error connecting to {}: {}", dbconf["database"].get<std::string>(), mysql_error(&connection)));
 			exit(2);
 		}
-		creator->log(dpp::ll_info, fmt::format("Connected to database: {}", dbconf["database"]));
+		creator->log(dpp::ll_info, fmt::format("Connected to database: {}", dbconf["database"].get<std::string>()));
 	}
 
 	/**
@@ -313,7 +313,7 @@ namespace db {
 			cached_queries = {};
 			const json& dbconf = config::get("database");
 			if (!db::unsafe_connect(dbconf["host"], dbconf["username"], dbconf["password"], dbconf["database"], dbconf["port"])) {
-				creator->log(dpp::ll_critical, fmt::format("Database connection error connecting to {}: {}", dbconf["database"], mysql_error(&connection)));
+				creator->log(dpp::ll_critical, fmt::format("Database connection error connecting to {}: {}", dbconf["database"].get<std::string>(), mysql_error(&connection)));
 				return rv;
 			}
 		}

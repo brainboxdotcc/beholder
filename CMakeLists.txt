@@ -45,8 +45,8 @@ else()
 endif()
 
 set(CMAKE_CXX_FLAGS "-g -O2 -Wall -Wno-unused-private-field -Wno-psabi -Wempty-body -Wignored-qualifiers -Wimplicit-fallthrough -Wmissing-field-initializers -Wsign-compare -Wtype-limits -Wuninitialized -Wshift-negative-value")
-target_compile_definitions(${BOT_NAME} PUBLIC DPP_CORO=ON CPPHTTPLIB_OPENSSL_SUPPORT)
-target_compile_definitions("tessd" PUBLIC DPP_CORO=ON CPPHTTPLIB_OPENSSL_SUPPORT)
+target_compile_definitions(${BOT_NAME} PUBLIC DPP_CORO=ON SPDLOG_FMT_EXTERNAL=ON CPPHTTPLIB_OPENSSL_SUPPORT)
+target_compile_definitions("tessd" PUBLIC DPP_CORO=ON SPDLOG_FMT_EXTERNAL=ON CPPHTTPLIB_OPENSSL_SUPPORT)
 
 target_include_directories(${BOT_NAME} PUBLIC
     ${CMAKE_CURRENT_SOURCE_DIR}/include
