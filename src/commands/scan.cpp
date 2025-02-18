@@ -39,7 +39,7 @@ dpp::slashcommand scan_command::register_command(dpp::cluster& bot)
 
 void scan_command::route(const dpp::slashcommand_t &event)
 {
-	dpp::cluster* bot = event.from->creator;
+	dpp::cluster* bot = event.owner;
 
 
 	/* Set 'thinking' state */
@@ -98,7 +98,7 @@ void scan_command::route(const dpp::slashcommand_t &event)
 
 		/* Execute each of the scanners in turn on the image, if any throw, log it */
 		size_t n = 0;
-		dpp::message_create_t ev(event.from, "");
+		dpp::message_create_t ev(event.owner, event.shard, "");
 		ev.msg.author = event.command.usr;
 		ev.msg.attachments.emplace_back(attach);
 		ev.msg.channel_id = event.command.channel_id;

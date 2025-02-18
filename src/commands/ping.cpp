@@ -30,7 +30,7 @@ dpp::slashcommand ping_command::register_command(dpp::cluster& bot)
 
 void ping_command::route(const dpp::slashcommand_t &event)
 {
-	dpp::cluster* bot = event.from->creator;
+	dpp::cluster* bot = event.owner;
 
 	dpp::embed embed;
 

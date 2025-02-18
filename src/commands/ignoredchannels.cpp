@@ -86,7 +86,7 @@ void ignoredchannels_command::route(const dpp::slashcommand_t &event)
 			.set_title("Beholder Ignored Channel List")
 			.set_footer(dpp::embed_footer{ 
 				.text = "Requested by " + event.command.usr.format_username(), 
-				.icon_url = event.from->creator->me.get_avatar_url(), 
+				.icon_url = event.owner->me.get_avatar_url(), 
 				.proxy_url = "",
 			})
 			.set_colour(0x7aff7a)

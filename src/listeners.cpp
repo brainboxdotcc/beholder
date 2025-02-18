@@ -148,7 +148,7 @@ For advanced NSFW filtering, with 25 different categories, please consider subsc
 	}
 
 	void on_ready(const dpp::ready_t &event) {
-		dpp::cluster& bot = *event.from->creator;
+		dpp::cluster& bot = *event.owner;
 		if (dpp::run_once<struct register_bot_commands>()) {
 			bot.global_bulk_command_create({
 				register_command<info_command>(bot),
@@ -195,10 +195,10 @@ For advanced NSFW filtering, with 25 different categories, please consider subsc
 	}
 
 	void on_guild_create(const dpp::guild_create_t &event) {
-		if (event.created->is_unavailable()) {
+		if (event.created.is_unavailable()) {
 			return;
 		}
-		db::query("INSERT INTO guild_cache (id, owner_id, name, user_count) VALUES(?,?,?,?) ON DUPLICATE KEY UPDATE owner_id = ?, name = ?, user_count = ?", { event.created->id, event.created->owner_id, event.created->name, event.created->member_count, event.created->owner_id, event.created->name, event.created->member_count });
+		db::query("INSERT INTO guild_cache (id, owner_id, name, user_count) VALUES(?,?,?,?) ON DUPLICATE KEY UPDATE owner_id = ?, name = ?, user_count = ?", { event.created.id, event.created.owner_id, event.created.name, event.created.member_count, event.created.owner_id, event.created.name, event.created.member_count });
 	}
 
 	void on_guild_delete(const dpp::guild_delete_t &event) {
@@ -206,7 +206,7 @@ For advanced NSFW filtering, with 25 different categories, please consider subsc
 			db::query("DELETE FROM guild_cache WHERE id = ?", { event.deleted.id });
 			db::query("DELETE FROM guild_config WHERE guild_id = ?", { event.deleted.id });
 			db::query("DELETE FROM guild_statistics WHERE guild_id = ?", { event.deleted.id });
-			event.from->creator->log(dpp::ll_info, "Removed from guild: " + event.deleted.id.str());
+			event.owner->log(dpp::ll_info, "Removed from guild: " + event.deleted.id.str());
 		}
 	}
 
@@ -218,7 +218,7 @@ For advanced NSFW filtering, with 25 different categories, please consider subsc
 			event.reply(dpp::message(event.command.channel_id, "You require the manage server permission to add images to the block list.").set_flags(dpp::m_ephemeral));
 			return;
 		}
-		dpp::cluster& bot = *(event.from->creator);
+		dpp::cluster& bot = *(event.owner);
 		std::vector<std::string> parts = dpp::utility::tokenize(event.custom_id, ";");
 		auto logchannel = db::query("SELECT embeds_disabled, log_channel, embed_title, embed_body FROM guild_config WHERE guild_id = ?", { event.command.guild_id });
 		if (logchannel.size()) {
@@ -253,7 +253,7 @@ For advanced NSFW filtering, with 25 different categories, please consider subsc
 					}
 					dpp::message m = std::get<dpp::message>(cc.value);
 					if (m.embeds.size() && m.embeds[0].image.has_value()) {
-						premium_api::report(*(event.from->creator), good, message_id, channel_id, m.embeds[0].image->url, parts[1]);
+						premium_api::report(*(event.owner), good, message_id, channel_id, m.embeds[0].image->url, parts[1]);
 					}
 				});
 			}
@@ -261,7 +261,7 @@ For advanced NSFW filtering, with 25 different categories, please consider subsc
 	}
 
 	void on_slashcommand(const dpp::slashcommand_t &event) {
-		event.from->creator->log(
+		event.owner->log(
 			dpp::ll_info,
 			fmt::format(
 				"COMMAND: {} by {} ({} Guild: {})",
@@ -308,7 +308,7 @@ For advanced NSFW filtering, with 25 different categories, please consider subsc
 		std::vector<std::string>::iterator rand_iter = replies.begin();
 		std::advance(rand_iter, std::rand() % replies.size());
 		std::string response = replace_string(*rand_iter, "@user", ev.msg.author.get_mention());
-		ev.from->creator->message_create(
+		ev.owner->message_create(
 			dpp::message(ev.msg.channel_id, response)
 				.set_allowed_mentions(true, false, false, true, {}, {})
 				.set_reference(ev.msg.id, ev.msg.guild_id, ev.msg.channel_id, false)
@@ -319,7 +319,7 @@ For advanced NSFW filtering, with 25 different categories, please consider subsc
 		/* Message update is mapped to message creation.
 		 * The effect is the same, the message is simply re-scanned.
 		 */
-		dpp::message_create_t c(event.from, event.raw_event);
+		dpp::message_create_t c(event.owner, event.shard, event.raw_event);
 		c.msg = event.msg;
 		on_message_create(c);
 	}
@@ -334,7 +334,7 @@ For advanced NSFW filtering, with 25 different categories, please consider subsc
 
 		/* Check if we are mentioned in the message, if so send a sarcastic reply */
 		for (const auto& ping : event.msg.mentions) {
-			if (ping.first.id == event.from->creator->me.id) {
+			if (ping.first.id == event.owner->me.id) {
 				sarcastic_ping(event);
 				/* Don't return, just break, because people might still try
 				 * to put dodgy images in the message too
@@ -362,7 +362,7 @@ For advanced NSFW filtering, with 25 different categories, please consider subsc
 		/* Check each attachment in the message, if any */
 		if (event.msg.attachments.size() > 0) {
 			for (const dpp::attachment& attach : event.msg.attachments) {
-				download_image(attach, *event.from->creator, event);
+				download_image(attach, *event.owner, event);
 			}
 		}
 
@@ -449,7 +449,7 @@ For advanced NSFW filtering, with 25 different categories, please consider subsc
 					attach.filename = fs::path(original_url).filename();
 				}
 				if (checked.find(original_url) == checked.end()) {
-					download_image(attach, *event.from->creator, event);
+					download_image(attach, *event.owner, event);
 					checked.emplace(original_url);
 				}
 			}

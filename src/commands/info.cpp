@@ -53,7 +53,7 @@ bool is_gdb() {
 
 void info_command::route(const dpp::slashcommand_t &event)
 {
-	dpp::cluster* bot = event.from->creator;
+	dpp::cluster* bot = event.owner;
 	bot->current_application_get([bot, event](const dpp::confirmation_callback_t& v) {
 		dpp::application app;
 		uint64_t guild_count = 0;
@@ -94,7 +94,7 @@ void info_command::route(const dpp::slashcommand_t &event)
 			.add_field("Debugging", is_gdb() ? ":white_check_mark: Yes" : "<:wc_rs:1174363531794202624> No", true)
 			.add_field("Guild Members Intent", ":white_check_mark: Yes", true)
 			.add_field("Message Content Intent", ":white_check_mark: Yes", true)
-			.add_field("Shard", std::to_string(event.from->shard_id) + "/" + std::to_string(bot->get_shards().size()), true)
+			.add_field("Shard", std::to_string(event.shard) + "/" + std::to_string(bot->get_shards().size()), true)
 			.add_field("SQL cache size", std::to_string(db::cache_size()), true)
 			.add_field("SQL query count", std::to_string(db::query_count()), true);
 

@@ -96,7 +96,7 @@ void patterns_command::route(const dpp::slashcommand_t &event)
 	}
 	event.dialog(modal, [event](const dpp::confirmation_callback_t& cc) {
 		if (cc.is_error()) {
-			event.from->creator->log(dpp::ll_error, cc.http_info.body);
+			event.owner->log(dpp::ll_error, cc.http_info.body);
 		}
 	});
 }
