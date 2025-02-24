@@ -209,7 +209,7 @@ namespace db {
 
 	void init (dpp::cluster& bot) {
 		creator = &bot;
-		const json& dbconf = config::get("database");
+		const json dbconf = config::get("database");
 		if (!db::connect(dbconf["host"], dbconf["username"], dbconf["password"], dbconf["database"], dbconf["port"])) {
 			creator->log(dpp::ll_critical, fmt::format("Database connection error connecting to {}: {}", dbconf["database"].get<std::string>(), mysql_error(&connection)));
 			exit(2);
@@ -311,7 +311,7 @@ namespace db {
 				delete[] cc.second.lengths;
 			}
 			cached_queries = {};
-			const json& dbconf = config::get("database");
+			const json dbconf = config::get("database");
 			if (!db::unsafe_connect(dbconf["host"], dbconf["username"], dbconf["password"], dbconf["database"], dbconf["port"])) {
 				creator->log(dpp::ll_critical, fmt::format("Database connection error connecting to {}: {}", dbconf["database"].get<std::string>(), mysql_error(&connection)));
 				return rv;

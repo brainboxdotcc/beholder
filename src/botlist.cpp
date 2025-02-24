@@ -39,7 +39,7 @@ void post_botlists(dpp::cluster &bot) {
 }
 
 void botlist::run(dpp::cluster& bot, const std::string_view key, const std::string_view url, const std::string_view count_field, const std::string_view shards_field) {
-	const json& list_config = config::get("botlists");
+	const json list_config = config::get("botlists");
 	auto rs = db::query("SELECT COUNT(id) AS count FROM guild_cache");
 	if (list_config.contains(key.data())) {
 		const json& topgg_config = list_config.at(key.data());
