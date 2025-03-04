@@ -79,10 +79,9 @@ void delete_message_and_warn(const std::string& hash, const std::string& image, 
 					.add_field("In Channel", "<#" + ev.msg.channel_id.str() + ">", true)
 					.set_title("🚫 Image Deleted!")
 					.set_color(colours::good)
-					.set_image("attachment://" + attach.filename)
 					.set_url("https://beholder.cc/")
 					.set_footer("Powered by Beholder - Message ID " + std::to_string(ev.msg.id), bot.me.get_avatar_url())
-				).add_file(attach.filename, image);
+				);
 				if (premium && trigger) {
 					delete_msg.embeds[0].add_field("AI Probability", fmt::format("`{:.1f}%`", trigger * 100.0), true);
 					delete_msg.embeds[0].add_field("AI Trigger Setting", fmt::format("`{:.1f}%`", threshold * 100), true);
