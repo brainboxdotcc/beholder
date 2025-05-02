@@ -228,12 +228,12 @@ For advanced NSFW filtering, with 25 different categories, please consider subsc
 				/* Report false positive */
 				ours = true;
 				good = false;
-				event.reply(":+1: Thank you for reporting a possible **false positive**, " + event.command.usr.get_mention() + ". This feedback will be used to train the AI.");
+				event.reply(":+1: Thank you for reporting a possible **false positive**, " + event.command.usr.get_mention() + ".");
 			} else if (parts[0] == "UP") {
 				/* Report good match */
 				ours = true;
 				good = true;
-				event.reply(":+1: Thank you for confirming this was a **good result**, " + event.command.usr.get_mention() + ". This feedback will be used to train the AI.");
+				event.reply(":+1: Thank you for confirming this was a **good result**, " + event.command.usr.get_mention() + ".");
 			} else if (parts[0] == "BL") {
 				/* Report good match */
 				std::string hash = parts[2];				

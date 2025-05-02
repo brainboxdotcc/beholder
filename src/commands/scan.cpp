@@ -129,10 +129,9 @@ void scan_command::route(const dpp::slashcommand_t &event)
 		.set_description("**Attachment:** `" + attach.filename + "`\n🔗 [Image link](" + attach.url +")")
 		.set_title("🔍 Image Scanned!")
 		.set_color(matches.size() ? colours::bad : colours::good)
-		.set_image("attachment://" + attach.filename)
 		.set_url("https://beholder.cc/")
 		.set_footer("Powered by Beholder - Requested by " + std::to_string(event.command.usr.id), bot->me.get_avatar_url())
-	).add_file(attach.filename, file_content).set_flags(dpp::m_ephemeral);
+	).set_flags(dpp::m_ephemeral);
 	for (size_t x = 0; x < matches.size(); ++x) {
 		msg.embeds[0].add_field(match_names[x], "```\n" + matches[x] + "\n```", true);
 	}
