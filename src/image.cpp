@@ -78,12 +78,6 @@ namespace image {
 	}
 
 	void worker_thread(std::string file_content, const dpp::attachment attach, dpp::cluster& bot, const dpp::message_create_t ev) {
-		dpp::utility::set_thread_name("img-scan/" + std::to_string(concurrent_images));
-
-		on_thread_exit([&bot]() {
-			bot.log(dpp::ll_info, "Scanning thread completed");
-			concurrent_images--;
-		});
 
 		bool flattened = false;
 		std::string hash = sha256(file_content);

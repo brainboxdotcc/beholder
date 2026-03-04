@@ -31,6 +31,19 @@
 
 std::atomic<int> concurrent_images{0};
 
+static bool try_acquire_image_slot() {
+	int prev = concurrent_images.fetch_add(1);
+	if (prev >= max_concurrency) {
+		concurrent_images.fetch_sub(1);
+		return false;
+	}
+	return true;
+}
+
+static void release_image_slot() {
+	concurrent_images.fetch_sub(1);
+}
+
 void download_image(const dpp::attachment attach, dpp::cluster& bot, const dpp::message_create_t ev) {
 	std::string lower_url = dpp::lowercase(attach.url);
 	std::string path;
@@ -43,10 +56,6 @@ void download_image(const dpp::attachment attach, dpp::cluster& bot, const dpp::
 	}
 	if (path.ends_with(".webp") || path.ends_with(".jpg") || path.ends_with(".jpeg") || path.ends_with(".png") || path.ends_with(".gif")) {
 		bot.log(dpp::ll_info, "Download image: " + attach.url);
-		if (concurrent_images > max_concurrency) {
-			bot.log(dpp::ll_info, "Too many concurrent images, skipped");
-			return;
-		}
 		for (int index = 0; whitelist[index] != nullptr; ++index) {
 			if (match(attach.url.c_str(), whitelist[index])) {
 				bot.log(dpp::ll_info, "Image " + attach.url + " is whitelisted by " + std::string(whitelist[index]) + "; not scanning");
@@ -63,46 +72,62 @@ void download_image(const dpp::attachment attach, dpp::cluster& bot, const dpp::
 			bot.log(dpp::ll_info, "Image dimensions of " + std::to_string(attach.width) + "x" + std::to_string(attach.height) + " too large to be a screenshot");
 			return;
 		}
-		std::string url_front = attach.url;
 
-		std::thread([attach, ev, &bot]() {
-			try {
-				Url u(attach.url);
-				std::string path = u.path();
-				std::string host = u.host();
-				std::string scheme = u.scheme();
-				host = scheme + "://" + host;
-				httplib::Client cli(host.c_str());
-				cli.enable_server_certificate_verification(false);
-				cli.set_interface(config::get("tunnel_interface"));
-				if (host != "https://cdn.discordapp.com") {
-					cli.set_proxy("127.0.0.1", 9080);
-					bot.log(dpp::ll_debug, "Proxying via TOR to " + host);
+		if (!try_acquire_image_slot()) {
+			bot.log(dpp::ll_info, "Too many concurrent images, skipped");
+			return;
+		}
+
+		bot.queue_work(0, [attach, ev, &bot]() mutable {
+			// ensure slot is always released
+			struct slot_guard {
+				~slot_guard() {
+					release_image_slot();
 				}
-				if (!u.query().empty()) {
-					std::stringstream x;
-					for(const auto& p : u.query()) {
-						x << p.key() << "=" << p.val() << "&";
-					}
-					path += "?" + x.str();
-				}
-				auto res = cli.Get(path);
-				if (res) {
-					if (res->status < 400) {
-						concurrent_images++;
-						std::thread hard_work(image::worker_thread, res->body, attach, std::ref(bot), ev);
-						hard_work.detach();
-					} else {
-						bot.log(dpp::ll_warning, "Unable to fetch image: " + std::to_string(res->status)+ " - " + attach.url + " " + res->body);	
-					}
-				} else {
-					bot.log(dpp::ll_warning, httplib::to_string(res.error()));
-				}
-			}
-			catch (const std::exception &e) {
-				bot.log(dpp::ll_warning, e.what());
+			} guard;
+
+			Url u(attach.url);
+			std::string path = u.path();
+			std::string host = u.scheme() + "://" + u.host();
+
+			httplib::Client cli(host.c_str());
+			cli.enable_server_certificate_verification(false);
+			cli.set_interface(config::get("tunnel_interface"));
+
+			if (host != "https://cdn.discordapp.com") {
+				cli.set_proxy("127.0.0.1", 9080);
+				bot.log(dpp::ll_debug, "Proxying via TOR to " + host);
 			}
 
-		}).detach();
+			if (!u.query().empty()) {
+				std::stringstream x;
+				for (const auto& p : u.query()) {
+					x << p.key() << "=" << p.val() << "&";
+				}
+				path += "?" + x.str();
+			}
+
+			auto res = cli.Get(path);
+			if (!res) {
+				bot.log(dpp::ll_warning, httplib::to_string(res.error()));
+				return;
+			}
+
+			if (res->status >= 400) {
+				bot.log(dpp::ll_warning, "Unable to fetch image: " + std::to_string(res->status) + " - " + attach.url + " " + res->body);
+				return;
+			}
+
+			if (res->body.size() > max_size) {
+				bot.log(dpp::ll_info, "Image too large (" + std::to_string(res->body.size()) + " bytes), skipped: " + attach.url);
+				return;
+			}
+
+			auto body = std::move(res->body);
+
+			// Run scan *inline in the same worker task* so the slot covers both download+scan.
+			// This avoids a second queued job and keeps the hard cap meaningful.
+			image::worker_thread(std::move(body), attach, bot, ev);
+		});
 	}
 }

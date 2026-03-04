@@ -36,7 +36,7 @@ int main(int argc, char const *argv[])
 	dpp::cluster bot(
 		config::get("token"),
 		dpp::i_guild_messages | dpp::i_message_content | dpp::i_guild_members | dpp::i_guilds,
-		1, 0, 1, true, dpp::cache_policy::cpol_none
+		1, 0, 1, true, dpp::cache_policy::cpol_none, 32
 	);
 
 	bot.on_log(&logger::log);
