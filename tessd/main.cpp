@@ -15,7 +15,7 @@
 #include <beholder/proc/json_frame.h>
 #include <beholder/proc/spawn.h>
 #include <beholder/tessd.h>
-#include "../src/3rdparty/httplib.h"
+#include "3rdparty/httplib.h"
 #include <CxxUrl/url.hpp>
 #include <cctype>
 #include <csignal>

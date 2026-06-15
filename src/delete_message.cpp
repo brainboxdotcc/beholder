@@ -22,7 +22,6 @@
 #include <beholder/beholder.h>
 #include <beholder/database.h>
 #include <fmt/format.h>
-#include "3rdparty/httplib.h"
 #include <deque>
 #include <mutex>
 #include <unordered_set>

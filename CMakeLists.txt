@@ -9,8 +9,6 @@ set(BOT_NAME "beholder")
 project(${BOT_NAME})
 aux_source_directory("src" coresrc)
 aux_source_directory("src/commands" coresrc)
-aux_source_directory("src/3rdparty" coresrc)
-aux_source_directory("src/proc" coresrc)
 add_executable(${BOT_NAME} ${coresrc})
 
 find_package(CxxUrl REQUIRED)
@@ -21,11 +19,11 @@ aux_source_directory("tessd" tessdsrc)
 add_executable("tessd"
 		${tessdsrc}
 		src/config.cpp
-		src/sha256.cpp
+		tessd/sha256.cpp
 		src/wildcard.cpp
-		src/proc/cpipe.cpp
-		src/proc/spawn.cpp
-		src/3rdparty/httplib.cpp
+		tessd/3rdparty/httplib.cpp
+		tessd/proc/cpipe.cpp
+		tessd/proc/spawn.cpp
 )
 
 string(ASCII 27 Esc)
