@@ -21,6 +21,10 @@
 #include <beholder/database.h>
 #include <beholder/commands/addblock.h>
 #include <beholder/image_iterator.h>
+#include <beholder/reactor.h>
+#include <CxxUrl/url.hpp>
+#include <set>
+#include <memory>
 #include <dpp/dpp.h>
 
 dpp::slashcommand addblock_command::register_command(dpp::cluster& bot)
@@ -49,19 +53,133 @@ dpp::slashcommand addblock_command::register_command(dpp::cluster& bot)
 			return;
 		}
 
-		image::iterate(msg, event, [&bot, event](std::string url, std::string hash, dpp::message_context_menu_t ev) -> bool {
-			db::query("INSERT INTO block_list_items (guild_id, hash) VALUES(?,?) ON DUPLICATE KEY UPDATE hash = ?", { event.command.guild_id, hash, hash });
-			return false;
-		}, [&bot, event](std::vector<std::string> images, size_t count) {
-			if (count == 0) {
-				event.edit_response(dpp::message(event.command.channel_id, "No images or stickers found in this message.").set_flags(dpp::m_ephemeral));
-			} else if (count == 1) {
-				event.edit_response(dpp::message(event.command.channel_id, ":no_entry: **" + std::to_string(count) + "** image has been **added to the block list**. It will be **instantly deleted** without performing any further checks.").set_flags(dpp::m_ephemeral));
-			} else {
-				event.edit_response(dpp::message(event.command.channel_id, ":no_entry: **" + std::to_string(count) + "** images have been **added to the block list**. They will be **instantly deleted** without performing any further checks.").set_flags(dpp::m_ephemeral));
-			}
-		});
+		std::vector<dpp::attachment> attaches;
 
+		if (msg.attachments.size() > 0) {
+			for (const dpp::attachment& attach : msg.attachments) {
+				attaches.emplace_back(attach);
+			}
+		}
+
+		std::vector<std::string> parts = dpp::utility::tokenize(replace_string(msg.content, "\n", " "), " ");
+
+		if (msg.embeds.size() > 0) {
+			for (const dpp::embed& embed : msg.embeds) {
+				if (!embed.url.empty()) {
+					parts.emplace_back(embed.url);
+				}
+				if (embed.thumbnail.has_value() && !embed.thumbnail->url.empty()) {
+					parts.emplace_back(embed.thumbnail->url);
+				}
+				if (embed.footer.has_value() && !embed.footer->icon_url.empty()) {
+					parts.emplace_back(embed.footer->icon_url);
+				}
+				if (embed.image.has_value() && !embed.image->url.empty()) {
+					parts.emplace_back(embed.image->url);
+				}
+				if (embed.video.has_value() && !embed.video->url.empty()) {
+					parts.emplace_back(embed.video->url);
+				}
+				if (embed.author.has_value()) {
+					if (!embed.author->icon_url.empty()) {
+						parts.emplace_back(embed.author->icon_url);
+					}
+					if (!embed.author->url.empty()) {
+						parts.emplace_back(embed.author->url);
+					}
+				}
+
+				auto spaced = dpp::utility::tokenize(replace_string(embed.description, "\n", " "), " ");
+				if (!spaced.empty()) {
+					parts.insert(parts.end(), spaced.begin(), spaced.end());
+				}
+
+				for (const dpp::embed_field& field : embed.fields) {
+					spaced = dpp::utility::tokenize(replace_string(field.value, "\n", " "), " ");
+					if (!spaced.empty()) {
+						parts.insert(parts.end(), spaced.begin(), spaced.end());
+					}
+				}
+			}
+		}
+
+		if (msg.stickers.size() > 0) {
+			for (const dpp::sticker& sticker : msg.stickers) {
+				if (!sticker.id.empty()) {
+					parts.emplace_back(sticker.get_url());
+				}
+			}
+		}
+
+		std::set<std::string> checked;
+
+		for (std::string& possibly_url : parts) {
+			const size_t size = possibly_url.length();
+			std::string original_url = possibly_url;
+			possibly_url = dpp::lowercase(possibly_url);
+
+			const auto cloaked_url_pos = possibly_url.find("](http");
+			if (cloaked_url_pos != std::string::npos && possibly_url.length() - cloaked_url_pos - 3 > 7) {
+				possibly_url = possibly_url.substr(cloaked_url_pos + 2, possibly_url.length() - cloaked_url_pos - 3);
+				original_url = original_url.substr(cloaked_url_pos + 2, original_url.length() - cloaked_url_pos - 3);
+			}
+
+			if (
+				(size >= 9 && possibly_url.substr(0, 8) == "https://")
+				|| (size >= 8 && possibly_url.substr(0, 7) == "http://")
+				) {
+				if (checked.find(original_url) != checked.end()) {
+					continue;
+				}
+
+				dpp::attachment attach((dpp::message*)&msg);
+				attach.url = original_url;
+
+				try {
+					Url u(original_url);
+					attach.filename = fs::path(u.path()).filename();
+				} catch (const std::exception&) {
+					attach.filename = fs::path(original_url).filename();
+				}
+
+				attaches.emplace_back(attach);
+				checked.emplace(original_url);
+			}
+		}
+
+		if (attaches.empty()) {
+			event.edit_response(dpp::message(event.command.channel_id, "No images or stickers found in this message.").set_flags(dpp::m_ephemeral));
+			return;
+		}
+
+		dpp::message_create_t fake_event(&bot, event.shard, msg.build_json(true));
+		fake_event.msg = msg;
+
+		auto pending = std::make_shared<size_t>(attaches.size());
+		auto added = std::make_shared<size_t>(0);
+
+		for (const dpp::attachment& attach : attaches) {
+			scanner_reactor::instance().submit(attach, bot, fake_event, [event, pending, added](const std::string& hash, const json& response) {
+				if (!hash.empty()) {
+					db::query("INSERT INTO block_list_items (guild_id, hash) VALUES(?,?) ON DUPLICATE KEY UPDATE hash = ?", {event.command.guild_id, hash, hash});
+					(*added)++;
+				}
+
+				(*pending)--;
+
+				if (*pending != 0) {
+					return;
+				}
+
+				if (*added == 0) {
+					event.edit_response(dpp::message(event.command.channel_id, "No images or stickers found in this message.").set_flags(dpp::m_ephemeral));
+				} else if (*added == 1) {
+					event.edit_response(dpp::message(event.command.channel_id, ":no_entry: **1** image has been **added to the block list**. It will be **instantly deleted** without performing any further checks.").set_flags(dpp::m_ephemeral));
+				} else {
+					event.edit_response(dpp::message(event.command.channel_id, ":no_entry: **" + std::to_string(*added) + "** images have been **added to the block list**. They will be **instantly deleted** without performing any further checks.").set_flags(dpp::m_ephemeral));
+				}
+			});
+		}
 	});
 
 	return dpp::slashcommand("Add images to block list", "Add any images found in this mesage to the block list", bot.me.id)

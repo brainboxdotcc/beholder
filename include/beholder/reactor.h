@@ -19,6 +19,7 @@
  ************************************************************************************/
 #pragma once
 #include <dpp/dpp.h>
+#include <beholder/beholder.h>
 #include <functional>
 
 using scan_callback = std::function<void(const std::string& hash, const dpp::json& response)>;

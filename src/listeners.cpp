@@ -35,7 +35,6 @@
 #include <beholder/commands/ping.h>
 #include <beholder/commands/ignoredchannels.h>
 #include <beholder/commands/addblock.h>
-#include <beholder/commands/showtags.h>
 #include <beholder/commands/scan.h>
 
 #include <beholder/botlist.h>

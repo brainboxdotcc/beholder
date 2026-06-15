@@ -1,9 +1,7 @@
 #include <dpp/dpp.h>
 #include <beholder/image_iterator.h>
 #include <beholder/beholder.h>
-#include <beholder/config.h>
 #include <CxxUrl/url.hpp>
-#include "3rdparty/httplib.h"
 #include "beholder/image.h"
 #include <set>
 
@@ -104,10 +102,6 @@ namespace image {
 			catch (const std::exception&) {
 				continue;
 			}
-			std::string host = url.scheme() + "://" + url.host();
-			httplib::Client cli(host.c_str());
-			cli.enable_server_certificate_verification(false);
-			cli.set_interface(config::get("tunnel_interface"));
 			std::string hash;
 			if (fetch_image_hash_with_tessd(attach, *event.owner, hash)) {
 				add.emplace_back(attach.url);
