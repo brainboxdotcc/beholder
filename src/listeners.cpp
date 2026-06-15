@@ -24,7 +24,6 @@
 #include <beholder/database.h>
 #include <beholder/beholder.h>
 #include <beholder/command.h>
-#include <beholder/premium_api.h>
 
 #include <beholder/commands/logchannel.h>
 #include <beholder/commands/roles.h>
@@ -161,7 +160,6 @@ For advanced NSFW filtering, with 25 different categories, please consider subsc
 				register_command<ping_command>(bot),
 				register_command<ignoredchannels_command>(bot),
 				register_command<addblock_command>(bot),
-				register_command<showtags_command>(bot),
 				register_command<scan_command>(bot),
 			});
 
@@ -212,8 +210,6 @@ For advanced NSFW filtering, with 25 different categories, please consider subsc
 	}
 
 	void on_button_click(const dpp::button_click_t &event) {
-		bool ours = false;
-		bool good = false;
 		dpp::permission p = event.command.get_resolved_permission(event.command.usr.id);
 		if (!p.has(dpp::p_manage_guild)) {
 			event.reply(dpp::message(event.command.channel_id, "You require the manage server permission to add images to the block list.").set_flags(dpp::m_ephemeral));
@@ -224,20 +220,14 @@ For advanced NSFW filtering, with 25 different categories, please consider subsc
 		bot.log(dpp::ll_info, "Button click with id: " + event.custom_id);
 		auto logchannel = db::query("SELECT embeds_disabled, log_channel, embed_title, embed_body FROM guild_config WHERE guild_id = ?", { event.command.guild_id });
 		if (logchannel.size()) {
-			dpp::snowflake channel_id(logchannel[0].at("log_channel"));
-			dpp::snowflake message_id = event.command.message_id;
 			if (parts[0] == "DN") {
 				/* Report false positive */
-				ours = true;
-				good = false;
 				event.reply(":+1: Thank you for reporting a possible **false positive**, " + event.command.usr.get_mention() + ".");
 			} else if (parts[0] == "UP") {
 				/* Report good match */
-				ours = true;
-				good = true;
 				event.reply(":+1: Thank you for confirming this was a **good result**, " + event.command.usr.get_mention() + ".");
 			} else if (parts[0] == "BL") {
-				/* Report good match */
+				/* Block */
 				if (parts.size() >= 2) {
 					std::string hash = parts[2];
 					db::query("INSERT INTO block_list_items (guild_id, hash) VALUES(?,?) ON DUPLICATE KEY UPDATE hash = ?", {event.command.guild_id, hash, hash});
@@ -250,18 +240,6 @@ For advanced NSFW filtering, with 25 different categories, please consider subsc
 					db::query("DELETE FROM block_list_items WHERE guild_id = ? AND hash = ?", {event.command.guild_id, hash});
 					event.reply(":white_check_mark: This image has been **removed from the block list** by " + event.command.usr.get_mention() + ". It will now be **checked normally**.");
 				}
-			}
-
-			if (ours) {
-				bot.message_get(message_id, channel_id, [event, good, message_id, channel_id, parts](const auto& cc) {
-					if (cc.is_error()) {
-						return;
-					}
-					dpp::message m = std::get<dpp::message>(cc.value);
-					if (m.embeds.size() && m.embeds[0].image.has_value()) {
-						premium_api::report(*(event.owner), good, message_id, channel_id, m.embeds[0].image->url, parts[1]);
-					}
-				});
 			}
 		}
 	}

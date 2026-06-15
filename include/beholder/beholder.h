@@ -27,7 +27,7 @@ namespace fs = std::filesystem;
 #define BEHOLDER_VERSION "beholder@1.0.0"
 
 constexpr size_t max_size = 8 * 1024 * 1024;
-constexpr int max_concurrency = 12;
+constexpr int max_concurrency = 48;
 
 namespace colours {
 	constexpr uint32_t bad = 0xff7a7a;
@@ -94,5 +94,3 @@ bool delete_message_and_warn(std::string hash, std::string image, dpp::cluster& 
 std::string replace_string(std::string subject, const std::string& search, const std::string& replace);
 
 std::string sha256(const std::string &buffer);
-
-void on_thread_exit(std::function<void()> func);

@@ -19,13 +19,6 @@
  ************************************************************************************/
 #pragma once
 #include <dpp/dpp.h>
-#include <beholder/ocr.h>
-#include <beholder/tensorflow_api.h>
-#include <beholder/premium_api.h>
-#include <beholder/label.h>
 
-
-
-bool fetch_image_hash_with_tessd(const dpp::attachment& attach, dpp::cluster& bot, std::string& hash);
 json make_fetch_request(const dpp::attachment& attach);
 json make_continue_request(dpp::cluster& bot, dpp::snowflake guild_id, const std::string& hash);

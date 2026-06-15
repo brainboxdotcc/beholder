@@ -399,9 +399,7 @@ scan_result scan_basic_nsfw(const dpp::json& command, const std::string& file_co
 	result.scanner = "basic_nsfw";
 	result.scanner_name = "Basic NSFW Rules";
 
-	const dpp::json settings = command.contains("basic_nsfw") && command.at("basic_nsfw").is_object()
-				   ? command.at("basic_nsfw")
-				   : dpp::json::object();
+	const dpp::json settings = command.contains("basic_nsfw") && command.at("basic_nsfw").is_object() ? command.at("basic_nsfw") : dpp::json::object();
 
 	const bool check_suggestive = json_bool(settings, "suggestive", true);
 	const bool check_porn = json_bool(settings, "porn", true);

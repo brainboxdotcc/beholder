@@ -20,7 +20,6 @@
 #include <beholder/beholder.h>
 #include <beholder/database.h>
 #include <beholder/commands/addblock.h>
-#include <beholder/image_iterator.h>
 #include <beholder/reactor.h>
 #include <CxxUrl/url.hpp>
 #include <set>
