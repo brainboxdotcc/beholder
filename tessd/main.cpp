@@ -17,7 +17,7 @@
 #include <beholder/tessd.h>
 #include "../src/3rdparty/httplib.h"
 #include <CxxUrl/url.hpp>
-#include <algorithm>
+#include <cctype>
 #include <csignal>
 #include <iostream>
 #include <sstream>
@@ -259,7 +259,7 @@ bool json_bool(const dpp::json& value, const std::string& key, bool fallback)
 	return value.at(key).get<bool>();
 }
 
-std::string run_tesseract(const std::string& file_content)
+std::string run_tesseract_image(Pix* image)
 {
 	tesseract::TessBaseAPI* api = new tesseract::TessBaseAPI();
 
@@ -269,18 +269,52 @@ std::string run_tesseract(const std::string& file_content)
 	}
 
 	api->SetPageSegMode(tesseract::PageSegMode::PSM_SINGLE_BLOCK);
+	api->SetImage(image);
 
+	const char* output = api->GetUTF8Text();
+
+	api->Clear();
+	delete api;
+
+	if (!output) {
+		throw std::runtime_error("no_ocr_output");
+	}
+
+	std::string text = output;
+	delete[] output;
+
+	return text;
+}
+
+bool has_text(const std::string& text)
+{
+	for (char c : text) {
+		if (!std::isspace(static_cast<unsigned char>(c))) {
+			return true;
+		}
+	}
+
+	return false;
+}
+
+std::string run_tesseract(const std::string& file_content)
+{
 	Pix* image = pixReadMem(reinterpret_cast<const l_uint8*>(file_content.data()), file_content.size());
 
 	if (!image) {
-		delete api;
 		throw std::runtime_error("pix_read_mem_failed");
 	}
 
 	if (static_cast<uint64_t>(image->w) * static_cast<uint64_t>(image->h) > max_pixels) {
 		pixDestroy(&image);
-		delete api;
 		throw std::runtime_error("image_size");
+	}
+
+	std::string text = run_tesseract_image(image);
+
+	if (has_text(text)) {
+		pixDestroy(&image);
+		return text;
 	}
 
 	Pix* shaped = nullptr;
@@ -296,24 +330,11 @@ std::string run_tesseract(const std::string& file_content)
 	pixDestroy(&image);
 
 	if (!shaped) {
-		delete api;
 		throw std::runtime_error("pix_shape_failed");
 	}
 
-	api->SetImage(shaped);
+	text = run_tesseract_image(shaped);
 	pixDestroy(&shaped);
-
-	const char* output = api->GetUTF8Text();
-
-	api->Clear();
-	delete api;
-
-	if (!output) {
-		throw std::runtime_error("no_ocr_output");
-	}
-
-	std::string text = output;
-	delete[] output;
 
 	return text;
 }

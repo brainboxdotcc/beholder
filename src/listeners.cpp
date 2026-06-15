@@ -151,9 +151,6 @@ For advanced NSFW filtering, with 25 different categories, please consider subsc
 	void on_ready(const dpp::ready_t &event) {
 		dpp::cluster& bot = *event.owner;
 		if (dpp::run_once<struct register_bot_commands>()) {
-			/*if (!scanner_pool) {
-				scanner_pool = std::make_unique<dpp::thread_pool>(&bot, max_concurrency);
-			}*/
 
 			bot.global_bulk_command_create({
 				register_command<info_command>(bot),
@@ -178,18 +175,18 @@ For advanced NSFW filtering, with 25 different categories, please consider subsc
 				});
 			};
 
-			/*bot.start_timer([&bot, set_presence](dpp::timer t) {
+			bot.start_timer([&bot, set_presence](dpp::timer t) {
 				set_presence();
-			}, 240);*/
-			/*bot.start_timer([&bot](dpp::timer t) {
+			}, 240);
+			bot.start_timer([&bot](dpp::timer t) {
 				post_botlists(bot);
-			}, 60 * 15);*/
-			/*bot.start_timer([&bot](dpp::timer t) {
+			}, 60 * 15);
+			bot.start_timer([&bot](dpp::timer t) {
 				welcome_new_guilds(bot);
-			}, 30);*/
+			}, 30);
 
-			//set_presence();
-			//welcome_new_guilds(bot);
+			set_presence();
+			welcome_new_guilds(bot);
 
 			register_botlist<topgg>();
 			register_botlist<discordbotlist>();
