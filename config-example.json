@@ -1,22 +1,9 @@
 {
-	"token": "token goes here", 
-	"tunnel_interface": "GRE tunnel interface IP",
-	"safe_interface": "safe interface IP",
+	"token": "token goes here",
 	"log": "log path goes here",
 	"environment": "environment name",
 	"sentry_dsn": "sentry dsn",
 	"sentry_sample_rate": 0.2,
-	"ir": {
-		"host": "image recognition endpoint",
-		"path": "image recognition endpoint",
-		"credentials": {
-			"username": "username",
-			"password": "password"
-		},
-		"fields": [],
-		"label_runner": "resnet-50 endpoint url",
-		"label_key": "resnet key"
-	},
 	"database": {
 		"host": "localhost",
 		"username": "mysql username",

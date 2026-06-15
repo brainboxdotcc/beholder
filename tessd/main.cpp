@@ -139,7 +139,6 @@ bool fetch_image(const std::string& url, std::string& file_content)
 
 	httplib::Client cli(host.c_str());
 	cli.enable_server_certificate_verification(false);
-	cli.set_interface(config::get("tunnel_interface").get<std::string>());
 
 	if (host != "https://cdn.discordapp.com") {
 		cli.set_proxy("127.0.0.1", 9080);

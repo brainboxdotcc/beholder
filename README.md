@@ -18,22 +18,10 @@ Create a config.json in the directory above the build directory:
 ```json
 {
 	"token": "token goes here", 
-	"tunnel_interface": "GRE tunnel interface IP",
 	"log": "log path goes here",
 	"environment": "environment name",
 	"sentry_dsn": "sentry dsn",
 	"sentry_sample_rate": 0.2,
-	"ir": {
-		"host": "image recognition endpoint",
-		"path": "image recognition endpoint",
-		"credentials": {
-			"username": "username",
-			"password": "password"
-		},
-		"fields": [],
-		"label_runner": "resnet-50 endpoint url",
-		"label_key": "resnet key"
-	},
 	"database": {
 		"host": "localhost",
 		"username": "mysql username",
@@ -87,10 +75,6 @@ Insert data into database for your guild and patterns
   * Tensorflow
   * tfjs-node
   * express
-
-## Other Dependencies
-
-To offer premium services, various paid subscription APIs are required. These are configured in the `ir` tag in `config.json` You should also subscribe to an **anti-DDOS tunnel service**, which can be bound to as an interface for making unsafe web requests to fetch image content. Without this, your server's IP is left exposed to the neer-do-wells of Discord. Configure this in `tunnel_interface`.
 
 ## Starting the bot
 
