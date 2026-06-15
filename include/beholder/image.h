@@ -24,9 +24,7 @@
 #include <beholder/premium_api.h>
 #include <beholder/label.h>
 
-namespace image {
 
-}
 
 bool fetch_image_hash_with_tessd(const dpp::attachment& attach, dpp::cluster& bot, std::string& hash);
 json make_fetch_request(const dpp::attachment& attach);

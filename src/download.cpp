@@ -743,12 +743,7 @@ namespace {
 
 		void process_hash_frame(const std::shared_ptr<scan_job>& job, const json& frame)
 		{
-			if (
-				!frame.contains("stage")
-				|| frame.at("stage") != "hash"
-				|| !frame.contains("hash")
-				|| !frame.at("hash").is_string()
-				) {
+			if (!frame.contains("stage") || frame.at("stage") != "hash" || !frame.contains("hash") || !frame.at("hash").is_string()) {
 				job->bot->log(dpp::ll_warning, "tessd returned invalid hash frame: " + frame.dump());
 				close_job_io(job);
 				return;
@@ -757,10 +752,7 @@ namespace {
 			job->hash = frame.at("hash").get<std::string>();
 			job->bot->log(dpp::ll_info, "read hash response");
 
-			db::resultset block_list = db::query(
-				"SELECT hash FROM block_list_items WHERE guild_id = ? AND hash = ?",
-				{job->ev.msg.guild_id, job->hash}
-			);
+			db::resultset block_list = db::query("SELECT hash FROM block_list_items WHERE guild_id = ? AND hash = ?", {job->ev.msg.guild_id, job->hash});
 
 			if (!block_list.empty()) {
 				delete_message_and_warn(job->hash, "", *job->bot, job->ev, job->attach, "Image is on the block list", false);
@@ -810,7 +802,7 @@ namespace {
 			int status{0};
 			waitpid(job->pid, &status, WNOHANG);
 
-			job->bot->log(dpp::ll_warning, fmt::format("tessd exited with status {}", status));
+			job->bot->log(status == 0 ? dpp::ll_info : dpp::ll_warning, fmt::format("tessd exited with status {}", status));
 
 			remove_fd(job->stdin_fd);
 			remove_fd(job->stdout_fd);
@@ -847,16 +839,6 @@ void download_image(const dpp::attachment attach, dpp::cluster& bot, const dpp::
 			bot.log(dpp::ll_info, "Image " + attach.url + " is whitelisted by " + std::string(whitelist[index]) + "; not scanning");
 			return;
 		}
-	}
-
-	if (attach.width * attach.height > 33554432) {
-		bot.log(dpp::ll_info, "Image dimensions of " + std::to_string(attach.width) + "x" + std::to_string(attach.height) + " too large to be a screenshot");
-		return;
-	}
-
-	if (!try_acquire_image_slot()) {
-		bot.log(dpp::ll_info, "Too many concurrent images, skipped");
-		return;
 	}
 
 	if (attach.width * attach.height > 33554432) {
