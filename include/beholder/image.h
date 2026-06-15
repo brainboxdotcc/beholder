@@ -26,24 +26,8 @@
 
 namespace image {
 
-
-	using scanner_function = auto (*)(bool&, const std::string&, std::string&, const dpp::attachment&, dpp::cluster&, const dpp::message_create_t, int, bool) -> bool;
-
-	constexpr inline std::array<const char*, 4> scanner_names{
-		"Text Recognition Rules",
-		"Basic NSFW Rules",
-		"Premium NSFW Rules",
-		"Image Label Rules",
-	};
-
-	constexpr inline std::array<scanner_function, 4> scanners{
-		ocr::scan,
-		tensorflow_api::scan,
-		premium_api::scan,
-		label::scan,
-	};	
-
-	std::string flatten_gif(dpp::cluster& bot, const dpp::attachment attach, std::string file_content);
-
-	void worker_thread(std::string file_content, const dpp::attachment attach, dpp::cluster& bot, const dpp::message_create_t ev);
 }
+
+bool fetch_image_hash_with_tessd(const dpp::attachment& attach, dpp::cluster& bot, std::string& hash);
+json make_fetch_request(const dpp::attachment& attach);
+json make_continue_request(dpp::cluster& bot, dpp::snowflake guild_id, const std::string& hash);

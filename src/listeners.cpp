@@ -24,7 +24,6 @@
 #include <beholder/database.h>
 #include <beholder/beholder.h>
 #include <beholder/command.h>
-#include <beholder/sentry.h>
 #include <beholder/premium_api.h>
 
 #include <beholder/commands/logchannel.h>
@@ -45,6 +44,8 @@
 #include <beholder/botlists/infinitybots.h>
 
 namespace listeners {
+
+	//static std::unique_ptr<dpp::thread_pool> scanner_pool;
 
 	/**
 	 * @brief Welcome a new guild to the bot with some advice on getting started
@@ -150,6 +151,10 @@ For advanced NSFW filtering, with 25 different categories, please consider subsc
 	void on_ready(const dpp::ready_t &event) {
 		dpp::cluster& bot = *event.owner;
 		if (dpp::run_once<struct register_bot_commands>()) {
+			/*if (!scanner_pool) {
+				scanner_pool = std::make_unique<dpp::thread_pool>(&bot, max_concurrency);
+			}*/
+
 			bot.global_bulk_command_create({
 				register_command<info_command>(bot),
 				register_command<premium_command>(bot),
@@ -173,18 +178,18 @@ For advanced NSFW filtering, with 25 different categories, please consider subsc
 				});
 			};
 
-			bot.start_timer([&bot, set_presence](dpp::timer t) {
+			/*bot.start_timer([&bot, set_presence](dpp::timer t) {
 				set_presence();
-			}, 240);
-			bot.start_timer([&bot](dpp::timer t) {
+			}, 240);*/
+			/*bot.start_timer([&bot](dpp::timer t) {
 				post_botlists(bot);
-			}, 60 * 15);
-			bot.start_timer([&bot](dpp::timer t) {
+			}, 60 * 15);*/
+			/*bot.start_timer([&bot](dpp::timer t) {
 				welcome_new_guilds(bot);
-			}, 30);
+			}, 30);*/
 
-			set_presence();
-			welcome_new_guilds(bot);
+			//set_presence();
+			//welcome_new_guilds(bot);
 
 			register_botlist<topgg>();
 			register_botlist<discordbotlist>();
@@ -220,6 +225,7 @@ For advanced NSFW filtering, with 25 different categories, please consider subsc
 		}
 		dpp::cluster& bot = *(event.owner);
 		std::vector<std::string> parts = dpp::utility::tokenize(event.custom_id, ";");
+		bot.log(dpp::ll_info, "Button click with id: " + event.custom_id);
 		auto logchannel = db::query("SELECT embeds_disabled, log_channel, embed_title, embed_body FROM guild_config WHERE guild_id = ?", { event.command.guild_id });
 		if (logchannel.size()) {
 			dpp::snowflake channel_id(logchannel[0].at("log_channel"));
@@ -236,14 +242,18 @@ For advanced NSFW filtering, with 25 different categories, please consider subsc
 				event.reply(":+1: Thank you for confirming this was a **good result**, " + event.command.usr.get_mention() + ".");
 			} else if (parts[0] == "BL") {
 				/* Report good match */
-				std::string hash = parts[2];				
-				db::query("INSERT INTO block_list_items (guild_id, hash) VALUES(?,?) ON DUPLICATE KEY UPDATE hash = ?", { event.command.guild_id, hash, hash });
-				event.reply(":no_entry: This image has been **added to the block list** by " + event.command.usr.get_mention() + ". It will be **instantly deleted** without performing any further checks.");
+				if (parts.size() >= 2) {
+					std::string hash = parts[2];
+					db::query("INSERT INTO block_list_items (guild_id, hash) VALUES(?,?) ON DUPLICATE KEY UPDATE hash = ?", {event.command.guild_id, hash, hash});
+					event.reply(":no_entry: This image has been **added to the block list** by " + event.command.usr.get_mention() + ". It will be **instantly deleted** without performing any further checks.");
+				}
 			} else if (parts[0] == "UB") {
-				/* Report good match */
-				std::string hash = parts[2];
-				db::query("DELETE FROM block_list_items WHERE guild_id = ? AND hash = ?", { event.command.guild_id, hash });
-				event.reply(":white_check_mark: This image has been **removed from the block list** by " + event.command.usr.get_mention() + ". It will now be **checked normally**.");
+				/* Unblock */
+				if (parts.size() >= 2) {
+					std::string hash = parts[2];
+					db::query("DELETE FROM block_list_items WHERE guild_id = ? AND hash = ?", {event.command.guild_id, hash});
+					event.reply(":white_check_mark: This image has been **removed from the block list** by " + event.command.usr.get_mention() + ". It will now be **checked normally**.");
+				}
 			}
 
 			if (ours) {
@@ -313,15 +323,6 @@ For advanced NSFW filtering, with 25 different categories, please consider subsc
 				.set_allowed_mentions(true, false, false, true, {}, {})
 				.set_reference(ev.msg.id, ev.msg.guild_id, ev.msg.channel_id, false)
 		);
-	}
-
-	void on_message_update(const dpp::message_update_t &event) {
-		/* Message update is mapped to message creation.
-		 * The effect is the same, the message is simply re-scanned.
-		 */
-		dpp::message_create_t c(event.owner, event.shard, event.raw_event);
-		c.msg = event.msg;
-		on_message_create(c);
 	}
 
 	void on_message_create(const dpp::message_create_t &event) {

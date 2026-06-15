@@ -19,19 +19,17 @@
  ************************************************************************************/
 #include <dpp/dpp.h>
 #include <dpp/unicode_emoji.h>
+#include <beholder/proc/spawn.h>
+#include <beholder/proc/cpipe.h>
+#include <beholder/proc/json_frame.h>
 #include <beholder/beholder.h>
 #include <beholder/database.h>
-#include <beholder/config.h>
 #include <beholder/commands/scan.h>
 #include <beholder/image.h>
-#include "../3rdparty/httplib.h"
-#include <fmt/format.h>
-#include <CxxUrl/url.hpp>
-#include <exception>
 
 dpp::slashcommand scan_command::register_command(dpp::cluster& bot)
 {
-	dpp::slashcommand c = dpp::slashcommand("scan", "Scan an image (will use quota)", bot.me.id)
+	dpp::slashcommand c = dpp::slashcommand("scan", "Scan an image", bot.me.id)
 		.set_default_permissions(dpp::p_manage_guild);
 	c.add_option(dpp::command_option(dpp::co_attachment, "file", "Select an image to scan", true));
 	return c;
@@ -54,73 +52,89 @@ void scan_command::route(const dpp::slashcommand_t &event)
 	);	
 
 	dpp::snowflake file_id = std::get<dpp::snowflake>(event.get_parameter("file"));
+	std::string hash;
 	dpp::attachment attach = event.command.get_resolved_attachment(file_id);
-	std::string file_content, hash;
-
-	Url u(attach.url);
-	std::string path = u.path();
-	std::string host = u.host();
-	std::string scheme = u.scheme();
-	host = scheme + "://" + host;
-	httplib::Client cli(host.c_str());
-	cli.enable_server_certificate_verification(false);
-	cli.set_interface(config::get("safe_interface"));
-	if (!u.query().empty()) {
-		std::stringstream x;
-		for(const auto& p : u.query()) {
-			x << p.key() << "=" << p.val() << "&";
-		}
-		path += "?" + x.str();
-	}
-	auto res = cli.Get(path);
-	if (res) {
-		if (res->status < 400) {
-			file_content = res->body;
-		}
-	}
-
 	std::vector<std::string> matches;
 	std::vector<std::string> match_names;
-	bool flattened = false, is_blocked =false;
+	bool is_blocked = false;
 
-	if (!file_content.empty()) {
-		hash = sha256(file_content);
+	const char* const argv[] = {"./tessd", nullptr};
+	spawn tessd(argv);
 
-		db::resultset block_list = db::query("SELECT hash FROM block_list_items WHERE guild_id = ? AND hash = ?", { event.command.guild_id, hash });
+	proc::write_frame(tessd.stdin, make_fetch_request(attach));
+
+	json hash_response;
+
+	if (!proc::read_frame(tessd.stdout, hash_response)) {
+		matches.emplace_back("tessd did not return a hash frame");
+		match_names.emplace_back("No scans performed");
+	} else if (
+		!hash_response.contains("stage")
+		|| hash_response.at("stage") != "hash"
+		|| !hash_response.contains("hash")
+		|| !hash_response.at("hash").is_string()
+		) {
+		matches.emplace_back("Invalid hash frame returned by tessd");
+		match_names.emplace_back("No scans performed");
+	} else {
+		hash = hash_response.at("hash").get<std::string>();
+
+		db::resultset block_list = db::query(
+			"SELECT hash FROM block_list_items WHERE guild_id = ? AND hash = ?",
+			{event.command.guild_id, hash}
+		);
+
 		if (!block_list.empty()) {
 			matches.emplace_back("Image is on the block list");
+			match_names.emplace_back("Admin Block List");
 			is_blocked = true;
-			INCREMENT_STATISTIC2("images_scanned", "images_blocked", event.command.guild_id);
 		} else {
 			matches.emplace_back("No match");
+			match_names.emplace_back("Admin Block List");
 		}
-		match_names.emplace_back("Admin Block List");
 
-		/* Execute each of the scanners in turn on the image, if any throw, log it */
-		size_t n = 0;
-		dpp::message_create_t ev(event.owner, event.shard, "");
-		ev.msg.author = event.command.usr;
-		ev.msg.attachments.emplace_back(attach);
-		ev.msg.channel_id = event.command.channel_id;
-		ev.msg.guild_id = event.command.guild_id;
-		ev.msg.id = 0;
+		proc::write_frame(
+			tessd.stdin,
+			make_continue_request(*bot, event.command.guild_id, hash)
+		);
 
-		for (auto& scanner : image::scanners) {
-			try {
-				if (!(*scanner)(flattened, hash, file_content, attach, *bot, ev, 1, false)) {
-					matches.emplace_back("No match or not enabled");
-					match_names.emplace_back(image::scanner_names[n]);
+		tessd.send_eof();
+
+		json scan_response;
+
+		if (!proc::read_frame(tessd.stdout, scan_response)) {
+			matches.emplace_back("tessd did not return a scan frame");
+			match_names.emplace_back("No scans performed");
+		} else if (
+			scan_response.contains("results")
+			&& scan_response.at("results").is_array()
+			) {
+			for (const json& result : scan_response.at("results")) {
+				std::string scanner_name = "Unknown Scanner";
+				std::string result_text = "No match";
+
+				if (result.contains("scanner_name") && result.at("scanner_name").is_string()) {
+					scanner_name = result.at("scanner_name").get<std::string>();
 				}
+
+				if (result.contains("text") && result.at("text").is_string()) {
+					result_text = result.at("text").get<std::string>();
+				}
+
+				if (
+					result.contains("blocked")
+					&& result.at("blocked").is_boolean()
+					&& result.at("blocked").get<bool>()
+					) {
+					is_blocked = true;
+				}
+
+				matches.emplace_back(result_text);
+				match_names.emplace_back(scanner_name);
 			}
-			catch (const std::exception &e) {
-				matches.emplace_back(e.what());
-				match_names.emplace_back(image::scanner_names[n]);
-			}
-			++n;
 		}
-	} else {
-		matches.emplace_back("Could not download file: " + attach.url);
-		match_names.emplace_back("No scans performed");
+
+		tessd.wait();
 	}
 
 	dpp::message msg;
@@ -128,7 +142,7 @@ void scan_command::route(const dpp::slashcommand_t &event)
 		dpp::embed()
 		.set_description("**Attachment:** `" + attach.filename + "`\n🔗 [Image link](" + attach.url +")")
 		.set_title("🔍 Image Scanned!")
-		.set_color(matches.size() ? colours::bad : colours::good)
+		.set_color(is_blocked ? colours::bad : colours::good)
 		.set_url("https://beholder.cc/")
 		.set_footer("Powered by Beholder - Requested by " + std::to_string(event.command.usr.id), bot->me.get_avatar_url())
 	).set_flags(dpp::m_ephemeral);

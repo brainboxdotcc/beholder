@@ -21,7 +21,6 @@
 #include <beholder/beholder.h>
 #include <beholder/database.h>
 #include <beholder/config.h>
-#include <beholder/sentry.h>
 #include <mysql/mysql.h>
 #include <fmt/format.h>
 #include <iostream>
@@ -406,7 +405,6 @@ namespace db {
 			}
 		}
 
-		/* Start sentry transaction */
 		int result{0};
 
 		if (!cc.expects_results) {

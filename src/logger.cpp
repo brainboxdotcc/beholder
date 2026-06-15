@@ -23,7 +23,6 @@
 #include <spdlog/sinks/stdout_color_sinks.h>
 #include <spdlog/sinks/rotating_file_sink.h>
 #include <dpp/dpp.h>
-#include <beholder/sentry.h>
 
 namespace logger {
 
@@ -34,13 +33,8 @@ namespace logger {
 	static std::shared_ptr<spdlog::logger> async_logger;
 
 	void init(const std::string& log_file) {
-		/* This shuts up libleptonica, who tf logs errors to stderr in a lib?! */
-		int fd = ::open("/dev/null", O_WRONLY);
-		::dup2(fd, 2);
-		::close(fd);
-
 		/* Set up spdlog logger */
-		spdlog::init_thread_pool(8192, 2);
+		spdlog::init_thread_pool(10, 2);
 		std::vector<spdlog::sink_ptr> sinks = {
 			std::make_shared<spdlog::sinks::stdout_color_sink_mt >(),
 			std::make_shared<spdlog::sinks::rotating_file_sink_mt>(log_file, max_log_size, 10)
@@ -54,6 +48,9 @@ namespace logger {
 	}
 
 	void log(const dpp::log_t & event) {
+		std::cerr << dpp::utility::current_date_time() << ": " << event.message << std::endl;
+		return;
+
 		switch (event.severity) {
 			case dpp::ll_trace:
 				async_logger->trace("{}", event.message);

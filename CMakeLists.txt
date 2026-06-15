@@ -18,7 +18,15 @@ find_package(CxxUrl REQUIRED)
 target_precompile_headers(${BOT_NAME} INTERFACE "src/3rdparty/httplib.h")
 
 aux_source_directory("tessd" tessdsrc)
-add_executable("tessd" ${tessdsrc} src/config.cpp src/3rdparty/httplib.cpp src/sentry.cpp)
+add_executable("tessd"
+		${tessdsrc}
+		src/config.cpp
+		src/sha256.cpp
+		src/wildcard.cpp
+		src/proc/cpipe.cpp
+		src/proc/spawn.cpp
+		src/3rdparty/httplib.cpp
+)
 
 string(ASCII 27 Esc)
 

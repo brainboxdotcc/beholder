@@ -21,7 +21,6 @@
 #include <beholder/database.h>
 #include <beholder/commands/info.h>
 #include <beholder/database.h>
-#include <beholder/sentry.h>
 
 dpp::slashcommand info_command::register_command(dpp::cluster& bot)
 {
@@ -89,7 +88,6 @@ void info_command::route(const dpp::slashcommand_t &event)
 			.add_field("Total Servers", std::to_string(guild_count), true)
 			.add_field("Log Channel", log_channel.length() ? "<#" + log_channel + ">" : "(not set)", true)
 			.add_field("Concurrency", std::to_string(concurrent_images), true)
-			.add_field("Sentry Version", sentry::version(), true)
 			.add_field("Log Queue Length", "0", true)
 			.add_field("Debugging", is_gdb() ? ":white_check_mark: Yes" : "<:wc_rs:1174363531794202624> No", true)
 			.add_field("Guild Members Intent", ":white_check_mark: Yes", true)

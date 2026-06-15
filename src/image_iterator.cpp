@@ -4,6 +4,7 @@
 #include <beholder/config.h>
 #include <CxxUrl/url.hpp>
 #include "3rdparty/httplib.h"
+#include "beholder/image.h"
 #include <set>
 
 namespace image {
@@ -107,9 +108,8 @@ namespace image {
 			httplib::Client cli(host.c_str());
 			cli.enable_server_certificate_verification(false);
 			cli.set_interface(config::get("tunnel_interface"));
-			auto res = cli.Get(url.path());
-			if (res) {
-				std::string hash = sha256(res->body);
+			std::string hash;
+			if (fetch_image_hash_with_tessd(attach, *event.owner, hash)) {
 				add.emplace_back(attach.url);
 				if (image_event(attach.url, hash, event)) {
 					break;

@@ -19,13 +19,10 @@
  ************************************************************************************/
 #include <dpp/dpp.h>
 #include <dpp/json.h>
-#include <fmt/format.h>
-#include <beholder/beholder.h>
 #include <beholder/listeners.h>
 #include <beholder/database.h>
 #include <beholder/logger.h>
 #include <beholder/config.h>
-#include <beholder/sentry.h>
 
 int main(int argc, char const *argv[])
 {
@@ -44,7 +41,6 @@ int main(int argc, char const *argv[])
 	bot.on_guild_delete(&listeners::on_guild_delete);
 	bot.on_slashcommand(&listeners::on_slashcommand);
 	bot.on_message_create(&listeners::on_message_create);
-	bot.on_message_update(&listeners::on_message_update);
 	bot.on_button_click(&listeners::on_button_click);
 	bot.on_ready(&listeners::on_ready);
 
