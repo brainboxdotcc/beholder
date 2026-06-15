@@ -34,7 +34,7 @@ namespace logger {
 
 	void init(const std::string& log_file) {
 		/* Set up spdlog logger */
-		spdlog::init_thread_pool(10, 2);
+		spdlog::init_thread_pool(512, 2);
 		std::vector<spdlog::sink_ptr> sinks = {
 			std::make_shared<spdlog::sinks::stdout_color_sink_mt >(),
 			std::make_shared<spdlog::sinks::rotating_file_sink_mt>(log_file, max_log_size, 10)
@@ -48,9 +48,6 @@ namespace logger {
 	}
 
 	void log(const dpp::log_t & event) {
-		std::cerr << dpp::utility::current_date_time() << ": " << event.message << std::endl;
-		return;
-
 		switch (event.severity) {
 			case dpp::ll_trace:
 				async_logger->trace("{}", event.message);
