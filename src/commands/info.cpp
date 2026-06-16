@@ -93,7 +93,7 @@ void info_command::route(const dpp::slashcommand_t &event)
 			.add_field("Total Servers", std::to_string(guild_count), true)
 			.add_field("Log Channel", log_channel.length() ? "<#" + log_channel + ">" : "(not set)", true)
 			.add_field("Scans In Progress", std::to_string(concurrent_images), true)
-			.add_field("Debugging", is_gdb() ? ":white_check_mark: Yes" : "<:wc_rs:1174363531794202624> No", true)
+			.add_field("Debugging", is_gdb() ? ":white_check_mark: Yes" : "<:wc_rs:667695516737470494> No", true)
 			.add_field("Guild Members Intent", ":white_check_mark: Yes", true)
 			.add_field("Message Content Intent", ":white_check_mark: Yes", true)
 			.add_field("Shard", std::to_string(event.shard) + "/" + std::to_string(bot->get_shards().size()), true);
