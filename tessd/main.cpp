@@ -62,31 +62,20 @@ void set_limit(int type, uint64_t max)
 void write_error(const std::string& stage, const std::string& error)
 {
 	proc::write_frame({
-				  {"stage", stage},
-				  {"status", "error"},
-				  {"error", error}
-			  });
+		{"stage", stage},
+		{"status", "error"},
+		{"error", error}
+	});
 }
 
 void write_error(const std::string& stage, const std::string& error, const std::string& detail)
 {
 	proc::write_frame({
-				  {"stage", stage},
-				  {"status", "error"},
-				  {"error", error},
-				  {"detail", detail}
-			  });
-}
-
-bool is_scannable_path(const std::string& path)
-{
-	const std::string lower = dpp::lowercase(path);
-
-	return lower.ends_with(".webp")
-	       || lower.ends_with(".jpg")
-	       || lower.ends_with(".jpeg")
-	       || lower.ends_with(".png")
-	       || lower.ends_with(".gif");
+		{"stage", stage},
+		{"status", "error"},
+		{"error", error},
+		{"detail", detail}
+	  });
 }
 
 std::string build_path_with_query(const Url& url)
@@ -132,11 +121,6 @@ bool fetch_image(const std::string& url, std::string& file_content)
 	const std::string host = parsed.scheme() + "://" + parsed.host();
 	const std::string path = build_path_with_query(parsed);
 
-	if (!is_scannable_path(parsed.path())) {
-		write_error("fetch", "unsupported_file_type");
-		return false;
-	}
-
 	httplib::Client cli(host.c_str());
 	cli.enable_server_certificate_verification(false);
 
@@ -153,21 +137,21 @@ bool fetch_image(const std::string& url, std::string& file_content)
 
 	if (res->status >= 400) {
 		proc::write_frame({
-					  {"stage", "fetch"},
-					  {"status", "error"},
-					  {"error", "http_error"},
-					  {"http_status", res->status}
-				  });
+			{"stage", "fetch"},
+			{"status", "error"},
+			{"error", "http_error"},
+			{"http_status", res->status}
+		});
 		return false;
 	}
 
 	if (res->body.size() > max_size) {
 		proc::write_frame({
-					  {"stage", "fetch"},
-					  {"status", "error"},
-					  {"error", "image_too_large"},
-					  {"size", res->body.size()}
-				  });
+			{"stage", "fetch"},
+			{"status", "error"},
+			{"error", "image_too_large"},
+			{"size", res->body.size()}
+		});
 		return false;
 	}
 

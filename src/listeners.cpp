@@ -29,7 +29,6 @@
 #include <beholder/commands/roles.h>
 #include <beholder/commands/message.h>
 #include <beholder/commands/patterns.h>
-#include <beholder/commands/premium.h>
 #include <beholder/commands/info.h>
 #include <beholder/commands/ping.h>
 #include <beholder/commands/ignoredchannels.h>
@@ -152,7 +151,6 @@ For advanced NSFW filtering, with 25 different categories, please consider subsc
 
 			bot.global_bulk_command_create({
 				register_command<info_command>(bot),
-				register_command<premium_command>(bot),
 				register_command<patterns_command>(bot),
 				register_command<roles_command>(bot),
 				register_command<message_command>(bot),
@@ -297,6 +295,34 @@ For advanced NSFW filtering, with 25 different categories, please consider subsc
 				.set_allowed_mentions(true, false, false, true, {}, {})
 				.set_reference(ev.msg.id, ev.msg.guild_id, ev.msg.channel_id, false)
 		);
+	}
+
+	void on_message_update(const dpp::message_update_t& event) {
+		if (event.msg.author.is_bot() || event.msg.author.id.empty()) {
+			return;
+		}
+		try {
+			dpp::json j = dpp::json::parse(event.raw_event).at("d");
+			if (!j.contains("member") || !j["member"].is_object()) {
+				event.owner->log(dpp::ll_debug, "Dropped message edit " +event.msg.id.str() + " without member details");
+				return;
+			}
+			if (!j["member"].contains("roles") || !j["member"]["roles"].is_array()) {
+				event.owner->log(dpp::ll_debug, "Dropped message edit " +event.msg.id.str() + " without member role list");
+				return;
+			}
+		}
+		catch (const std::exception &e) {
+			event.owner->log(dpp::ll_warning, "Dropped message edit " +event.msg.id.str() + " with invalid raw JSON");
+			return;
+		}
+
+		/* Message update is mapped to message creation.
+		 * The effect is the same, the message is simply re-scanned.
+		 */
+		dpp::message_create_t c(event.owner, event.shard, event.raw_event);
+		c.msg = event.msg;
+		on_message_create(c);
 	}
 
 	void on_message_create(const dpp::message_create_t &event) {

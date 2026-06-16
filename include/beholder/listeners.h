@@ -60,6 +60,13 @@ namespace listeners {
 	void on_message_create(const dpp::message_create_t& event);
 
 	/**
+	 * @brief handle message editing
+	 *
+	 * @param event message_update_t
+	 */
+	void on_message_update(const dpp::message_update_t& event);
+
+	/**
 	 * @brief Handle button click (false positive, good match)
 	 * 
 	 * @param event button_click_t

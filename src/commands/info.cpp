@@ -60,14 +60,18 @@ void info_command::route(const dpp::slashcommand_t &event)
 			app = std::get<dpp::application>(v.value);
 			guild_count = app.approximate_guild_count;
 		}
-		std::string pattern_count{"0"}, prem_count{"0"}, log_channel;
+		std::string pattern_count{"0"}, log_channel, scanned_today{"0"}, blocked_today{"0"};
 		bool has_premium = false;
-		db::resultset config = db::query("SELECT *, (SELECT COUNT(pattern) FROM guild_patterns WHERE guild_id = ?) AS patterns, (SELECT COUNT(pattern) FROM premium_filters WHERE guild_id = ?) AS premium_patterns FROM guild_config WHERE guild_id = ?", { event.command.guild_id, event.command.guild_id, event.command.guild_id });
+		db::resultset config = db::query("SELECT gc.*, COUNT(gp.pattern) AS patterns FROM guild_config gc LEFT JOIN guild_patterns gp ON gp.guild_id = gc.guild_id WHERE gc.guild_id = ? GROUP BY gc.guild_id", { event.command.guild_id });
 		if (!config.empty()) {
 			pattern_count = config[0].at("patterns");
-			prem_count = config[0].at("premium_patterns");
 			has_premium = !(config[0].at("premium_subscription").empty());
 			log_channel = config[0].at("log_channel");
+		}
+		db::resultset stats = db::query("SELECT images_scanned, (images_blocked + images_ocr + images_nsfw) AS images_deleted FROM guild_statistics WHERE guild_id = ? AND stat_date = CURDATE()", { event.command.guild_id });
+		if (!stats.empty()) {
+			scanned_today = stats[0].at("images_scanned");
+			blocked_today = stats[0].at("images_deleted");
 		}
 
 		dpp::embed embed = dpp::embed()
@@ -82,19 +86,17 @@ void info_command::route(const dpp::slashcommand_t &event)
 			.set_thumbnail("https://beholder.cc/img/beholder_animated.gif")
 			.set_description(has_premium ? ":star: This server has Beholder Premium! :star:" : "")
 			.add_field("Text Patterns", pattern_count, true)
-			.add_field("Image Rules", prem_count, true)
+			.add_field("Images Scanned Today", scanned_today, true)
+			.add_field("Images Blocked Today", blocked_today, true)
 			.add_field("Bot Uptime", bot->uptime().to_string(), true)
 			.add_field("Memory Usage", std::to_string(rss() / 1024 / 1024) + "M", true)
 			.add_field("Total Servers", std::to_string(guild_count), true)
 			.add_field("Log Channel", log_channel.length() ? "<#" + log_channel + ">" : "(not set)", true)
-			.add_field("Concurrency", std::to_string(concurrent_images), true)
-			.add_field("Log Queue Length", "0", true)
+			.add_field("Scans In Progress", std::to_string(concurrent_images), true)
 			.add_field("Debugging", is_gdb() ? ":white_check_mark: Yes" : "<:wc_rs:1174363531794202624> No", true)
 			.add_field("Guild Members Intent", ":white_check_mark: Yes", true)
 			.add_field("Message Content Intent", ":white_check_mark: Yes", true)
-			.add_field("Shard", std::to_string(event.shard) + "/" + std::to_string(bot->get_shards().size()), true)
-			.add_field("SQL cache size", std::to_string(db::cache_size()), true)
-			.add_field("SQL query count", std::to_string(db::query_count()), true);
+			.add_field("Shard", std::to_string(event.shard) + "/" + std::to_string(bot->get_shards().size()), true);
 
 		embed.add_field("Library Version", "<:DPP1:847152435399360583><:DPP2:847152435343523881> [" + std::string(DPP_VERSION_TEXT) + "](https://dpp.dev/)", false);
 
