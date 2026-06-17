@@ -96,51 +96,6 @@ static json get_basic_nsfw_config(dpp::cluster& bot, dpp::snowflake guild_id)
 	};
 }
 
-static json get_premium_config(dpp::snowflake guild_id)
-{
-	json premium = {
-		{"enabled", false},
-		{"filters", json::array()}
-	};
-
-	db::resultset settings = db::query("SELECT premium_subscription FROM guild_config WHERE guild_id = ? AND calls_this_month <= calls_limit", {guild_id});
-
-	if (settings.empty() || settings[0].at("premium_subscription").empty()) {
-		return premium;
-	}
-
-	db::resultset rows = db::query(
-		"SELECT premium_filters.pattern AS category, premium_filters.score AS threshold, premium_filter_model.description, premium_filter_model.model "
-		"FROM premium_filters "
-		"INNER JOIN premium_filter_model ON premium_filter_model.category = premium_filters.pattern "
-		"WHERE premium_filters.guild_id = ?",
-		{guild_id}
-	);
-
-	if (rows.empty()) {
-		return premium;
-	}
-
-	premium["enabled"] = true;
-
-	for (const db::row& row : rows) {
-		double threshold = 0.8;
-
-		if (!row.at("threshold").empty()) {
-			threshold = atof(row.at("threshold").c_str());
-		}
-
-		premium["filters"].push_back({
-			{"category", row.at("category")},
-			{"description", row.at("description")},
-			{"model", row.at("model")},
-			{"threshold", threshold}
-		});
-	}
-
-	return premium;
-}
-
 static json get_scan_cache(const std::string& hash)
 {
 	json cache = json::object();
@@ -226,12 +181,11 @@ bool handle_scan_response(json response, std::string hash, dpp::cluster& bot, co
 		return false;
 	}
 	const std::string text = response.contains("text") && response.at("text").is_string() ? response.at("text").get<std::string>() : "Image blocked";
-	const bool premium = response.contains("premium") && response.at("premium").is_boolean() && response.at("premium").get<bool>();
 	const double trigger = response.contains("trigger") && response.at("trigger").is_number() ? response.at("trigger").get<double>() : 0.0;
 	const double threshold = response.contains("threshold") && response.at("threshold").is_number() ? response.at("threshold").get<double>() : 0.0;
 	bot.log(dpp::ll_warning, "delete and warn; hash=" + hash);
 	increment_block_stat(response, ev.msg.guild_id);
-	return delete_message_and_warn(hash, "", bot, ev, attach, text, premium, trigger, threshold);
+	return delete_message_and_warn(hash, "", bot, ev, attach, text, trigger, threshold);
 }
 
 json make_fetch_request(const dpp::attachment& attach)
@@ -263,7 +217,6 @@ json make_continue_request(dpp::cluster& bot, dpp::snowflake guild_id, const std
 		{"action", "continue"},
 		{"ocr_patterns", get_ocr_patterns(guild_id)},
 		{"basic_nsfw", get_basic_nsfw_config(bot, guild_id)},
-		{"premium", get_premium_config(guild_id)},
 		{"cache", get_scan_cache(hash)}
 	};
 

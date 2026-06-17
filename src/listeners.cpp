@@ -42,8 +42,6 @@
 
 namespace listeners {
 
-	//static std::unique_ptr<dpp::thread_pool> scanner_pool;
-
 	/**
 	 * @brief Welcome a new guild to the bot with some advice on getting started
 	 * 
@@ -56,21 +54,24 @@ namespace listeners {
 			dpp::message(channel_id, "")
 			.add_embed(
 				dpp::embed()
-				.set_description("Thank you for inviting the **Beholder** Bot! You can configure this \
-bot either via application commands, or [through the Beholder Dashboard](https://beholder.cc/dashboard) \
+					.set_description("Thank you for inviting the **Beholder** Bot! You can configure this \
+bot either via application commands, or [through the Beholder Dashboard](https://beholder.cc/dashboard). \
 \n\n\
 To get started, use the `/logchannel` command to set the channel where the bot will send \
 alerts of blocked images, and use `/patterns` to set up words that are banned within images. \
-You can also use the `/ignorechannels` and `/roles` command to set up channels or roles that \
+You can also use the `/ignorechannels` and `/roles` commands to configure channels or roles that \
 Beholder will not scan images for. \
 \n\n\
-**Beholder's default settings will block various NSFW image types automatically,** so long as a log channel is configured. \
+**Beholder's default settings will block various NSFW image types automatically,** provided a log channel is configured. \
 \n\n\
-For more in depth configuration please see the [bot dashboard](https://beholder.cc/dashboard) - \
+Beholder can also read text from screenshots, memes and other images, helping prevent users from \
+bypassing your server's word filters by posting text as images. \
+\n\n\
+For more in-depth configuration, please visit the [Beholder Dashboard](https://beholder.cc/dashboard). \
 You can get help with the bot on our [support server](https://discord.com/invite/Ac2duhZAr5). \
 \n\n\
-For advanced NSFW filtering, with 25 different categories, please consider subscribing to \
-[Beholder Premium](https://beholder.cc/premium) - Prices start at only £3 a month, less than a good cup of coffee! :coffee:\
+A new premium offering is currently in development, with additional moderation features and \
+more powerful filtering options planned. More information will be announced on the support server soon. :coffee:\
 ")
 				.set_title("Thank You for Inviting Beholder!")
 				.set_color(colours::good)

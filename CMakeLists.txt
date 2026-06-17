@@ -18,7 +18,6 @@ target_precompile_headers(${BOT_NAME} INTERFACE "src/3rdparty/httplib.h")
 aux_source_directory("tessd" tessdsrc)
 add_executable("tessd"
 		${tessdsrc}
-		src/config.cpp
 		tessd/sha256.cpp
 		src/wildcard.cpp
 		tessd/3rdparty/httplib.cpp

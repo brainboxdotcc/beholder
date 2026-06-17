@@ -55,7 +55,7 @@ namespace {
 
 }
 
-bool delete_message_and_warn(std::string hash, std::string image, dpp::cluster& bot, const dpp::message_create_t ev, const dpp::attachment attach, const std::string text, bool premium, double trigger, double threshold)
+bool delete_message_and_warn(std::string hash, std::string image, dpp::cluster& bot, const dpp::message_create_t ev, const dpp::attachment attach, const std::string text, double trigger, double threshold)
 {
 	bot.log(dpp::ll_info, "in delete_message_and_warn; cid=" + ev.msg.channel_id.str() + " mid=" + ev.msg.id.str() + " hash=" + hash);
 
@@ -65,7 +65,7 @@ bool delete_message_and_warn(std::string hash, std::string image, dpp::cluster& 
 		return false;
 	}
 
-	bot.message_delete(ev.msg.id, ev.msg.channel_id, [hash, &bot, ev, attach, text, premium, image, should_delete](const auto& cc) {
+	bot.message_delete(ev.msg.id, ev.msg.channel_id, [hash, &bot, ev, attach, text, image, should_delete](const auto& cc) {
 
 		bool delete_failed = cc.is_error();
 
@@ -76,10 +76,10 @@ bool delete_message_and_warn(std::string hash, std::string image, dpp::cluster& 
 			std::string message_title = logchannel.size() == 0 ? "" : logchannel[0].at("embed_title");
 
 			if (message_body.empty()) {
-				message_body = "This message contained disallowed image content!\n\nModerators can configure this message using " + std::string(premium ? "`/premium message`" : "`/message content`");
+				message_body = "This message contained disallowed image content!\n\nModerators can configure this message using `/message content`";
 			}
 			if (message_title.empty()) {
-				message_title = "Please set a title using " + std::string(premium ? "/premium message" : "/message content");
+				message_title = "Please set a title using `/message content`";
 			}
 			message_body = replace_string(message_body, "@user", ev.msg.author.get_mention());
 

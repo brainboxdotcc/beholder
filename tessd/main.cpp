@@ -11,7 +11,6 @@
 #include <tesseract/baseapi.h>
 #include <leptonica/allheaders.h>
 #include <beholder/beholder.h>
-#include <beholder/config.h>
 #include <beholder/proc/json_frame.h>
 #include <beholder/proc/spawn.h>
 #include <beholder/tessd.h>
@@ -170,13 +169,19 @@ bool is_animated_gif(const std::string& file_content)
 		return false;
 	}
 
+	/* Animated gifs require a control structure only available in GIF89a, GIF87a is fine and anything that is
+	 * neither is not a GIF file.
+	 * By the way, it's pronounced GIF, as in GOLF, not JIF, as in JUMP! 🤣
+	 */
 	const auto* filebits = reinterpret_cast<const uint8_t*>(file_content.data());
-
 	if (filebits[0] != 'G' || filebits[1] != 'I' || filebits[2] != 'F' || filebits[3] != '8' || filebits[4] != '9' || filebits[5] != 'a') {
 		return false;
 	}
 
 	for (size_t pos = 0; pos + 3 < file_content.length(); ++pos) {
+		/* If control structure is found, sequence 21 F9 04, it is likely animated
+		 * This is a much faster, more lightweight check than using a GIF library.
+		 */
 		if (filebits[pos] == 0x21 && filebits[pos + 1] == 0xF9 && filebits[pos + 2] == 0x04) {
 			return true;
 		}
@@ -185,12 +190,17 @@ bool is_animated_gif(const std::string& file_content)
 	return false;
 }
 
+/**
+ * @brief Given an image file, check if it is a gif, and if it is animated.
+ * If it is, flatten it by extracting just the first frame using imagemagick.
+ *
+ * @param bot Reference to D++ cluster
+ * @param attach message attachment
+ * @param file_content file content
+ * @return std::string new file content
+ */
 std::string flatten_gif(const std::string& filename, const std::string& file_content)
 {
-	if (!filename.ends_with(".gif") && !filename.ends_with(".GIF")) {
-		return file_content;
-	}
-
 	if (!is_animated_gif(file_content)) {
 		return file_content;
 	}
@@ -288,6 +298,12 @@ std::string run_tesseract(const std::string& file_content)
 		throw std::runtime_error("pix_read_mem_failed");
 	}
 
+	/**
+	 * NOTE: The width, height and size attributes given here are only valid if the image was uploaded as
+	 * an attachment. If the image we are processing came from a URL these can't be filled yet, and will
+	 * be checked after we have downloaded the image. Bandwidth is cheap, so this doesnt matter too much,
+	 * it's just the processing cost of running OCR on a massive image we would want to prevent.
+	 */
 	if (static_cast<uint64_t>(image->w) * static_cast<uint64_t>(image->h) > max_pixels) {
 		pixDestroy(&image);
 		throw std::runtime_error("image_size");
@@ -581,8 +597,6 @@ dpp::json scan_all(const dpp::json& command, const std::string& hash, const std:
 
 int main()
 {
-	config::init("../config.json");
-
 	std::signal(SIGALRM, tessd_timeout);
 	alarm(60);
 
@@ -625,11 +639,11 @@ int main()
 	const std::string hash = sha256(file_content);
 
 	proc::write_frame({
-				  {"stage", "hash"},
-				  {"status", "ok"},
-				  {"hash", hash},
-				  {"size", file_content.size()}
-			  });
+		{"stage", "hash"},
+		{"status", "ok"},
+		{"hash", hash},
+		{"size", file_content.size()}
+	});
 
 	dpp::json command;
 

@@ -42,8 +42,6 @@ Create a config.json in the directory above the build directory:
 
 ```
 
-**Note**: Leave the values under the `ir` key as empty strings. Self-hosting the premium image recognition API is not supported at this time.
-
 Import the base mysql schema:
 
 ```bash
