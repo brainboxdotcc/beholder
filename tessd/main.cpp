@@ -344,9 +344,7 @@ scan_result scan_ocr(const dpp::json& command, const std::string& file_content)
 	result.scanner = "ocr";
 	result.scanner_name = "Text Recognition Rules";
 
-	const std::vector<std::string> patterns = command.contains("ocr_patterns")
-						  ? json_string_array(command.at("ocr_patterns"))
-						  : std::vector<std::string>{};
+	const std::vector<std::string> patterns = command.contains("ocr_patterns") ? json_string_array(command.at("ocr_patterns")) : std::vector<std::string>{};
 
 	if (patterns.empty()) {
 		result.text = "No match or not enabled";
