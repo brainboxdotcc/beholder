@@ -102,8 +102,12 @@ bool delete_message_and_warn(std::string hash, std::string image, dpp::cluster& 
 			if (logchannel[0].at("log_channel").length()) {
 
 				if (should_delete && delete_failed) {
-					bot.message_create(dpp::message(dpp::snowflake(logchannel[0].at("log_channel")),
-									"Failed to delete message: " + dpp::utility::message_url(ev.msg.guild_id, ev.msg.channel_id, ev.msg.id) + " - Please check bot permissions."));
+					bot.message_create(
+						dpp::message(
+							dpp::snowflake(logchannel[0].at("log_channel")),
+							"Failed to delete message: " + dpp::utility::message_url(ev.msg.guild_id, ev.msg.channel_id, ev.msg.id) + " - Please check bot permissions."
+							)
+						);
 				}
 
 				dpp::message delete_msg;
@@ -134,6 +138,27 @@ bool delete_message_and_warn(std::string hash, std::string image, dpp::cluster& 
 						       .set_emoji(dpp::unicode_emoji::white_check_mark)
 						       .set_style(dpp::cos_success)
 						       .set_id("UB;*;" + hash)
+						)
+						.add_component(dpp::component()
+						       .set_label("Kick User")
+						       .set_type(dpp::cot_button)
+						       .set_emoji(dpp::unicode_emoji::foot)
+						       .set_style(dpp::cos_primary)
+						       .set_id("KI;*;" + ev.msg.author.id.str())
+						)
+						.add_component(dpp::component()
+						       .set_label("Timeout User")
+						       .set_type(dpp::cot_button)
+						       .set_emoji(dpp::unicode_emoji::clock)
+						       .set_style(dpp::cos_primary)
+						       .set_id("TI;*;" + ev.msg.author.id.str())
+						)
+						.add_component(dpp::component()
+						       .set_label("Ban User")
+						       .set_type(dpp::cot_button)
+						       .set_emoji(dpp::unicode_emoji::cop)
+						       .set_style(dpp::cos_primary)
+						       .set_id("BA;*;" + ev.msg.author.id.str())
 						)
 				);
 				bot.message_create(delete_msg);

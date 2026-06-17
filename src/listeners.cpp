@@ -219,26 +219,49 @@ more powerful filtering options planned. More information will be announced on t
 		bot.log(dpp::ll_info, "Button click with id: " + event.custom_id);
 		auto logchannel = db::query("SELECT embeds_disabled, log_channel, embed_title, embed_body FROM guild_config WHERE guild_id = ?", { event.command.guild_id });
 		if (logchannel.size()) {
-			if (parts[0] == "DN") {
-				/* Report false positive */
-				event.reply(":+1: Thank you for reporting a possible **false positive**, " + event.command.usr.get_mention() + ".");
-			} else if (parts[0] == "UP") {
-				/* Report good match */
-				event.reply(":+1: Thank you for confirming this was a **good result**, " + event.command.usr.get_mention() + ".");
-			} else if (parts[0] == "BL") {
+			if (parts.size() < 3) {
+				return;
+			}
+			if (parts[0] == "BL") {
 				/* Block */
-				if (parts.size() >= 2) {
-					std::string hash = parts[2];
-					db::query("INSERT INTO block_list_items (guild_id, hash) VALUES(?,?) ON DUPLICATE KEY UPDATE hash = ?", {event.command.guild_id, hash, hash});
-					event.reply(":no_entry: This image has been **added to the block list** by " + event.command.usr.get_mention() + ". It will be **instantly deleted** without performing any further checks.");
-				}
+				std::string hash = parts[2];
+				db::query("INSERT INTO block_list_items (guild_id, hash) VALUES(?,?) ON DUPLICATE KEY UPDATE hash = ?", {event.command.guild_id, hash, hash});
+				event.reply(":no_entry: This image has been **added to the block list** by " + event.command.usr.get_mention() + ". It will be **instantly deleted** without performing any further checks.");
 			} else if (parts[0] == "UB") {
 				/* Unblock */
-				if (parts.size() >= 2) {
-					std::string hash = parts[2];
-					db::query("DELETE FROM block_list_items WHERE guild_id = ? AND hash = ?", {event.command.guild_id, hash});
-					event.reply(":white_check_mark: This image has been **removed from the block list** by " + event.command.usr.get_mention() + ". It will now be **checked normally**.");
-				}
+				std::string hash = parts[2];
+				db::query("DELETE FROM block_list_items WHERE guild_id = ? AND hash = ?", {event.command.guild_id, hash});
+				event.reply(":white_check_mark: This image has been **removed from the block list** by " + event.command.usr.get_mention() + ". It will now be **checked normally**.");
+			} else if (parts[0] == "KI") {
+				/* Kick */
+				dpp::snowflake user_id(parts[2]);
+				bot.guild_member_kick(event.command.guild_id, user_id, [&bot, parts, event](const auto& cc) {
+					if (cc.is_error()) {
+						event.reply(":no_entry: Unable to kick user: " + cc.get_error().human_readable);
+						return;
+					}
+					event.reply(":white_check_mark: User <@" + parts[2] + "> has been **kicked** by " + event.command.usr.get_mention() + ".");
+				});
+			} else if (parts[0] == "TI") {
+				/* Timeout */
+				dpp::snowflake user_id(parts[2]);
+				bot.guild_member_timeout(event.command.guild_id, user_id, time(nullptr) + 300, [&bot, parts, event](const auto& cc) {
+					if (cc.is_error()) {
+						event.reply(":no_entry: Unable to timeout user: " + cc.get_error().human_readable);
+						return;
+					}
+					event.reply(":white_check_mark: User <@" + parts[2] + "> has been **timed out** by " + event.command.usr.get_mention() + " for **five minutes**.");
+				});
+			} else if (parts[0] == "BA") {
+				/* Timeout */
+				dpp::snowflake user_id(parts[2]);
+				bot.guild_ban_add(event.command.guild_id, user_id, 86400, [&bot, parts, event](const auto& cc) {
+					if (cc.is_error()) {
+						event.reply(":no_entry: Unable to ban user: " + cc.get_error().human_readable);
+						return;
+					}
+					event.reply(":white_check_mark: User <@" + parts[2] + "> has been **banned** by " + event.command.usr.get_mention() + ". Messages for the past day deleted.");
+				});
 			}
 		}
 	}
