@@ -61,10 +61,10 @@ static void release_image_slot()
 	concurrent_images.fetch_sub(1);
 }
 
-static std::vector<std::string> get_ocr_patterns(dpp::snowflake guild_id)
+static std::vector<std::string> get_ocr_patterns(dpp::snowflake guild_id, dpp::snowflake channel_id)
 {
 	std::vector<std::string> patterns;
-	db::resultset rows = db::query("SELECT pattern FROM guild_patterns WHERE guild_id = ? AND pattern NOT LIKE '!%'", {guild_id});
+	db::resultset rows = db::query("SELECT pattern FROM guild_patterns WHERE guild_id = ? AND (channel_id = ? OR channel_id IS NULL)", {guild_id, channel_id});
 
 	for (const db::row& row : rows) {
 		patterns.emplace_back(row.at("pattern"));
@@ -211,11 +211,11 @@ json make_fetch_request(const dpp::attachment& attach)
 	return request;
 }
 
-json make_continue_request(dpp::cluster& bot, dpp::snowflake guild_id, const std::string& hash)
+json make_continue_request(dpp::cluster& bot, dpp::snowflake guild_id, dpp::snowflake channel_id, const std::string& hash)
 {
 	json request = {
 		{"action", "continue"},
-		{"ocr_patterns", get_ocr_patterns(guild_id)},
+		{"ocr_patterns", get_ocr_patterns(guild_id, channel_id)},
 		{"basic_nsfw", get_basic_nsfw_config(bot, guild_id)},
 		{"cache", get_scan_cache(hash)}
 	};
@@ -679,7 +679,7 @@ void scanner_reactor::process_hash_frame(const std::shared_ptr<scan_job>& job, c
 	}
 
 	job->stage = scan_stage::writing_continue;
-	job->output_buffer = make_json_frame(make_continue_request(*job->bot, job->ev.msg.guild_id, job->hash));
+	job->output_buffer = make_json_frame(make_continue_request(*job->bot, job->ev.msg.guild_id, job->ev.msg.channel_id, job->hash));
 	job->output_offset = 0;
 	modify_or_add_stdin(job);
 }
