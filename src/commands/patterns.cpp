@@ -24,79 +24,78 @@
 
 dpp::slashcommand patterns_command::register_command(dpp::cluster& bot)
 {
-	bot.on_form_submit([&bot](const dpp::form_submit_t& event) {
-		if (event.custom_id == "set_patterns_modal") {
-			std::string pats = std::get<std::string>(event.components[0].components[0].value);
-			auto list = dpp::utility::tokenize(pats, "\n");
-			db::transaction();
-			db::query("DELETE FROM guild_patterns WHERE guild_id = ?", { event.command.guild_id });
-
-			if (!db::error().empty()) {
-				/* We get out the transaction in the event of a failure. */
-				db::rollback();
-				event.reply(dpp::message("❌ Failed to set patterns").set_flags(dpp::m_ephemeral));
-				return;
-			}
-
-			if (!list.empty()) {
-
-				std::string sql_query = "INSERT INTO guild_patterns (guild_id, pattern) VALUES";
-				db::paramlist sql_parameters;
-
-				for (std::size_t i = 0; i < list.size(); ++i) {
-					sql_query += "(?,?)";
-					if (i != list.size() - 1) {
-						sql_query += ",";
-					}
-					sql_parameters.emplace_back(event.command.guild_id);
-					sql_parameters.emplace_back(list[i].substr(0, 150));
-				}
-
-				db::query(sql_query, sql_parameters);
-
-				if (!db::error().empty()) {
-					db::rollback();
-					event.reply(dpp::message("❌ Failed to set patterns").set_flags(dpp::m_ephemeral));
-					return;
-				}
-			}
-
-			db::commit();
-			event.reply(dpp::message("✅ " + std::to_string(list.size()) + " Patterns set").set_flags(dpp::m_ephemeral));
-		}
-	});
-
-	return dpp::slashcommand("patterns", "Set patterns to find in disallowed images", bot.me.id)
+	return dpp::slashcommand("pattern", "Manage OCR patterns to find in disallowed images", bot.me.id)
+		.add_option(
+			dpp::command_option(dpp::co_sub_command, "add", "Add a pattern")
+				.add_option(dpp::command_option(dpp::co_string, "pattern", "Text pattern to match", true))
+				.add_option(
+					dpp::command_option(dpp::co_channel, "channel", "Only apply this pattern to a specific channel", false)
+						.add_channel_type(dpp::CHANNEL_TEXT)
+				)
+		)
+		.add_option(
+			dpp::command_option(dpp::co_sub_command, "delete", "Delete a pattern")
+				.add_option(dpp::command_option(dpp::co_string, "pattern", "Text pattern to delete", true))
+				.add_option(
+					dpp::command_option(dpp::co_channel, "channel", "Delete the pattern from a specific channel", false)
+						.add_channel_type(dpp::CHANNEL_TEXT)
+				)
+		)
 		.set_default_permissions(dpp::p_manage_guild);
 }
 
 
 void patterns_command::route(const dpp::slashcommand_t &event)
 {
-	std::string patterns;
-	db::resultset pattern_query = db::query("SELECT pattern FROM guild_patterns WHERE guild_id = ? ORDER BY pattern", { event.command.guild_id });
-	for (const db::row& p : pattern_query) {
-		patterns += p.at("pattern") + "\n";
+	const std::string action = event.command.get_command_interaction().options[0].name;
+
+	std::string pattern = std::get<std::string>(event.get_parameter("pattern")).substr(0, 150);
+
+	dpp::command_value channel_param = event.get_parameter("channel");
+	bool has_channel = std::holds_alternative<dpp::snowflake>(channel_param);
+
+	if (action == "add") {
+		if (has_channel) {
+			dpp::snowflake channel_id = std::get<dpp::snowflake>(channel_param);
+			db::query(
+				"INSERT INTO guild_patterns (guild_id, channel_id, pattern) VALUES(?, ?, ?)",
+				{ event.command.guild_id, channel_id, pattern }
+			);
+		} else {
+			db::query(
+				"INSERT INTO guild_patterns (guild_id, pattern) VALUES(?, ?)",
+				{ event.command.guild_id, pattern }
+			);
+		}
+
+		if (!db::error().empty()) {
+			event.reply(dpp::message("❌ Failed to add pattern").set_flags(dpp::m_ephemeral));
+			return;
+		}
+
+		event.reply(dpp::message("✅ Pattern added").set_flags(dpp::m_ephemeral));
+		return;
 	}
 
-	dpp::interaction_modal_response modal("set_patterns_modal", "Enter text patterns, one per line");
-	/* Add a text component */
-	modal.add_component(
-		dpp::component()
-			.set_label("Text to match in images")
-			.set_id("patterns" + std::to_string(time(nullptr)))
-			.set_type(dpp::cot_text)
-			.set_placeholder("Enter one pattern per line. Images containing the patterns will be deleted.")
-			.set_max_length(4000)
-			.set_required(true)
-			.set_text_style(dpp::text_paragraph)
-	);
-	if (!patterns.empty()) {
-		modal.components[0][0].set_default_value(patterns);
-	}
-	event.dialog(modal, [event](const dpp::confirmation_callback_t& cc) {
-		if (cc.is_error()) {
-			event.owner->log(dpp::ll_error, cc.http_info.body);
+	if (action == "delete") {
+		if (has_channel) {
+			dpp::snowflake channel_id = std::get<dpp::snowflake>(channel_param);
+			db::query(
+				"DELETE FROM guild_patterns WHERE guild_id = ? AND channel_id = ? AND pattern = ?",
+				{ event.command.guild_id, channel_id, pattern }
+			);
+		} else {
+			db::query(
+				"DELETE FROM guild_patterns WHERE guild_id = ? AND channel_id IS NULL AND pattern = ?",
+				{ event.command.guild_id, pattern }
+			);
 		}
-	});
+
+		if (!db::error().empty()) {
+			event.reply(dpp::message("❌ Failed to delete pattern").set_flags(dpp::m_ephemeral));
+			return;
+		}
+
+		event.reply(dpp::message("✅ Pattern deleted").set_flags(dpp::m_ephemeral));
+	}
 }
