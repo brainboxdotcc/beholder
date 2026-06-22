@@ -449,6 +449,7 @@ more powerful filtering options planned. More information will be announced on t
 			}
 		}
 
+		std::set<std::string> seen_urls;
 		/* Check each word in the message looking for URLs */
 		for (std::string& possibly_url : parts) {
 			std::string original_url = possibly_url;
@@ -484,6 +485,10 @@ more powerful filtering options planned. More information will be announced on t
 					possibly_url = possibly_url.substr(0, wrapper_end);
 					original_url = original_url.substr(0, wrapper_end);
 				}
+			}
+
+			if (!seen_urls.insert(original_url).second) {
+				continue;
 			}
 
 			dpp::attachment attach((dpp::message*)&event.msg);
