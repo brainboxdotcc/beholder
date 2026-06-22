@@ -25,6 +25,26 @@
 #include <fmt/format.h>
 #include <vector>
 
+/**
+ * @brief Tesseract Daemon
+ *
+ * This is a separate standalone program which scans an image whos data is given via stdin,
+ * and outputs the text via stdout once EOF is received on stdin.
+ *
+ * This was originally done within the main bot process as part of ocr.cpp, and although it was
+ * a fair bit faster, libtesseract has some huge memory leaks, which happen when you call
+ * tesseract::TessBaseAPI::GetUTF8Text(). These are internal leaks, which I do not have the
+ * inclination or technical knowledge in image processing internals to fix. Checking on their
+ * issue tracker on github shows 400 issues, dating back as far as 2017 which are still open.
+ * This means that if i report the leak, it won't get fixed any time in a reasonable timeframe.
+ * As the main program which uses tesseract is a short lived program like this, it is likely
+ * the never noticed the issue.
+ *
+ * By isolating tesseract in its own program like this, we ensure that Linux can free up the
+ * memory leak for us. We can also pre-launch copies of this program, each waiting for stdin
+ * in a similar way to how fastcgi works. This would improve performance if needed.
+ */
+
 constexpr uint64_t one_gigabyte = 1073741824;
 constexpr uint64_t max_pixels = 33554432;
 
@@ -254,6 +274,11 @@ bool json_bool(const dpp::json& value, const std::string& key, bool fallback)
 
 static std::string run_tesseract_image_with_psm(Pix* image, tesseract::PageSegMode psm)
 {
+	/**
+	 * RAII isn't a thing in tesseract land. We can't just initialise the object
+	 * by `new`, we have to separately call an Init method. One of many
+	 * anti-patterns.
+	 */
 	tesseract::TessBaseAPI* api = new tesseract::TessBaseAPI();
 
 	if (api->Init(nullptr, "eng", tesseract::OcrEngineMode::OEM_DEFAULT)) {
@@ -266,6 +291,10 @@ static std::string run_tesseract_image_with_psm(Pix* image, tesseract::PageSegMo
 
 	const char* output = api->GetUTF8Text();
 
+	/**
+	 * We have to call Clear to get rid of the data we loaded in SetImage.
+	 * Destroying the api object isn't enough. RAII, whats that? herp derp.
+	 */
 	api->Clear();
 	delete api;
 
@@ -273,6 +302,10 @@ static std::string run_tesseract_image_with_psm(Pix* image, tesseract::PageSegMo
 		throw std::runtime_error("no_ocr_output");
 	}
 
+	/**
+	 * We have to delete[] this content. Why couldn't it just return
+	 * a std::string? i dont know...
+	 */
 	std::string text = output;
 	delete[] output;
 
@@ -283,14 +316,6 @@ std::string run_tesseract_image(Pix* image)
 {
 	std::string block_text = run_tesseract_image_with_psm(image, tesseract::PageSegMode::PSM_SINGLE_BLOCK);
 	std::string sparse_text = run_tesseract_image_with_psm(image, tesseract::PageSegMode::PSM_SPARSE_TEXT);
-
-	if (sparse_text.empty()) {
-		return block_text;
-	}
-
-	if (block_text.empty()) {
-		return sparse_text;
-	}
 
 	return block_text + "\n" + sparse_text;
 }
@@ -308,6 +333,11 @@ bool has_text(const std::string& text)
 
 std::string run_tesseract(const std::string& file_content)
 {
+	/**
+	 * We have to use leptonica to load images into tesseract.
+	 * Leptonica is ugly and pretty undocumented. Here be hairy
+	 * dragons.
+	 */
 	Pix* image = pixReadMem(reinterpret_cast<const l_uint8*>(file_content.data()), file_content.size());
 
 	if (!image) {
