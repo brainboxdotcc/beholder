@@ -449,35 +449,55 @@ more powerful filtering options planned. More information will be announced on t
 			}
 		}
 
-		/* Used to deduplicate the urls */
-		std::set<std::string> checked;
 		/* Check each word in the message looking for URLs */
 		for (std::string& possibly_url : parts) {
-			size_t size = possibly_url.length();
 			std::string original_url = possibly_url;
 			possibly_url = dpp::lowercase(possibly_url);
-			/* Check for markdown cloaked urls: [descr potentially with spaces](url) */
-			auto cloaked_url_pos = possibly_url.find("](http");
-			if (cloaked_url_pos != std::string::npos && possibly_url.length() - cloaked_url_pos - 3 > 7) {
-				possibly_url = possibly_url.substr(cloaked_url_pos + 2, possibly_url.length() - cloaked_url_pos - 3);
-				original_url = original_url.substr(cloaked_url_pos + 2, original_url.length() - cloaked_url_pos - 3);
+
+			size_t url_pos = possibly_url.find("<http");
+			size_t offset = 1;
+			char closing_wrapper = '>';
+
+			if (url_pos == std::string::npos) {
+				url_pos = possibly_url.find("[http");
+				offset = 1;
+				closing_wrapper = ']';
 			}
-			if ((size >= 9 && possibly_url.substr(0, 8) == "https://") ||
-			(size >= 8 && possibly_url.substr(0, 7) == "http://")) {
-				dpp::attachment attach((dpp::message*)&event.msg);
-				attach.url = original_url;
-				try {
-					Url u(original_url);
-					attach.filename = fs::path(u.path()).filename();
-				}
-				catch (const std::exception&) {
-					attach.filename = fs::path(original_url).filename();
-				}
-				if (checked.find(original_url) == checked.end()) {
-					download_image(attach, *event.owner, event);
-					checked.emplace(original_url);
+
+			if (url_pos == std::string::npos) {
+				url_pos = possibly_url.find("http");
+				offset = 0;
+				closing_wrapper = '\0';
+			}
+
+			if (url_pos == std::string::npos) {
+				continue;
+			}
+
+			possibly_url = possibly_url.substr(url_pos + offset);
+			original_url = original_url.substr(url_pos + offset);
+
+			if (closing_wrapper != '\0') {
+				size_t wrapper_end = possibly_url.find(closing_wrapper);
+
+				if (wrapper_end != std::string::npos) {
+					possibly_url = possibly_url.substr(0, wrapper_end);
+					original_url = original_url.substr(0, wrapper_end);
 				}
 			}
+
+			dpp::attachment attach((dpp::message*)&event.msg);
+			attach.url = original_url;
+
+			try {
+				Url u(original_url);
+				attach.filename = fs::path(u.path()).filename();
+			}
+			catch (const std::exception&) {
+				attach.filename = fs::path(original_url).filename();
+			}
+
+			download_image(attach, *event.owner, event);
 		}
 	}
 }

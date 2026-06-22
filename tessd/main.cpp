@@ -252,7 +252,7 @@ bool json_bool(const dpp::json& value, const std::string& key, bool fallback)
 	return value.at(key).get<bool>();
 }
 
-std::string run_tesseract_image(Pix* image)
+static std::string run_tesseract_image_with_psm(Pix* image, tesseract::PageSegMode psm)
 {
 	tesseract::TessBaseAPI* api = new tesseract::TessBaseAPI();
 
@@ -261,7 +261,7 @@ std::string run_tesseract_image(Pix* image)
 		throw std::runtime_error("tesseract_init_failed");
 	}
 
-	api->SetPageSegMode(tesseract::PageSegMode::PSM_SINGLE_BLOCK);
+	api->SetPageSegMode(psm);
 	api->SetImage(image);
 
 	const char* output = api->GetUTF8Text();
@@ -277,6 +277,22 @@ std::string run_tesseract_image(Pix* image)
 	delete[] output;
 
 	return text;
+}
+
+std::string run_tesseract_image(Pix* image)
+{
+	std::string block_text = run_tesseract_image_with_psm(image, tesseract::PageSegMode::PSM_SINGLE_BLOCK);
+	std::string sparse_text = run_tesseract_image_with_psm(image, tesseract::PageSegMode::PSM_SPARSE_TEXT);
+
+	if (sparse_text.empty()) {
+		return block_text;
+	}
+
+	if (block_text.empty()) {
+		return sparse_text;
+	}
+
+	return block_text + "\n" + sparse_text;
 }
 
 bool has_text(const std::string& text)
