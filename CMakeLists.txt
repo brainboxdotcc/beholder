@@ -28,6 +28,8 @@ add_executable("tessd"
 aux_source_directory("nsfwd" nsfwdsrc)
 add_executable("nsfwd"
 		${nsfwdsrc}
+		tessd/proc/cpipe.cpp
+		tessd/proc/spawn.cpp
 		src/logger.cpp
 )
 
