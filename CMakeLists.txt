@@ -28,6 +28,7 @@ add_executable("tessd"
 aux_source_directory("nsfwd" nsfwdsrc)
 add_executable("nsfwd"
 		${nsfwdsrc}
+		src/logger.cpp
 )
 
 string(ASCII 27 Esc)
@@ -61,6 +62,7 @@ endif()
 set(CMAKE_CXX_FLAGS "-g -O2 -Wall -Wno-unused-private-field -Wno-psabi -Wempty-body -Wignored-qualifiers -Wimplicit-fallthrough -Wmissing-field-initializers -Wsign-compare -Wtype-limits -Wuninitialized -Wshift-negative-value")
 target_compile_definitions(${BOT_NAME} PUBLIC DPP_CORO=ON SPDLOG_FMT_EXTERNAL=ON CPPHTTPLIB_OPENSSL_SUPPORT)
 target_compile_definitions("tessd" PUBLIC DPP_CORO=ON SPDLOG_FMT_EXTERNAL=ON CPPHTTPLIB_OPENSSL_SUPPORT)
+target_compile_definitions("nsfwd" PUBLIC DPP_CORO=ON SPDLOG_FMT_EXTERNAL=ON CPPHTTPLIB_OPENSSL_SUPPORT)
 
 target_include_directories(${BOT_NAME} PUBLIC
     ${CMAKE_CURRENT_SOURCE_DIR}/include
@@ -74,6 +76,7 @@ target_include_directories("tessd" PUBLIC
 
 target_include_directories("nsfwd" PUBLIC
 		${CMAKE_CURRENT_SOURCE_DIR}/include
+		/usr/include/jsoncpp
 		${DPP_INCLUDE_DIR}
 )
 
@@ -91,9 +94,15 @@ target_link_libraries("tessd"
 
 target_link_libraries("nsfwd"
 		tensorflow
+		drogon
+		jsoncpp
+		trantor
+		z
+		uuid
 		ssl
 		crypto
 		fmt
+		spdlog
 		${DPP_LIBRARIES}
 		${CMAKE_THREAD_LIBS_INIT}
 )
