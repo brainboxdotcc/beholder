@@ -79,18 +79,17 @@ Insert data into the database for your guild and moderation patterns.
 * spdlog
 * CxxUrl
 * screen
-* [Beholder NSFW Detection Service](https://github.com/brainboxdotcc/beholder-nsfw-server):
-
-  * Docker
-  * Docker Compose
-  * node.js 20.x
-  * Tensorflow
-  * tfjs-node
-  * express
 
 ## Starting the bot
 
 ```bash
 cd beholder
 screen -dmS beholder ./run.sh
+```
+
+## Starting the nsfw server
+
+```bash
+cd beholder
+screen -dmS nsfwd ./nsfwd.sh
 ```

@@ -5,7 +5,7 @@ cd build
 # run repeatedly until ctrl+c
 while true;
 do
-	./beholder
+	./nsfwd
 	sleep 5
 done
 

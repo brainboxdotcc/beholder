@@ -18,3 +18,7 @@ inline constexpr size_t INDEX_HENTAI = 1;
 inline constexpr size_t INDEX_NEUTRAL = 2;
 inline constexpr size_t INDEX_PORN = 3;
 inline constexpr size_t INDEX_SEXY = 4;
+
+int run_supervisor(const char* self);
+
+int run_server();

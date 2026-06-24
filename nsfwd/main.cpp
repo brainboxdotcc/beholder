@@ -12,7 +12,7 @@
 
 using namespace drogon;
 
-static int run_server() {
+int run_server() {
 
 	server_log_init();
 
@@ -98,19 +98,6 @@ static int run_server() {
 	drogon::app().addListener("127.0.0.1", 6969).run();
 
 	return 0;
-}
-
-static int run_supervisor(const char* self) {
-	logger::init("logs/nsfwd.log");
-
-	const char *args[] = { self, "--child", nullptr };
-	spawn child(args);
-	std::string line;
-
-	while (std::getline(child.stdout, line)) {
-		log_child_line(line);
-	}
-	return child.wait();
 }
 
 int main(int argc, char **argv) {
