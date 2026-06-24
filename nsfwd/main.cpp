@@ -1,3 +1,4 @@
+#include <malloc.h>
 #include <nsfwd/stbi_image.h>
 #include <nsfwd/tf_graph.h>
 #include <nsfwd/tf_session_options.h>
@@ -34,7 +35,7 @@ int run_server() {
 
 	LOG_INFO << "Loaded model";
 
-	app().setClientMaxBodySize(32 * 1024 * 1024).registerHandler( "/",
+	app().setThreadNum(1).setClientMaxBodySize(32 * 1024 * 1024).registerHandler( "/",
 		[&input_op, &output_op, &session](const drogon::HttpRequestPtr &req, std::function<void(const drogon::HttpResponsePtr &)> &&callback) {
 
 			auto json_error = [&](drogon::HttpStatusCode code, std::string_view message) {
