@@ -73,3 +73,5 @@ namespace listeners {
 	 */
 	void on_button_click(const dpp::button_click_t &event);
 };
+
+size_t tessd_process_count();

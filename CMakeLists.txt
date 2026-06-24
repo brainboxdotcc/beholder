@@ -25,6 +25,11 @@ add_executable("tessd"
 		tessd/proc/spawn.cpp
 )
 
+aux_source_directory("nsfwd" nsfwdsrc)
+add_executable("nsfwd"
+		${nsfwdsrc}
+)
+
 string(ASCII 27 Esc)
 
 set(CMAKE_POSITION_INDEPENDENT_CODE ON)
@@ -36,6 +41,10 @@ set_target_properties(${BOT_NAME} PROPERTIES
 set_target_properties("tessd" PROPERTIES
     CXX_STANDARD 20
     CXX_STANDARD_REQUIRED ON
+)
+set_target_properties("nsfwd" PROPERTIES
+		CXX_STANDARD 20
+		CXX_STANDARD_REQUIRED ON
 )
 
 set(THREADS_PREFER_PTHREAD_FLAG TRUE)
@@ -63,10 +72,15 @@ target_include_directories("tessd" PUBLIC
     ${DPP_INCLUDE_DIR}
 )
 
+target_include_directories("nsfwd" PUBLIC
+		${CMAKE_CURRENT_SOURCE_DIR}/include
+		${DPP_INCLUDE_DIR}
+)
+
+
 target_link_libraries("tessd"
     tesseract
     leptonica
-    sentry
     ssl
     crypto
     fmt
@@ -75,6 +89,14 @@ target_link_libraries("tessd"
     ${CMAKE_THREAD_LIBS_INIT}
 )
 
+target_link_libraries("nsfwd"
+		tensorflow
+		ssl
+		crypto
+		fmt
+		${DPP_LIBRARIES}
+		${CMAKE_THREAD_LIBS_INIT}
+)
 
 target_link_libraries(${BOT_NAME}
     fmt
@@ -82,7 +104,6 @@ target_link_libraries(${BOT_NAME}
     mysqlclient
     crypto
     ssl
-    sentry
     CxxUrl
     ${CMAKE_THREAD_LIBS_INIT}
     ${DPP_LIBRARIES}

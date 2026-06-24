@@ -22,7 +22,6 @@
 #include <beholder/database.h>
 #include <beholder/whitelist.h>
 #include <beholder/proc/json_frame.h>
-#include <beholder/proc/spawn.h>
 #include <CxxUrl/url.hpp>
 #include <fmt/format.h>
 #include <beholder/reactor.h>
@@ -39,27 +38,9 @@
 #include <memory>
 #include <mutex>
 #include <thread>
+#include <beholder/listeners.h>
 
 extern char **environ;
-
-std::atomic<int> concurrent_images{0};
-
-static bool try_acquire_image_slot()
-{
-	int prev = concurrent_images.fetch_add(1);
-
-	if (prev >= max_concurrency) {
-		concurrent_images.fetch_sub(1);
-		return false;
-	}
-
-	return true;
-}
-
-static void release_image_slot()
-{
-	concurrent_images.fetch_sub(1);
-}
 
 static std::vector<std::string> get_ocr_patterns(dpp::snowflake guild_id, dpp::snowflake channel_id)
 {
@@ -423,7 +404,6 @@ void scanner_reactor::start_job(const scan_request& request)
 
 	if (pipe2(child_stdin, O_CLOEXEC) == -1) {
 		job->bot->log(dpp::ll_error, "pipe2 child_stdin failed");
-		release_image_slot();
 		return;
 	}
 
@@ -431,7 +411,6 @@ void scanner_reactor::start_job(const scan_request& request)
 		close(child_stdin[0]);
 		close(child_stdin[1]);
 		job->bot->log(dpp::ll_error, "pipe2 child_stdout failed");
-		release_image_slot();
 		return;
 	}
 
@@ -444,7 +423,6 @@ void scanner_reactor::start_job(const scan_request& request)
 		close(child_stdout[0]);
 		close(child_stdout[1]);
 		job->bot->log(dpp::ll_error, "posix_spawn_file_actions_init failed");
-		release_image_slot();
 		return;
 	}
 
@@ -475,7 +453,6 @@ void scanner_reactor::start_job(const scan_request& request)
 		close(child_stdin[1]);
 		close(child_stdout[0]);
 		job->bot->log(dpp::ll_error, "posix_spawn failed");
-		release_image_slot();
 		return;
 	}
 
@@ -486,7 +463,6 @@ void scanner_reactor::start_job(const scan_request& request)
 		close(child_stdout[0]);
 		kill(job->pid, SIGKILL);
 		job->bot->log(dpp::ll_error, "pidfd_open failed");
-		release_image_slot();
 		return;
 	}
 
@@ -723,8 +699,6 @@ void scanner_reactor::handle_child_exit(const std::shared_ptr<scan_job>& job)
 	remove_fd(job->stdin_fd);
 	remove_fd(job->stdout_fd);
 	remove_fd(job->pid_fd);
-
-	release_image_slot();
 }
 
 void scanner_reactor::close_job_io(const std::shared_ptr<scan_job>& job)
@@ -759,7 +733,7 @@ void download_image(const dpp::attachment attach, dpp::cluster& bot, const dpp::
 		return;
 	}
 
-	if (!try_acquire_image_slot()) {
+	if (tessd_process_count() >= max_concurrency) {
 		bot.log(dpp::ll_info, "Too many concurrent images, skipped");
 		return;
 	}

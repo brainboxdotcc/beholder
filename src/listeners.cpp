@@ -34,11 +34,44 @@
 #include <beholder/commands/ignoredchannels.h>
 #include <beholder/commands/addblock.h>
 #include <beholder/commands/scan.h>
+#include <filesystem>
+#include <fstream>
 
 #include <beholder/botlist.h>
 #include <beholder/botlists/topgg.h>
 #include <beholder/botlists/discordbotlist.h>
 #include <beholder/botlists/infinitybots.h>
+
+size_t tessd_process_count() {
+	size_t count = 0;
+
+	for (const auto& task : std::filesystem::directory_iterator("/proc/self/task")) {
+		std::ifstream children(task.path() / "children");
+
+		if (!children) {
+			continue;
+		}
+
+		pid_t pid;
+
+		while (children >> pid) {
+			std::ifstream comm("/proc/" + std::to_string(pid) + "/comm");
+
+			if (!comm) {
+				continue;
+			}
+
+			std::string name;
+			std::getline(comm, name);
+
+			if (name == "tessd") {
+				count++;
+			}
+		}
+	}
+
+	return count;
+}
 
 namespace listeners {
 

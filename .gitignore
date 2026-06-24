@@ -8,3 +8,6 @@ cmake-build-debug
 
 # Config stuff
 config.json
+
+# Tensorflow NSFW classifier model
+nsfw_model
