@@ -76,15 +76,33 @@ int main()
 	TF_Buffer *meta_graph = TF_NewBuffer();
 	TF_Session *session = TF_LoadSessionFromSavedModel(session_options, nullptr, "../nsfw_model", tags, 1, graph, meta_graph, status);
 	if (TF_GetCode(status) != TF_OK) {
-		std::cerr << "Failed to load model: " << TF_Message(status) << std::endl;
+		LOG_FATAL << "Failed to load model: " << TF_Message(status);
 		return 1;
 	}
 
+	TF_Operation *input_op = TF_GraphOperationByName(graph, "serve_input_1");
+	if (!input_op) {
+		LOG_FATAL << "Failed to find graph operation serve_input_1";
+		return 1;
+	}
+	TF_Operation *output_op = TF_GraphOperationByName(graph, "StatefulPartitionedCall");
+	if (!output_op) {
+		LOG_FATAL << "Failed to find graph operation StatefulPartitionedCall";
+		return 1;
+	}
+
+	TF_Output input_port;
+	input_port.oper = input_op;
+	input_port.index = 0;
+
+	TF_Output output_port;
+	output_port.oper = output_op;
+	output_port.index = 0;
+
 	LOG_INFO << "Loaded model";
 
-	app().setClientMaxBodySize(32 * 1024 * 1024).registerHandler(
-		"/",
-		[graph, session, status](const drogon::HttpRequestPtr &req, std::function<void(const drogon::HttpResponsePtr &)> &&callback) {
+	app().setClientMaxBodySize(32 * 1024 * 1024).registerHandler( "/",
+		[input_port, output_port, session](const drogon::HttpRequestPtr &req, std::function<void(const drogon::HttpResponsePtr &)> &&callback) {
 
 			auto json_error = [&](drogon::HttpStatusCode code, std::string_view message) {
 				auto body = fmt::format("{{\"error\":\"{}\"}}", message);
@@ -100,7 +118,6 @@ int main()
 			unsigned char *image = stbi_load_from_memory(reinterpret_cast<const stbi_uc *>(body.data()), body.size(), &width, &height, &channels, 3);
 
 			if (!image) {
-				auto resp = drogon::HttpResponse::newHttpResponse();
 				json_error(drogon::k400BadRequest, "invalid image");
 				return;
 			}
@@ -110,8 +127,6 @@ int main()
 			stbi_image_free(image);
 
 			std::vector<float> input(299 * 299 * 3);
-
-
 			const __m128 scale = _mm_set1_ps(1.0f / 255.0f);
 			size_t i = 0;
 			for (; i + 16 <= resized.size(); i += 16) {
@@ -134,34 +149,21 @@ int main()
 
 			int64_t input_dims[] = { 1, 299, 299, 3 };
 			TF_Tensor *input_tensor = TF_AllocateTensor(TF_FLOAT, input_dims, 4, input.size() * sizeof(float));
+			if (!input_tensor) {
+				json_error(drogon::k500InternalServerError, "Tensor allocation failed");
+				return;
+			}
 			memcpy(TF_TensorData(input_tensor), input.data(), input.size() * sizeof(float));
 
-			TF_Operation *input_op = TF_GraphOperationByName(graph, "serve_input_1");
-			TF_Operation *output_op = TF_GraphOperationByName(graph, "StatefulPartitionedCall");
-
-			if (!input_op) {
-				json_error(drogon::k500InternalServerError, "could not find input operation");
-				return;
-			}
-
-			if (!output_op) {
-				json_error(drogon::k500InternalServerError, "could not find output operation");
-				return;
-			}
-
-			TF_Output input_port;
-			input_port.oper = input_op;
-			input_port.index = 0;
-
-			TF_Output output_port;
-			output_port.oper = output_op;
-			output_port.index = 0;
-
 			TF_Tensor *output_tensor = nullptr;
+			TF_Status *status = TF_NewStatus();
 
 			TF_SessionRun(session, nullptr, &input_port, &input_tensor, 1, &output_port, &output_tensor, 1, nullptr, 0, nullptr, status);
 			if (TF_GetCode(status) != TF_OK) {
 				json_error(drogon::k500InternalServerError, "Inference failed: " + std::string(TF_Message(status)));
+				TF_DeleteTensor(output_tensor);
+				TF_DeleteTensor(input_tensor);
+				TF_DeleteStatus(status);
 				return;
 			}
 
@@ -174,6 +176,7 @@ int main()
 
 			TF_DeleteTensor(output_tensor);
 			TF_DeleteTensor(input_tensor);
+			TF_DeleteStatus(status);
 
 			callback(resp);
 		},
