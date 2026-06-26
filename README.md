@@ -19,8 +19,6 @@ Beholder focuses on fast, privacy-conscious image moderation without storing use
 * Customisable moderation messages
 * Discord log channel integration
 
-Add this after **Features**:
-
 ## Architecture
 
 Beholder is split into separate processes for isolation.
