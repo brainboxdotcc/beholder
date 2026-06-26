@@ -30,17 +30,13 @@ int stbi_image::get_channels() const {
 	return channels;
 }
 
-void stbi_image::resize_and_normalise(float *dest, int _width, int _height) const
-{
-	const size_t size = _width * _height * INPUT_CHANNELS;
-	unsigned char resized[size];
-
-	stbir_resize_uint8_linear(image, width, height, 0, resized, _width, _height, 0, STBIR_RGB);
+void stbi_image::resize_and_normalise(float *dest) const {
+	alignas(16) static thread_local unsigned char resized[INPUT_SIZE_SSE];
+	stbir_resize_uint8_linear(image, width, height, 0, resized, INPUT_WIDTH, INPUT_HEIGHT, 0, STBIR_RGB);
 
 	const __m128 scale = _mm_set1_ps(1.0f / 255.0f);
-	size_t i = 0;
 
-	for (; i + 16 <= size; i += 16) {
+	for (size_t i = 0; i < INPUT_SIZE_SSE; i += 16) {
 		__m128i bytes = _mm_loadu_si128(reinterpret_cast<const __m128i *>(&resized[i]));
 		__m128i zero = _mm_setzero_si128();
 		__m128i lo16 = _mm_unpacklo_epi8(bytes, zero);
@@ -54,9 +50,5 @@ void stbi_image::resize_and_normalise(float *dest, int _width, int _height) cons
 		_mm_storeu_ps(&dest[i + 4], _mm_mul_ps(_mm_cvtepi32_ps(lo32b), scale));
 		_mm_storeu_ps(&dest[i + 8], _mm_mul_ps(_mm_cvtepi32_ps(hi32a), scale));
 		_mm_storeu_ps(&dest[i + 12], _mm_mul_ps(_mm_cvtepi32_ps(hi32b), scale));
-	}
-
-	for (; i < size; ++i) {
-		dest[i] = static_cast<float>(resized[i]) * (1.0f / 255.0f);
 	}
 }

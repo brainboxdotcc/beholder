@@ -48,16 +48,16 @@ int run_server() {
 				callback(resp);
 			};
 
+			double start = dpp::utility::time_f();
+
 			stbi_image image(req->body());
 			if (!image) {
 				json_error(drogon::k400BadRequest, "invalid image");
 				return;
 			}
 
-			LOG_INFO << "POST / -> Image: " << image.get_width() << "x" << image.get_height() << "x" << image.get_channels();
-
-			float input[INPUT_SIZE];
-			image.resize_and_normalise(input, INPUT_WIDTH, INPUT_HEIGHT);
+			alignas(16) static thread_local float input[INPUT_SIZE_SSE];
+			image.resize_and_normalise(input);
 
 			int64_t input_dims[] = { 1, INPUT_HEIGHT, INPUT_WIDTH, INPUT_CHANNELS };
 
@@ -91,6 +91,9 @@ int run_server() {
 			auto resp = drogon::HttpResponse::newHttpResponse();
 			resp->setContentTypeCode(drogon::CT_APPLICATION_JSON);
 			resp->setBody(reply_body);
+
+			double end = dpp::utility::time_f();
+			LOG_INFO << "POST / -> Image: " << image.get_width() << "x" << image.get_height() << "x" << image.get_channels() << " (" << fmt::format("{:.2f}", (end - start) * 1000.0) << "ms)";
 
 			callback(resp);
 		},

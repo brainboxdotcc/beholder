@@ -20,7 +20,7 @@ public:
 
 	int get_channels() const;
 
-	void resize_and_normalise(float *dest, int _width, int _height) const;
+	void resize_and_normalise(float *dest) const;
 
 private:
 	unsigned char *image = nullptr;
