@@ -17,20 +17,20 @@ target_precompile_headers(${BOT_NAME} INTERFACE "src/3rdparty/httplib.h")
 
 aux_source_directory("tessd" tessdsrc)
 add_executable("tessd"
-		${tessdsrc}
-		tessd/sha256.cpp
-		src/wildcard.cpp
-		tessd/3rdparty/httplib.cpp
-		tessd/proc/cpipe.cpp
-		tessd/proc/spawn.cpp
+	${tessdsrc}
+	tessd/sha256.cpp
+	src/wildcard.cpp
+	tessd/3rdparty/httplib.cpp
+	tessd/proc/cpipe.cpp
+	tessd/proc/spawn.cpp
 )
 
 aux_source_directory("nsfwd" nsfwdsrc)
 add_executable("nsfwd"
-		${nsfwdsrc}
-		tessd/proc/cpipe.cpp
-		tessd/proc/spawn.cpp
-		src/logger.cpp
+	${nsfwdsrc}
+	tessd/proc/cpipe.cpp
+	tessd/proc/spawn.cpp
+	src/logger.cpp
 )
 
 string(ASCII 27 Esc)
@@ -38,16 +38,16 @@ string(ASCII 27 Esc)
 set(CMAKE_POSITION_INDEPENDENT_CODE ON)
 
 set_target_properties(${BOT_NAME} PROPERTIES
-    CXX_STANDARD 20
-    CXX_STANDARD_REQUIRED ON
+	CXX_STANDARD 20
+	CXX_STANDARD_REQUIRED ON
 )
 set_target_properties("tessd" PROPERTIES
-    CXX_STANDARD 20
-    CXX_STANDARD_REQUIRED ON
+	CXX_STANDARD 20
+	CXX_STANDARD_REQUIRED ON
 )
 set_target_properties("nsfwd" PROPERTIES
-		CXX_STANDARD 20
-		CXX_STANDARD_REQUIRED ON
+	CXX_STANDARD 20
+	CXX_STANDARD_REQUIRED ON
 )
 
 set(THREADS_PREFER_PTHREAD_FLAG TRUE)
@@ -67,55 +67,56 @@ target_compile_definitions("tessd" PUBLIC DPP_CORO=ON SPDLOG_FMT_EXTERNAL=ON CPP
 target_compile_definitions("nsfwd" PUBLIC DPP_CORO=ON SPDLOG_FMT_EXTERNAL=ON CPPHTTPLIB_OPENSSL_SUPPORT)
 
 target_include_directories(${BOT_NAME} PUBLIC
-    ${CMAKE_CURRENT_SOURCE_DIR}/include
-    ${DPP_INCLUDE_DIR}
+	${CMAKE_CURRENT_SOURCE_DIR}/include
+	${DPP_INCLUDE_DIR}
 )
 
 target_include_directories("tessd" PUBLIC
-    ${CMAKE_CURRENT_SOURCE_DIR}/include
-    ${DPP_INCLUDE_DIR}
+	${CMAKE_CURRENT_SOURCE_DIR}/include
+	${DPP_INCLUDE_DIR}
 )
 
 target_include_directories("nsfwd" PUBLIC
-		${CMAKE_CURRENT_SOURCE_DIR}/include
-		/usr/include/jsoncpp
-		${DPP_INCLUDE_DIR}
+	${CMAKE_CURRENT_SOURCE_DIR}/include
+	/usr/include/jsoncpp
+	${DPP_INCLUDE_DIR}
 )
 
 
 target_link_libraries("tessd"
-    tesseract
-    leptonica
-    ssl
-    crypto
-    fmt
-    CxxUrl
-    ${DPP_LIBRARIES}
-    ${CMAKE_THREAD_LIBS_INIT}
+	tesseract
+	leptonica
+	ssl
+	crypto
+	fmt
+	CxxUrl
+	${DPP_LIBRARIES}
+	${CMAKE_THREAD_LIBS_INIT}
 )
 
 target_link_libraries("nsfwd"
-		tensorflow
-		drogon
-		jsoncpp
-		trantor
-		z
-		uuid
-		ssl
-		crypto
-		fmt
-		spdlog
-		${DPP_LIBRARIES}
-		${CMAKE_THREAD_LIBS_INIT}
+	tensorflow
+	drogon
+	jsoncpp
+	trantor
+	z
+	uuid
+	ssl
+	crypto
+	fmt
+	spdlog
+	${DPP_LIBRARIES}
+	${CMAKE_THREAD_LIBS_INIT}
 )
 
 target_link_libraries(${BOT_NAME}
-    fmt
-    spdlog
-    mysqlclient
-    crypto
-    ssl
-    CxxUrl
-    ${CMAKE_THREAD_LIBS_INIT}
-    ${DPP_LIBRARIES}
+	fmt
+	spdlog
+	mysqlclient
+	crypto
+	ssl
+	CxxUrl
+	tre
+	${CMAKE_THREAD_LIBS_INIT}
+	${DPP_LIBRARIES}
 )
