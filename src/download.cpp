@@ -712,7 +712,6 @@ void scanner_reactor::close_job_io(const std::shared_ptr<scan_job>& job)
 
 dpp::task<void> download_image(const dpp::attachment attach, dpp::cluster& bot, const dpp::message_create_t ev)
 {
-	std::string lower_url = attach.url;
 	std::string path;
 	try {
 		Url u(attach.url);
