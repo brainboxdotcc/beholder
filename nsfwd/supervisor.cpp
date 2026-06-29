@@ -18,7 +18,7 @@ static size_t child_rss(pid_t pid) {
 }
 
 int run_supervisor(const char* self) {
-	logger::init("logs/nsfwd.log");
+	logger::init("nsfwd-logs/nsfwd.log");
 
 	while (true) {
 		const char *args[] = { self, "--child", nullptr };
