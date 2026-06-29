@@ -2,7 +2,7 @@
  * 
  * Beholder, the image filtering bot
  *
- * Copyright 2019,2023 Craig Edwards <support@sporks.gg>
+ * Copyright 2019,2023,2026 Craig Edwards <support@sporks.gg>
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -44,6 +44,12 @@ using json = dpp::json;
 
 bool match(const char* str, const char* mask);
 
+namespace fs = std::filesystem;
+
+using json = dpp::json;
+
+#define EMBED_COLOUR 0xd5b994
+
 /**
  *  trim from end of string (right)
  */
@@ -71,12 +77,42 @@ inline std::string trim(std::string s)
 }
 
 /**
+ * String to long
+ * @param str
+ * @return
+ */
+inline long atol(const std::string& str) {
+	if (str.empty()) return 0;
+	return atol(str.c_str());
+}
+
+/**
+ * String to long long
+ * @param str
+ * @return
+ */
+inline long long atoll(const std::string& str) {
+	if (str.empty()) return 0;
+	return atoll(str.c_str());
+}
+
+/**
+ * String to int
+ * @param str
+ * @return
+ */
+inline int atoi(const std::string& str) {
+	if (str.empty()) return 0;
+	return atoi(str.c_str());
+}
+
+/**
  * @brief Processes an attachment into text, then checks to see if it matches a certain pattern. If it matches then it called delete_message_and_warn.
  * @param attach The attachment to process into text.
  * @param bot Bot reference.
  * @param ev message_create_t reference.
  */
-void download_image(const dpp::attachment attach, dpp::cluster& bot, const dpp::message_create_t ev);
+dpp::task<void> download_image(const dpp::attachment attach, dpp::cluster& bot, const dpp::message_create_t ev);
 
 /**
  * @brief Delete a message and send a warning.
@@ -86,7 +122,7 @@ void download_image(const dpp::attachment attach, dpp::cluster& bot, const dpp::
  * @param text What the attachment was flagged for.
  * @param trigger premium trigger threshold
  */
-bool delete_message_and_warn(std::string hash, std::string image, dpp::cluster& bot, const dpp::message_create_t ev, const dpp::attachment attach, const std::string text, double trigger = 0.0, double threshold = 0.0);
+dpp::task<bool> delete_message_and_warn(std::string hash, std::string image, dpp::cluster& bot, const dpp::message_create_t ev, const dpp::attachment attach, const std::string text, double trigger = 0.0, double threshold = 0.0);
 
 std::string replace_string(std::string subject, const std::string& search, const std::string& replace);
 

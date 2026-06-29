@@ -2,7 +2,7 @@
  * 
  * Beholder, the image filtering bot
  *
- * Copyright 2019,2023 Craig Edwards <support@sporks.gg>
+ * Copyright 2019,2023,2026 Craig Edwards <support@sporks.gg>
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -45,7 +45,7 @@ dpp::slashcommand patterns_command::register_command(dpp::cluster& bot)
 }
 
 
-void patterns_command::route(const dpp::slashcommand_t &event)
+dpp::task<void> patterns_command::route(const dpp::slashcommand_t &event)
 {
 	const std::string action = event.command.get_command_interaction().options[0].name;
 
@@ -57,12 +57,12 @@ void patterns_command::route(const dpp::slashcommand_t &event)
 	if (action == "add") {
 		if (has_channel) {
 			dpp::snowflake channel_id = std::get<dpp::snowflake>(channel_param);
-			db::query(
+			co_await db::co_query(
 				"INSERT INTO guild_patterns (guild_id, channel_id, pattern) VALUES(?, ?, ?)",
 				{ event.command.guild_id, channel_id, pattern }
 			);
 		} else {
-			db::query(
+			co_await db::co_query(
 				"INSERT INTO guild_patterns (guild_id, pattern) VALUES(?, ?)",
 				{ event.command.guild_id, pattern }
 			);
@@ -70,32 +70,32 @@ void patterns_command::route(const dpp::slashcommand_t &event)
 
 		if (!db::error().empty()) {
 			event.reply(dpp::message("❌ Failed to add pattern").set_flags(dpp::m_ephemeral));
-			return;
+			co_return;
 		}
 
-		event.reply(dpp::message("✅ Pattern added").set_flags(dpp::m_ephemeral));
-		return;
+		co_await event.co_reply(dpp::message("✅ Pattern added").set_flags(dpp::m_ephemeral));
+		co_return;
 	}
 
 	if (action == "delete") {
 		if (has_channel) {
 			dpp::snowflake channel_id = std::get<dpp::snowflake>(channel_param);
-			db::query(
+			co_await db::co_query(
 				"DELETE FROM guild_patterns WHERE guild_id = ? AND channel_id = ? AND pattern = ?",
 				{ event.command.guild_id, channel_id, pattern }
 			);
 		} else {
-			db::query(
+			co_await db::co_query(
 				"DELETE FROM guild_patterns WHERE guild_id = ? AND channel_id IS NULL AND pattern = ?",
 				{ event.command.guild_id, pattern }
 			);
 		}
 
 		if (!db::error().empty()) {
-			event.reply(dpp::message("❌ Failed to delete pattern").set_flags(dpp::m_ephemeral));
-			return;
+			co_await event.co_reply(dpp::message("❌ Failed to delete pattern").set_flags(dpp::m_ephemeral));
+			co_return;
 		}
 
-		event.reply(dpp::message("✅ Pattern deleted").set_flags(dpp::m_ephemeral));
+		co_await event.co_reply(dpp::message("✅ Pattern deleted").set_flags(dpp::m_ephemeral));
 	}
 }

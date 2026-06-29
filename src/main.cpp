@@ -2,7 +2,7 @@
  * 
  * Beholder, the image filtering bot
  *
- * Copyright 2019,2023 Craig Edwards <support@sporks.gg>
+ * Copyright 2019,2023,2026 Craig Edwards <support@sporks.gg>
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -23,6 +23,7 @@
 #include <beholder/database.h>
 #include <beholder/logger.h>
 #include <beholder/config.h>
+#include <beholder/sentry.h>
 
 int main(int argc, char const *argv[])
 {
@@ -35,6 +36,7 @@ int main(int argc, char const *argv[])
 		dpp::i_guild_messages | dpp::i_message_content | dpp::i_guild_members | dpp::i_guilds,
 		1, 0, 1, true, dpp::cache_policy::cpol_none, 32
 	);
+	sentry::init(bot);
 
 	bot.on_log(&logger::log);
 	bot.on_guild_create(&listeners::on_guild_create);
@@ -49,5 +51,7 @@ int main(int argc, char const *argv[])
 
 	/* Start bot */
 	bot.start(dpp::st_wait);
+
+	sentry::close();
 }
 

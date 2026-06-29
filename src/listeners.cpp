@@ -2,7 +2,7 @@
  * 
  * Beholder, the image filtering bot
  *
- * Copyright 2019,2023 Craig Edwards <support@sporks.gg>
+ * Copyright 2019,2023,2026 Craig Edwards <support@sporks.gg>
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -18,7 +18,7 @@
  *
  ************************************************************************************/
 #include <set>
-#include <fmt/format.h>
+#include <fmt/core.h>
 #include <CxxUrl/url.hpp>
 #include <beholder/listeners.h>
 #include <beholder/database.h>
@@ -82,7 +82,7 @@ namespace listeners {
 	 * @param guild_id 
 	 * @param channel_id 
 	 */
-	void send_welcome(dpp::cluster& bot, dpp::snowflake guild_id, dpp::snowflake channel_id) {
+	dpp::task<void> send_welcome(dpp::cluster& bot, dpp::snowflake guild_id, dpp::snowflake channel_id) {
 		bot.message_create(
 			dpp::message(channel_id, "")
 			.add_embed(
@@ -114,7 +114,7 @@ more powerful filtering options planned. More information will be announced on t
 			)
 		);
 		/* Probably successfully welcomed */
-		db::query("UPDATE guild_cache SET welcome_sent = 1 WHERE id = ?", {guild_id});
+		co_await db::co_query("UPDATE guild_cache SET welcome_sent = 1 WHERE id = ?", {guild_id});
 	}
 
 	/**
@@ -122,64 +122,63 @@ more powerful filtering options planned. More information will be announced on t
 	 * 
 	 * @param bot cluster ref
 	 */
-	void welcome_new_guilds(dpp::cluster& bot) {
-		auto result = db::query("SELECT id FROM guild_cache WHERE welcome_sent = 0");
+	dpp::task<void> welcome_new_guilds(dpp::cluster& bot) {
+		auto result = co_await db::co_query("SELECT id FROM guild_cache WHERE welcome_sent = 0");
 		for (const auto& row : result) {
 			/* Determine the correct channel to send to */
 			dpp::snowflake guild_id = row.at("id");
 			bot.log(dpp::ll_info, "New guild: " + guild_id.str());
-			bot.guild_get(guild_id, [&bot, guild_id](const auto& cc) {
-				if (cc.is_error()) {
-					/* Couldn't fetch the guild - kicked within 30 secs of inviting, bummer. */
-					db::query("UPDATE guild_cache SET welcome_sent = 1 WHERE id = ?", {guild_id});
-					return;
+			auto cc = co_await bot.co_guild_get(guild_id);
+			if (cc.is_error()) {
+				/* Couldn't fetch the guild - kicked within 30 secs of inviting, bummer. */
+				co_await db::co_query("UPDATE guild_cache SET welcome_sent = 1 WHERE id = ?", {guild_id});
+				co_return;
+			}
+			dpp::guild guild = std::get<dpp::guild>(cc.value);
+			/* First try to send the message to system channel or safety alerts channel if defined */
+			if (!guild.system_channel_id.empty()) {
+				co_await send_welcome(bot, guild.id, guild.system_channel_id);
+				co_return;
+			}
+			if (!guild.safety_alerts_channel_id.empty()) {
+				co_await send_welcome(bot, guild.id, guild.safety_alerts_channel_id);
+				co_return;
+			}
+			/* As a last resort if they dont have one of those channels set up, find a named
+			 * text channel that looks like its the main general/chat channel
+			 */
+			auto cc2 = co_await bot.co_channels_get(guild_id);
+			if (cc2.is_error()) {
+				/* Couldn't fetch the channels - kicked within 30 secs of inviting, bummer. */
+				co_await db::co_query("UPDATE guild_cache SET welcome_sent = 1 WHERE id = ?", {guild_id});
+				co_return;
+			}
+			dpp::channel_map channels = std::get<dpp::channel_map>(cc.value);
+			dpp::snowflake selected_channel_id, first_text_channel_id;
+			for (const auto& c : channels) {
+				const dpp::channel& channel = c.second;
+				std::string lowername = dpp::lowercase(channel.name);
+				if ((lowername == "general" || lowername == "chat" || lowername == "moderators") && channel.is_text_channel()) {
+					selected_channel_id = channel.id;
+					break;
+				} else if (channel.is_text_channel()) {
+					first_text_channel_id = channel.id;
 				}
-				dpp::guild guild = std::get<dpp::guild>(cc.value);
-				/* First try to send the message to system channel or safety alerts channel if defined */
-				if (!guild.system_channel_id.empty()) {
-					send_welcome(bot, guild.id, guild.system_channel_id);
-					return;
-				}
-				if (!guild.safety_alerts_channel_id.empty()) {
-					send_welcome(bot, guild.id, guild.safety_alerts_channel_id);
-					return;
-				}
-				/* As a last resort if they dont have one of those channels set up, find a named
-				 * text channel that looks like its the main general/chat channel
-				 */
-				bot.channels_get(guild_id, [&bot, guild_id, guild](const auto& cc) {
-					if (cc.is_error()) {
-						/* Couldn't fetch the channels - kicked within 30 secs of inviting, bummer. */
-						db::query("UPDATE guild_cache SET welcome_sent = 1 WHERE id = ?", {guild_id});
-						return;
-					}
-					dpp::channel_map channels = std::get<dpp::channel_map>(cc.value);
-					dpp::snowflake selected_channel_id, first_text_channel_id;
-					for (const auto& c : channels) {
-						const dpp::channel& channel = c.second;
-						std::string lowername = dpp::lowercase(channel.name);
-						if ((lowername == "general" || lowername == "chat" || lowername == "moderators") && channel.is_text_channel()) {
-							selected_channel_id = channel.id;
-							break;
-						} else if (channel.is_text_channel()) {
-							first_text_channel_id = channel.id;
-						}
-					}
-					if (selected_channel_id.empty() && !first_text_channel_id.empty()) {
-						selected_channel_id = first_text_channel_id;
-					}
-					if (!selected_channel_id.empty()) {
-						send_welcome(bot, guild_id, selected_channel_id);
-					} else {
-						/* What sort of server has NO text channels and invites an image moderation bot??? */
-						db::query("UPDATE guild_cache SET welcome_sent = 1 WHERE id = ?", {guild_id});
-					}
-				});
-			});
+			}
+			if (selected_channel_id.empty() && !first_text_channel_id.empty()) {
+				selected_channel_id = first_text_channel_id;
+			}
+			if (!selected_channel_id.empty()) {
+				co_await send_welcome(bot, guild_id, selected_channel_id);
+			} else {
+				/* What sort of server has NO text channels and invites a game bot??? */
+				co_await db::co_query("UPDATE guild_cache SET welcome_sent = 1 WHERE id = ?", {guild_id});
+			}
 		}
+		co_return;
 	}
 
-	void on_ready(const dpp::ready_t &event) {
+	dpp::task<void> on_ready(const dpp::ready_t &event) {
 		dpp::cluster& bot = *event.owner;
 		if (dpp::run_once<struct register_bot_commands>()) {
 
@@ -208,62 +207,62 @@ more powerful filtering options planned. More information will be announced on t
 				set_presence();
 			}, 240);
 			bot.start_timer([&bot](dpp::timer t) {
-				post_botlists(bot);
+				post_botlists(bot).sync_wait();
 			}, 60 * 15);
 			bot.start_timer([&bot](dpp::timer t) {
-				welcome_new_guilds(bot);
+				welcome_new_guilds(bot).sync_wait();
 			}, 30);
 
 			set_presence();
-			welcome_new_guilds(bot);
+			co_await welcome_new_guilds(bot);
 
 			register_botlist<topgg>();
 			register_botlist<discordbotlist>();
 			register_botlist<infinitybots>();
 
-			post_botlists(bot);
+			co_await post_botlists(bot);
 		}
 	}
 
-	void on_guild_create(const dpp::guild_create_t &event) {
+	dpp::task<void> on_guild_create(const dpp::guild_create_t &event) {
 		if (event.created.is_unavailable()) {
-			return;
+			co_return;
 		}
-		db::query("INSERT INTO guild_cache (id, owner_id, name, user_count) VALUES(?,?,?,?) ON DUPLICATE KEY UPDATE owner_id = ?, name = ?, user_count = ?", { event.created.id, event.created.owner_id, event.created.name, event.created.member_count, event.created.owner_id, event.created.name, event.created.member_count });
+		co_await db::co_query("INSERT INTO guild_cache (id, owner_id, name, user_count) VALUES(?,?,?,?) ON DUPLICATE KEY UPDATE owner_id = ?, name = ?, user_count = ?", { event.created.id, event.created.owner_id, event.created.name, event.created.member_count, event.created.owner_id, event.created.name, event.created.member_count });
 	}
 
-	void on_guild_delete(const dpp::guild_delete_t &event) {
+	dpp::task<void> on_guild_delete(const dpp::guild_delete_t &event) {
 		if (!event.deleted.is_unavailable()) {
-			db::query("DELETE FROM guild_cache WHERE id = ?", { event.deleted.id });
-			db::query("DELETE FROM guild_config WHERE guild_id = ?", { event.deleted.id });
-			db::query("DELETE FROM guild_statistics WHERE guild_id = ?", { event.deleted.id });
+			co_await db::co_query("DELETE FROM guild_cache WHERE id = ?", { event.deleted.id });
+			co_await db::co_query("DELETE FROM guild_config WHERE guild_id = ?", { event.deleted.id });
+			co_await db::co_query("DELETE FROM guild_statistics WHERE guild_id = ?", { event.deleted.id });
 			event.owner->log(dpp::ll_info, "Removed from guild: " + event.deleted.id.str());
 		}
 	}
 
-	void on_button_click(const dpp::button_click_t &event) {
+	dpp::task<void> on_button_click(const dpp::button_click_t &event) {
 		dpp::permission p = event.command.get_resolved_permission(event.command.usr.id);
 		if (!p.has(dpp::p_manage_guild)) {
 			event.reply(dpp::message(event.command.channel_id, "You require the manage server permission to add images to the block list.").set_flags(dpp::m_ephemeral));
-			return;
+			co_return;
 		}
 		dpp::cluster& bot = *(event.owner);
 		std::vector<std::string> parts = dpp::utility::tokenize(event.custom_id, ";");
 		bot.log(dpp::ll_info, "Button click with id: " + event.custom_id);
-		auto logchannel = db::query("SELECT embeds_disabled, log_channel, embed_title, embed_body FROM guild_config WHERE guild_id = ?", { event.command.guild_id });
+		auto logchannel = co_await db::co_query("SELECT embeds_disabled, log_channel, embed_title, embed_body FROM guild_config WHERE guild_id = ?", { event.command.guild_id });
 		if (logchannel.size()) {
 			if (parts.size() < 3) {
-				return;
+				co_return;
 			}
 			if (parts[0] == "BL") {
 				/* Block */
 				std::string hash = parts[2];
-				db::query("INSERT INTO block_list_items (guild_id, hash) VALUES(?,?) ON DUPLICATE KEY UPDATE hash = ?", {event.command.guild_id, hash, hash});
+				co_await db::co_query("INSERT INTO block_list_items (guild_id, hash) VALUES(?,?) ON DUPLICATE KEY UPDATE hash = ?", {event.command.guild_id, hash, hash});
 				event.reply(":no_entry: This image has been **added to the block list** by " + event.command.usr.get_mention() + ". It will be **instantly deleted** without performing any further checks.");
 			} else if (parts[0] == "UB") {
 				/* Unblock */
 				std::string hash = parts[2];
-				db::query("DELETE FROM block_list_items WHERE guild_id = ? AND hash = ?", {event.command.guild_id, hash});
+				co_await db::co_query("DELETE FROM block_list_items WHERE guild_id = ? AND hash = ?", {event.command.guild_id, hash});
 				event.reply(":white_check_mark: This image has been **removed from the block list** by " + event.command.usr.get_mention() + ". It will now be **checked normally**.");
 			} else if (parts[0] == "KI") {
 				/* Kick */
@@ -299,7 +298,7 @@ more powerful filtering options planned. More information will be announced on t
 		}
 	}
 
-	void on_slashcommand(const dpp::slashcommand_t &event) {
+	dpp::task<void> on_slashcommand(const dpp::slashcommand_t &event) {
 		event.owner->log(
 			dpp::ll_info,
 			fmt::format(
@@ -310,7 +309,7 @@ more powerful filtering options planned. More information will be announced on t
 				event.command.guild_id
 			)
 		);
-		route_command(event);
+		co_await route_command(event);
 	}
 
 	void sarcastic_ping(const dpp::message_create_t &ev) {
@@ -354,24 +353,24 @@ more powerful filtering options planned. More information will be announced on t
 		);
 	}
 
-	void on_message_update(const dpp::message_update_t& event) {
+	dpp::task<void> on_message_update(const dpp::message_update_t& event) {
 		if (event.msg.author.is_bot() || event.msg.author.id.empty()) {
-			return;
+			co_return;
 		}
 		try {
 			dpp::json j = dpp::json::parse(event.raw_event).at("d");
 			if (!j.contains("member") || !j["member"].is_object()) {
 				event.owner->log(dpp::ll_debug, "Dropped message edit " +event.msg.id.str() + " without member details");
-				return;
+				co_return;
 			}
 			if (!j["member"].contains("roles") || !j["member"]["roles"].is_array()) {
 				event.owner->log(dpp::ll_debug, "Dropped message edit " +event.msg.id.str() + " without member role list");
-				return;
+				co_return;
 			}
 		}
 		catch (const std::exception &e) {
 			event.owner->log(dpp::ll_warning, "Dropped message edit " +event.msg.id.str() + " with invalid raw JSON");
-			return;
+			co_return;
 		}
 
 		/* Message update is mapped to message creation.
@@ -379,15 +378,15 @@ more powerful filtering options planned. More information will be announced on t
 		 */
 		dpp::message_create_t c(event.owner, event.shard, event.raw_event);
 		c.msg = event.msg;
-		on_message_create(c);
+		co_await on_message_create(c);
 	}
 
-	void on_message_create(const dpp::message_create_t &event) {
+	dpp::task<void> on_message_create(const dpp::message_create_t &event) {
 		auto guild_member = event.msg.member;
 
 		/* If the author is a bot or webhook, stop the event (no checking). */
 		if (event.msg.author.is_bot() || event.msg.author.id.empty()) {
-			return;
+			co_return;
 		}
 
 		/* Check if we are mentioned in the message, if so send a sarcastic reply */
@@ -402,25 +401,25 @@ more powerful filtering options planned. More information will be announced on t
 		}
 
 		/* Check for channels that are ignored */
-		db::resultset bypass_channel = db::query("SELECT * FROM guild_ignored_channels WHERE guild_id = ? AND channel_id = ?", { event.msg.guild_id, event.msg.channel_id });
+		db::resultset bypass_channel = co_await db::co_query("SELECT * FROM guild_ignored_channels WHERE guild_id = ? AND channel_id = ?", { event.msg.guild_id, event.msg.channel_id });
 		if (bypass_channel.size() > 0) {
-			return;
+			co_return;
 		}
 
 		/* Loop through all bypass roles in database */
-		db::resultset bypass_roles = db::query("SELECT * FROM guild_bypass_roles WHERE guild_id = ?", { event.msg.guild_id });
+		db::resultset bypass_roles = co_await db::co_query("SELECT * FROM guild_bypass_roles WHERE guild_id = ?", { event.msg.guild_id });
 		for (const db::row& role : bypass_roles) {
 			const auto& roles = guild_member.get_roles();
 			if (std::find(roles.begin(), roles.end(), dpp::snowflake(role.at("role_id"))) != roles.end()) {
 				/* Stop the event if user is in a bypass role */
-				return;
+				co_return;
 			}
 		}
 
 		/* Check each attachment in the message, if any */
 		if (event.msg.attachments.size() > 0) {
 			for (const dpp::attachment& attach : event.msg.attachments) {
-				download_image(attach, *event.owner, event);
+				co_await download_image(attach, *event.owner, event);
 			}
 		}
 
@@ -474,16 +473,20 @@ more powerful filtering options planned. More information will be announced on t
 		}
 
 		/* Extract sticker urls, if any stickers are in the image */
-		if (event.msg.stickers.size() > 0) {
-			for (const dpp::sticker& sticker : event.msg.stickers) {
-				if (!sticker.id.empty()) {
-					parts.emplace_back(sticker.get_url());
-				}
+		std::vector<dpp::attachment> images_to_scan;
+
+		/* Real attachments */
+		if (!event.msg.attachments.empty()) {
+			images_to_scan.reserve(event.msg.attachments.size());
+
+			for (const dpp::attachment& attach : event.msg.attachments) {
+				images_to_scan.emplace_back(attach);
 			}
 		}
 
 		std::set<std::string> seen_urls;
-		/* Check each word in the message looking for URLs */
+
+/* Check each word in the message looking for URLs */
 		for (std::string& possibly_url : parts) {
 			std::string original_url = possibly_url;
 			possibly_url = dpp::lowercase(possibly_url);
@@ -530,12 +533,25 @@ more powerful filtering options planned. More information will be announced on t
 			try {
 				Url u(original_url);
 				attach.filename = fs::path(u.path()).filename();
-			}
-			catch (const std::exception&) {
+			} catch (const std::exception&) {
 				attach.filename = fs::path(original_url).filename();
 			}
 
-			download_image(attach, *event.owner, event);
+			images_to_scan.emplace_back(attach);
+		}
+
+		if (!images_to_scan.empty()) {
+			std::vector<dpp::task<void>> downloads;
+
+			downloads.reserve(images_to_scan.size());
+
+			for (const dpp::attachment& attach : images_to_scan) {
+				downloads.emplace_back(download_image(attach, *event.owner, event));
+			}
+
+			for (auto& download : downloads) {
+				co_await download;
+			}
 		}
 	}
 }

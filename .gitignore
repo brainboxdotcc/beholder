@@ -11,3 +11,6 @@ config.json
 
 # Tensorflow NSFW classifier model
 nsfw_model
+
+# Sentry poster vendored dependencies
+vendor

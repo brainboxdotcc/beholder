@@ -2,7 +2,7 @@
  * 
  * Beholder, the image filtering bot
  *
- * Copyright 2019,2023 Craig Edwards <support@sporks.gg>
+ * Copyright 2019,2023,2026 Craig Edwards <support@sporks.gg>
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -30,7 +30,7 @@ struct topgg : public botlist {
 	static constexpr std::string_view server_count_field{"server_count"};
 	static constexpr std::string_view shard_count_field{"shard_count"};
 
-	static void post(dpp::cluster& bot) {  
-		botlist::run(bot, topgg::name, topgg::url, topgg::server_count_field, topgg::shard_count_field);
+	static dpp::task<void> post(dpp::cluster& bot) {
+		co_await botlist::run(bot, topgg::name, topgg::url, topgg::server_count_field, topgg::shard_count_field);
 	}
 };

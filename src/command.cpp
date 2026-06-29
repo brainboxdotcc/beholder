@@ -2,7 +2,7 @@
  * 
  * Beholder, the image filtering bot
  *
- * Copyright 2019,2023 Craig Edwards <support@sporks.gg>
+ * Copyright 2019,2023,2026 Craig Edwards <support@sporks.gg>
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -19,6 +19,7 @@
  ************************************************************************************/
 #include <dpp/dpp.h>
 #include <beholder/command.h>
+#include <beholder/sentry.h>
 
 /**
  * @brief Internal command map
@@ -30,15 +31,16 @@ registered_command_list& get_command_map()
 	return registered_commands;
 }
 
-void route_command(const dpp::slashcommand_t &event)
+dpp::task<void> route_command(const dpp::slashcommand_t &event)
 {
 	auto ref = registered_commands.find(event.command.get_command_name());
 	if (ref != registered_commands.end()) {
 		auto ptr = ref->second;
-		std::thread([ptr, event]() {
-			(*ptr)(event);
-		}).detach();
+		sentry::make_new_transaction("/" + event.command.get_command_name());
+		co_await (*ptr)(event);
+		sentry::end_user_transaction();
 	} else {
 		event.owner->log(dpp::ll_error, "Unable to route command: " + event.command.get_command_name());
 	}
+	co_return;
 }

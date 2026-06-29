@@ -2,7 +2,7 @@
  * 
  * Beholder, the image filtering bot
  *
- * Copyright 2019,2023 Craig Edwards <support@sporks.gg>
+ * Copyright 2019,2023,2026 Craig Edwards <support@sporks.gg>
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -24,17 +24,17 @@
 
 dpp::slashcommand message_command::register_command(dpp::cluster& bot)
 {
-	bot.on_form_submit([&bot](const dpp::form_submit_t& event) {
+	bot.on_form_submit([&bot](const dpp::form_submit_t& event) -> dpp::task<void> {
 		if (event.custom_id == "set_embed_modal") {
 			std::string embed_title = std::get<std::string>(event.components[0].components[0].value);
 			std::string embed_body = std::get<std::string>(event.components[1].components[0].value);
-			db::query(
+			co_await db::co_query(
 				"INSERT INTO guild_config (guild_id, embed_title, embed_body) VALUES(?, ?, ?) ON DUPLICATE KEY UPDATE embed_title = ?, embed_body = ?",
 				{ event.command.guild_id, embed_title, embed_body, embed_title, embed_body }
 			);
 			/* Replace @user with the user's mention for preview */
 			embed_body = replace_string(embed_body, "@user", "<@" + event.command.usr.id.str() + ">");
-			event.reply(
+			co_await event.co_reply(
 				dpp::message("✅ Delete message set.\n\n**__Preview:__**")
 					.set_flags(dpp::m_ephemeral)
 					.add_embed(dpp::embed().set_description(embed_body).set_title(embed_title).set_color(0xff7a7a))
@@ -50,14 +50,14 @@ dpp::slashcommand message_command::register_command(dpp::cluster& bot)
 }
 
 
-void message_command::route(const dpp::slashcommand_t &event)
+dpp::task<void> message_command::route(const dpp::slashcommand_t &event)
 {
 	dpp::command_interaction cmd_data = event.command.get_command_interaction();
 	auto subcommand = cmd_data.options[0];
 
 	if (subcommand.name == "content") {
 
-	db::resultset embed = db::query("SELECT embed_body, embed_title FROM guild_config WHERE guild_id = ?", { event.command.guild_id });
+	db::resultset embed = co_await db::co_query("SELECT embed_body, embed_title FROM guild_config WHERE guild_id = ?", { event.command.guild_id });
 	std::string embed_body, embed_title;
 	if (!embed.empty()) {
 		embed_body = embed[0].at("embed_body");
@@ -91,13 +91,14 @@ void message_command::route(const dpp::slashcommand_t &event)
 			.set_required(true)
 			.set_text_style(dpp::text_paragraph)
 	);
-	event.dialog(modal);
+	co_await event.co_dialog(modal);
 
 	} else if (subcommand.name == "enable") {
-		db::query("UPDATE guild_config SET embeds_disabled = 0 WHERE guild_id = ?", { event.command.guild_id });
-		event.reply(dpp::message("✅ Messages __**will be sent**__ to the channel where beholder deletes images.").set_flags(dpp::m_ephemeral));
+		co_await db::co_query("UPDATE guild_config SET embeds_disabled = 0 WHERE guild_id = ?", { event.command.guild_id });
+		co_await event.co_reply(dpp::message("✅ Messages __**will be sent**__ to the channel where beholder deletes images.").set_flags(dpp::m_ephemeral));
 	} else if (subcommand.name == "disable") {
-		db::query("UPDATE guild_config SET embeds_disabled = 1 WHERE guild_id = ?", { event.command.guild_id });
-		event.reply(dpp::message("✅ Messages __**will not be sent**__ to the channel where beholder deletes images\nBeholder will still send audit log entries, if configured.").set_flags(dpp::m_ephemeral));
+		co_await db::co_query("UPDATE guild_config SET embeds_disabled = 1 WHERE guild_id = ?", { event.command.guild_id });
+		co_await event.co_reply(dpp::message("✅ Messages __**will not be sent**__ to the channel where beholder deletes images\nBeholder will still send audit log entries, if configured.").set_flags(dpp::m_ephemeral));
 	}
+	co_return;
 }

@@ -2,7 +2,7 @@
  * 
  * Beholder, the image filtering bot
  *
- * Copyright 2019,2023 Craig Edwards <support@sporks.gg>
+ * Copyright 2019,2023,2026 Craig Edwards <support@sporks.gg>
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -24,16 +24,16 @@
 
 dpp::slashcommand logchannel_command::register_command(dpp::cluster& bot)
 {
-	bot.on_select_click([&bot](const dpp::select_click_t& event) {
+	bot.on_select_click([&bot](const dpp::select_click_t& event) -> dpp::task<void> {
 		if (event.custom_id == "log_channel_select_menu") {
 
 			if (event.values.empty()) {
-				event.reply(dpp::message("❌ You did not specify a log channel").set_flags(dpp::m_ephemeral));
-				return;
+				co_await event.co_reply(dpp::message("❌ You did not specify a log channel").set_flags(dpp::m_ephemeral));
+				co_return;
 			}
 
-			db::query("INSERT INTO guild_config (guild_id, log_channel) VALUES(?, ?) ON DUPLICATE KEY UPDATE log_channel = ?", { event.command.guild_id, event.values[0], event.values[0] });
-			event.reply(dpp::message("✅ Log channel set").set_flags(dpp::m_ephemeral));
+			co_await db::co_query("INSERT INTO guild_config (guild_id, log_channel) VALUES(?, ?) ON DUPLICATE KEY UPDATE log_channel = ?", { event.command.guild_id, event.values[0], event.values[0] });
+			co_await event.co_reply(dpp::message("✅ Log channel set").set_flags(dpp::m_ephemeral));
 		}
 	});
 
@@ -42,7 +42,7 @@ dpp::slashcommand logchannel_command::register_command(dpp::cluster& bot)
 }
 
 
-void logchannel_command::route(const dpp::slashcommand_t &event)
+dpp::task<void> logchannel_command::route(const dpp::slashcommand_t &event)
 {
 	/* Create a message */
 	dpp::message msg(event.command.channel_id, "Select which channel logs will be sent to");
@@ -55,7 +55,7 @@ void logchannel_command::route(const dpp::slashcommand_t &event)
 		.set_id("log_channel_select_menu");
 
 	/* Loop through all bypass roles in database */
-	db::resultset channels = db::query("SELECT * FROM guild_config WHERE guild_id = ?", { event.command.guild_id });
+	db::resultset channels = co_await db::co_query("SELECT * FROM guild_config WHERE guild_id = ?", { event.command.guild_id });
 	if (!channels.empty()) {
 		/* Add the channel as a default value to the select menu. */
 		select_menu.add_default_value(dpp::snowflake(channels[0].at("log_channel")), dpp::cdt_channel);
@@ -64,5 +64,6 @@ void logchannel_command::route(const dpp::slashcommand_t &event)
 	msg.add_component(dpp::component().add_component(select_menu)).set_flags(dpp::m_ephemeral);
 
 	/* Reply to the user with our message. */
-	event.reply(msg);
+	co_await event.co_reply(msg);
+	co_return;
 }

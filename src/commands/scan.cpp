@@ -2,7 +2,7 @@
  * 
  * Beholder, the image filtering bot
  *
- * Copyright 2019,2023 Craig Edwards <support@sporks.gg>
+ * Copyright 2019,2023,2026 Craig Edwards <support@sporks.gg>
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -32,11 +32,11 @@ dpp::slashcommand scan_command::register_command(dpp::cluster& bot)
 	return c;
 }
 
-void scan_command::route(const dpp::slashcommand_t& event)
+dpp::task<void> scan_command::route(const dpp::slashcommand_t& event)
 {
 	dpp::cluster* bot = event.owner;
 
-	bot->interaction_response_create(
+	co_await bot->co_interaction_response_create(
 		event.command.id, event.command.token, dpp::interaction_response(
 			dpp::ir_deferred_channel_message_with_source,
 			dpp::message()
@@ -53,64 +53,68 @@ void scan_command::route(const dpp::slashcommand_t& event)
 	msg.msg.guild_id = event.command.guild_id;
 	msg.msg.channel_id = event.command.channel_id;
 
-	scanner_reactor::instance().submit(attach, *bot, msg, [event, bot, attach](const std::string& hash, const json& scan_response) {
-		std::vector<std::string> matches;
-		std::vector<std::string> match_names;
-		bool is_blocked = false;
+	auto result = co_await scanner_reactor::instance().co_submit(attach, *bot, msg);
+	json scan_response = result.response;
+	std::string hash = result.hash;
 
-		if (scan_response.contains("results") && scan_response.at("results").is_array()) {
-			for (const json& result : scan_response.at("results")) {
-				std::string scanner_name = "Unknown Scanner";
-				std::string result_text = "No match";
+	std::vector<std::string> matches;
+	std::vector<std::string> match_names;
+	bool is_blocked = false;
 
-				if (result.contains("scanner_name") && result.at("scanner_name").is_string()) {
-					scanner_name = result.at("scanner_name").get<std::string>();
-				}
+	if (scan_response.contains("results") && scan_response.at("results").is_array()) {
+		for (const json &result: scan_response.at("results")) {
+			std::string scanner_name = "Unknown Scanner";
+			std::string result_text = "No match";
 
-				if (result.contains("text") && result.at("text").is_string()) {
-					result_text = result.at("text").get<std::string>();
-				}
-
-				if (result.contains("blocked") && result.at("blocked").is_boolean() && result.at("blocked").get<bool>()) {
-					is_blocked = true;
-				}
-
-				matches.emplace_back(result_text);
-				match_names.emplace_back(scanner_name);
+			if (result.contains("scanner_name") && result.at("scanner_name").is_string()) {
+				scanner_name = result.at("scanner_name").get<std::string>();
 			}
-		} else {
-			matches.emplace_back("tessd did not return a scan frame");
-			match_names.emplace_back("No scans performed");
+
+			if (result.contains("text") && result.at("text").is_string()) {
+				result_text = result.at("text").get<std::string>();
+			}
+
+			if (result.contains("blocked") && result.at("blocked").is_boolean() && result.at("blocked").get<bool>()) {
+				is_blocked = true;
+			}
+
+			matches.emplace_back(result_text);
+			match_names.emplace_back(scanner_name);
 		}
+	} else {
+		matches.emplace_back("tessd did not return a scan frame");
+		match_names.emplace_back("No scans performed");
+	}
 
-		dpp::message msg;
-		msg.set_channel_id(event.command.channel_id).add_embed(
-			dpp::embed()
-				.set_description("**Attachment:** `" + attach.filename + "`\n🔗 [Image link](" + attach.url + ")")
-				.set_title("🔍 Image Scanned!")
-				.set_color(is_blocked ? colours::bad : colours::good)
-				.set_url("https://beholder.cc/")
-				.set_footer("Powered by Beholder - Requested by " + std::to_string(event.command.usr.id), bot->me.get_avatar_url())
-		).set_flags(dpp::m_ephemeral);
+	dpp::message message;
+	message.set_channel_id(event.command.channel_id).add_embed(
+		dpp::embed()
+			.set_description("**Attachment:** `" + attach.filename + "`\n🔗 [Image link](" + attach.url + ")")
+			.set_title("🔍 Image Scanned!")
+			.set_color(is_blocked ? colours::bad : colours::good)
+			.set_url("https://beholder.cc/")
+			.set_footer("Powered by Beholder - Requested by " + std::to_string(event.command.usr.id), bot->me.get_avatar_url())
+	).set_flags(dpp::m_ephemeral);
 
-		for (size_t x = 0; x < matches.size(); ++x) {
-			msg.embeds[0].add_field(match_names[x], "```\n" + matches[x] + "\n```", true);
-		}
+	for (size_t x = 0; x < matches.size(); ++x) {
+		message.embeds[0].add_field(match_names[x], "```\n" + matches[x] + "\n```", true);
+	}
 
-		if (!hash.empty()) {
-			msg.add_component(dpp::component().add_component(
-				dpp::component()
-					.set_label(is_blocked ? "Unblock" : "Block")
-					.set_type(dpp::cot_button)
-					.set_emoji(is_blocked ? dpp::unicode_emoji::white_check_mark : dpp::unicode_emoji::no_entry)
-					.set_style(is_blocked ? dpp::cos_success : dpp::cos_danger)
-					.set_id(std::string(is_blocked ? "UB;*;" : "BL;*;") + hash)
-			));
-		}
+	if (!hash.empty()) {
+		message.add_component(dpp::component().add_component(
+			dpp::component()
+				.set_label(is_blocked ? "Unblock" : "Block")
+				.set_type(dpp::cot_button)
+				.set_emoji(is_blocked ? dpp::unicode_emoji::white_check_mark : dpp::unicode_emoji::no_entry)
+				.set_style(is_blocked ? dpp::cos_success : dpp::cos_danger)
+				.set_id(std::string(is_blocked ? "UB;*;" : "BL;*;") + hash)
+		));
+	}
 
-		bot->log(dpp::ll_info, "Manual scan: " + attach.url);
-		INCREMENT_STATISTIC("images_scanned", event.command.guild_id);
+	bot->log(dpp::ll_info, "Manual scan: " + attach.url);
+	INCREMENT_STATISTIC("images_scanned", event.command.guild_id);
 
-		event.edit_response(msg);
-	});
+	co_await event.co_edit_response(message);
+
+	co_return;
 }

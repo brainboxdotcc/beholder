@@ -2,7 +2,7 @@
  * 
  * Beholder, the image filtering bot
  *
- * Copyright 2019,2023 Craig Edwards <support@sporks.gg>
+ * Copyright 2019,2023,2026 Craig Edwards <support@sporks.gg>
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -29,49 +29,49 @@ namespace listeners {
 	 * 
 	 * @param event ready_t
 	 */
-	void on_ready(const dpp::ready_t &event);
+	dpp::task<void> on_ready(const dpp::ready_t &event);
 
 	/**
 	 * @brief handle slash command
 	 * 
 	 * @param event slashcommand_t
 	 */
-	void on_slashcommand(const dpp::slashcommand_t& event);
+	dpp::task<void> on_slashcommand(const dpp::slashcommand_t& event);
 
 	/**
 	 * @brief handle guild join
 	 * 
 	 * @param event guild_create_t
 	 */
-	void on_guild_create(const dpp::guild_create_t &event);
+	dpp::task<void> on_guild_create(const dpp::guild_create_t &event);
 
 	/**
 	 * @brief handle guild join
 	 * 
 	 * @param event guild_create_t
 	 */
-	void on_guild_delete(const dpp::guild_delete_t &event);
+	dpp::task<void> on_guild_delete(const dpp::guild_delete_t &event);
 
 	/**
 	 * @brief handle message creation
 	 * 
 	 * @param event message_create_t
 	 */
-	void on_message_create(const dpp::message_create_t& event);
+	dpp::task<void> on_message_create(const dpp::message_create_t& event);
 
 	/**
 	 * @brief handle message editing
 	 *
 	 * @param event message_update_t
 	 */
-	void on_message_update(const dpp::message_update_t& event);
+	dpp::task<void> on_message_update(const dpp::message_update_t& event);
 
 	/**
 	 * @brief Handle button click (false positive, good match)
 	 * 
 	 * @param event button_click_t
 	 */
-	void on_button_click(const dpp::button_click_t &event);
+	dpp::task<void> on_button_click(const dpp::button_click_t &event);
 };
 
 size_t tessd_process_count();

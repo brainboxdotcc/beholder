@@ -2,7 +2,7 @@
  * 
  * Beholder, the image filtering bot
  *
- * Copyright 2019,2023 Craig Edwards <support@sporks.gg>
+ * Copyright 2019,2023,2026 Craig Edwards <support@sporks.gg>
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -17,17 +17,14 @@
  * limitations under the License.
  *
  ************************************************************************************/
-
-#include <beholder/beholder.h>
 #include <beholder/database.h>
 #include <beholder/config.h>
 #include <mysql/mysql.h>
-#include <fmt/format.h>
-#include <iostream>
+#include <fmt/core.h>
 #include <unordered_map>
 #include <mutex>
-#include <sstream>
-#include <type_traits>
+#include <chrono>
+#include <beholder/sentry.h>
 
 #ifdef MARIADB_VERSION_ID
 	#define CONNECT_STRING "SET @@SESSION.max_statement_time=3000"
@@ -36,6 +33,8 @@
 #endif
 
 namespace db {
+
+	using namespace std::literals::chrono_literals;
 
 	/**
 	 * @brief Represents a cached prepared statement.
@@ -100,17 +99,25 @@ namespace db {
 	 */
 	dpp::cluster* creator{nullptr};
 
+	std::atomic<bool> transaction_in_progress = false;
+	std::function<void()> transaction_function = {};
+
 	/**
 	 * @brief Query cache, a map of cached_query
 	 */
 	std::map<std::string, cached_query> cached_queries;
 
+	using sql_query_callback = std::function<void(const resultset)>;
+
+	std::condition_variable sql_worker_cv;
+
 	/**
 	 * @brief Cached query result parameters
 	 */
 	struct cached_query_results {
-		const std::string format;
-		const paramlist parameters;
+		std::string format;
+		paramlist parameters;
+		sql_query_callback callback;
 	};
 
 	/**
@@ -120,6 +127,11 @@ namespace db {
 		const resultset results;
 		const double expiry;
 	};
+
+#ifdef DPP_CORO
+	std::queue<cached_query_results> sql_query_queue;
+	std::mutex query_queue_mtx;
+#endif
 
 	template<class> inline constexpr bool always_false_v = false;
 
@@ -154,7 +166,7 @@ namespace db {
 			return x;
 		}
 	};
-	
+
 	struct cached_query_equal {
 		bool operator()(const cached_query_results& lhs, const cached_query_results& rhs) const {
 			if (lhs.format != rhs.format || lhs.parameters.size() != rhs.parameters.size()) {
@@ -173,7 +185,7 @@ namespace db {
 		std::lock_guard<std::mutex> db_lock(db_mutex);
 		return cached_queries.size();
 	}
-	
+
 	size_t query_count() {
 		std::lock_guard<std::mutex> db_lock(db_mutex);
 		return query_total;
@@ -181,18 +193,19 @@ namespace db {
 
 	/**
 	 * @brief This is an internal connect function which has no locking, there is no public interface for this
-	 * 
+	 *
 	 * @param host hostname
 	 * @param user username
 	 * @param pass password
 	 * @param db database
 	 * @param port port
+	 * @param socket unix socket
 	 */
-	bool unsafe_connect(const std::string &host, const std::string &user, const std::string &pass, const std::string &db, int port) {
+	bool unsafe_connect(const std::string &host, const std::string &user, const std::string &pass, const std::string &db, int port, const std::string &socket) {
 		if (mysql_init(&connection) != nullptr) {
 			mysql_options(&connection, MYSQL_INIT_COMMAND, CONNECT_STRING);
 			int opts = CLIENT_MULTI_RESULTS | CLIENT_MULTI_STATEMENTS | CLIENT_REMEMBER_OPTIONS | CLIENT_IGNORE_SIGPIPE;
-			bool result = mysql_real_connect(&connection, host.c_str(), user.c_str(), pass.c_str(), db.c_str(), port, NULL, opts);
+			bool result = mysql_real_connect(&connection, host.c_str(), user.c_str(), pass.c_str(), db.c_str(), port, socket.empty() ? nullptr : socket.c_str(), opts);
 			signal(SIGPIPE, SIG_IGN);
 			return result;
 		} else {
@@ -201,18 +214,62 @@ namespace db {
 		}
 	}
 
-	bool connect(const std::string &host, const std::string &user, const std::string &pass, const std::string &db, int port) {
+	bool connect(const std::string &host, const std::string &user, const std::string &pass, const std::string &db, int port, const std::string &socket) {
 		std::lock_guard<std::mutex> db_lock(db_mutex);
-		return unsafe_connect(host, user, pass, db, port);
+		return unsafe_connect(host, user, pass, db, port, socket);
 	}
+
+#ifdef DPP_CORO
+	void query_callback(const std::string &format, const paramlist &parameters, const sql_query_callback& cb) {
+		{
+			std::unique_lock<std::mutex> queue_lock(query_queue_mtx);
+			sql_query_queue.emplace(std::move(cached_query_results{.format = format, .parameters = parameters, .callback = cb}));
+		}
+		sql_worker_cv.notify_one();
+	}
+
+	dpp::async<resultset> co_query(const std::string &format, const paramlist &parameters) {
+		return dpp::async<resultset>{ [format, parameters] <typename C> (C &&cc) { return query_callback(format, parameters, std::forward<C>(cc)); }};
+	}
+#endif
 
 	void init (dpp::cluster& bot) {
 		creator = &bot;
 		const json dbconf = config::get("database");
-		if (!db::connect(dbconf["host"], dbconf["username"], dbconf["password"], dbconf["database"], dbconf["port"])) {
+		if (!db::connect(dbconf["host"], dbconf["username"], dbconf["password"], dbconf["database"], dbconf["port"], dbconf.contains("socket") ? dbconf["socket"] : "")) {
 			creator->log(dpp::ll_critical, fmt::format("Database connection error connecting to {}: {}", dbconf["database"].get<std::string>(), mysql_error(&connection)));
 			exit(2);
 		}
+#ifdef DPP_CORO
+		std::thread([&bot]() {
+			dpp::utility::set_thread_name("sql/coro");
+			while (true) {
+				cached_query_results qr;
+				{
+					std::unique_lock<std::mutex> queue_lock(query_queue_mtx);
+					sql_worker_cv.wait(queue_lock, [] {
+						return !sql_query_queue.empty();
+					});
+					if (sql_query_queue.empty()) {
+						continue;
+					}
+					qr = std::move(sql_query_queue.front());
+					sql_query_queue.pop();
+				}
+				if (!qr.format.empty()) {
+					auto results = query(qr.format, qr.parameters);
+					if (qr.callback) {
+						try {
+							qr.callback(results);
+						}
+						catch (const std::exception& e) {
+							bot.log(dpp::ll_warning, "Exception in SQL query callback: " + std::string(e.what()));
+						}
+					}
+				}
+			}
+		}).detach();
+#endif
 		creator->log(dpp::ll_info, fmt::format("Connected to database: {}", dbconf["database"].get<std::string>()));
 	}
 
@@ -222,7 +279,7 @@ namespace db {
 	 * unprepared. This is not exposed to the interface as we don't want users
 	 * directly calling raw_query() and summoning Little Bobby Tables. Only
 	 * queries which return no result set are supported.
-	 * 
+	 *
 	 * @return true query executed
 	 */
 	bool raw_query(const std::string& query) {
@@ -230,7 +287,7 @@ namespace db {
 		return mysql_real_query(&connection, query.c_str(), query.length()) == 0;
 	}
 
-	bool transaction() {
+	bool start_transaction() {
 		return raw_query("START TRANSACTION");
 	}
 
@@ -240,6 +297,9 @@ namespace db {
 
 	bool rollback() {
 		return raw_query("ROLLBACK");
+	}
+
+	void transaction(std::function<bool()> closure) {
 	}
 
 	bool close() {
@@ -280,7 +340,7 @@ namespace db {
 
 	resultset query(const std::string &format, const paramlist &parameters, double lifetime) {
 		double now = dpp::utility::time_f();
-		cached_query_results r{ .format = format, .parameters = parameters };
+		cached_query_results r{ .format = format, .parameters = parameters, .callback = nullptr };
 		auto f = cached_query_res.find(r);
 		if (f != cached_query_res.end()) {
 			if (now < f->second.expiry) {
@@ -311,7 +371,7 @@ namespace db {
 			}
 			cached_queries = {};
 			const json dbconf = config::get("database");
-			if (!db::unsafe_connect(dbconf["host"], dbconf["username"], dbconf["password"], dbconf["database"], dbconf["port"])) {
+			if (!db::unsafe_connect(dbconf["host"], dbconf["username"], dbconf["password"], dbconf["database"], dbconf["port"], dbconf.contains("socket") ? dbconf["socket"] : "")) {
 				creator->log(dpp::ll_critical, fmt::format("Database connection error connecting to {}: {}", dbconf["database"].get<std::string>(), mysql_error(&connection)));
 				return rv;
 			}
@@ -328,6 +388,8 @@ namespace db {
 
 		++query_total;
 
+		double start = dpp::utility::time_f();
+
 		/**
 		 * Check for a cached query in the query cache, if one is found, we can use it,
 		 * and we don't need to call mysql_stmt_init() and mysql_stmt_prepare().
@@ -343,6 +405,7 @@ namespace db {
 			cc.st = mysql_stmt_init(&connection);
 			if (mysql_stmt_prepare(cc.st, format.c_str(), format.length())) {
 				log_error(format, mysql_stmt_error(cc.st));
+				rv.error = mysql_stmt_error(cc.st);
 				mysql_stmt_close(cc.st);
 				return rv;
 			}
@@ -350,9 +413,10 @@ namespace db {
 			/* Check the parameter count provided matches that which MySQL expects */
 			size_t expected_param_count = mysql_stmt_param_count(cc.st);
 			if (parameters.size() != expected_param_count) {
-				log_error(format, "Incorrect number of parameters: " + format + " (" + std::to_string(parameters.size()) + " vs " + std::to_string(expected_param_count) + ")");
+				rv.error = "Incorrect number of parameters: " + format + " (" + std::to_string(parameters.size()) + " vs " + std::to_string(expected_param_count) + ")";
+				log_error(format, rv.error);
 				mysql_stmt_close(cc.st);
-				return rv;			
+				return rv;
 			}
 
 			/* Allocate memory for awful C stuff 🐉 */
@@ -401,11 +465,14 @@ namespace db {
 			/* Bind parameters to statement */
 			if (mysql_stmt_bind_param(cc.st, (MYSQL_BIND*)cc.bindings)) {
 				log_error(format, mysql_stmt_error(cc.st));
+				rv.error = mysql_stmt_error(cc.st);
 				return rv;
 			}
 		}
 
 		int result{0};
+		void *qlog = sentry::get_user_transaction();
+		void* qspan = sentry::db_span(qlog, format, cc.bufs);
 
 		if (!cc.expects_results) {
 			/**
@@ -414,8 +481,11 @@ namespace db {
 			result = mysql_stmt_execute(cc.st);
 			if (result) {
 				log_error(format, mysql_stmt_error(cc.st));
+				rv.error = mysql_stmt_error(cc.st);
+				sentry::set_span_status(qspan, sentry::STATUS_INVALID_ARGUMENT);
 			} else {
-				rows_affected = mysql_stmt_affected_rows(cc.st);
+				rv.affected_rows = rows_affected = mysql_stmt_affected_rows(cc.st);
+				sentry::set_span_status(qspan, sentry::STATUS_OK);
 			}
 		} else {
 			/**
@@ -454,6 +524,7 @@ namespace db {
 						delete[] string_buffers[i];
 					}
 					mysql_free_result(a_res);
+					sentry::end_span(qspan);
 					return rv;
 				}
 
@@ -462,14 +533,14 @@ namespace db {
 
 					/* Build resultset */
 					while (true) {
-						result = mysql_stmt_fetch(cc.st); 
+						result = mysql_stmt_fetch(cc.st);
 						if (result == MYSQL_NO_DATA) {
 							/* End of resultset */
-							break; 
+							break;
 						} else if (result != 0) {
 							/* Error retrieving resultset, e.g. disconnected */
 							log_error(format, mysql_stmt_error(cc.st));
-							break; 
+							break;
 						}
 
 						/* Build row*/
@@ -479,10 +550,14 @@ namespace db {
 							while (s_field_count < mysql_num_fields(a_res)) {
 								std::string a = (fields[s_field_count].name ? fields[s_field_count].name : "");
 								std::string b = is_null[s_field_count] ? "" : std::string(string_buffers[s_field_count], lengths[s_field_count]);
-								thisrow[a] = b;
+								thisrow.emplace(a, b);
 								s_field_count++;
 							}
-							rv.emplace_back(thisrow);
+							if (!thisrow.empty()) {
+								rv.emplace_back(thisrow);
+							} else {
+								log_error(format, "DB: Spurious empty fieldset");
+							}
 						}
 					}
 				}
@@ -490,10 +565,19 @@ namespace db {
 				for (unsigned long i = 0; i < field_count; ++i) {
 					delete[] string_buffers[i];
 				}
+				sentry::set_span_status(qspan, sentry::STATUS_OK);
 			} else {
 				log_error(format, mysql_stmt_error(cc.st));
+				rv.error = mysql_stmt_error(cc.st);
+				sentry::set_span_status(qspan, sentry::STATUS_INVALID_ARGUMENT);
 			}
 		}
+
+		if (dpp::utility::time_f() - start > 0.75) {
+			creator->log(dpp::ll_warning, "Query took > 0.75 seconds: " + format);
+		}
+
+		sentry::end_span(qspan);
 
 		return rv;
 	}

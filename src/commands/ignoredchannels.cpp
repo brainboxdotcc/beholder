@@ -2,7 +2,7 @@
  * 
  * Beholder, the image filtering bot
  *
- * Copyright 2019,2023 Craig Edwards <support@sporks.gg>
+ * Copyright 2019,2023,2026 Craig Edwards <support@sporks.gg>
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -24,22 +24,23 @@
 
 dpp::slashcommand ignoredchannels_command::register_command(dpp::cluster& bot)
 {
-	bot.on_select_click([&bot](const dpp::select_click_t& event) {
+	bot.on_select_click([&bot](const dpp::select_click_t& event) -> dpp::task<void> {
 		if ((event.custom_id == "ignore_add_select_menu" || event.custom_id == "ignore_del_select_menu") && event.values.empty()) {
-			event.reply(dpp::message("❌ You did not specify a channel").set_flags(dpp::m_ephemeral));
-			return;
+			co_await event.co_reply(dpp::message("❌ You did not specify a channel").set_flags(dpp::m_ephemeral));
+			co_return;
 		}
 		if (event.custom_id == "ignore_add_select_menu") {
-			db::query("INSERT INTO guild_ignored_channels (guild_id, channel_id) VALUES(?, ?) ON DUPLICATE KEY UPDATE channel_id = ?", { event.command.guild_id, event.values[0], event.values[0] });
-			event.reply(dpp::message("✅ Ignored channel <#" + event.values[0] + ">").set_flags(dpp::m_ephemeral));
+			co_await db::co_query("INSERT INTO guild_ignored_channels (guild_id, channel_id) VALUES(?, ?) ON DUPLICATE KEY UPDATE channel_id = ?", { event.command.guild_id, event.values[0], event.values[0] });
+			co_await event.co_reply(dpp::message("✅ Ignored channel <#" + event.values[0] + ">").set_flags(dpp::m_ephemeral));
 		} else if (event.custom_id == "ignore_del_select_menu") {
-			db::query("DELETE FROM guild_ignored_channels WHERE guild_id = ? AND channel_id = ?", { event.command.guild_id, event.values[0] });
+			co_await db::co_query("DELETE FROM guild_ignored_channels WHERE guild_id = ? AND channel_id = ?", { event.command.guild_id, event.values[0] });
 			if (db::affected_rows() == 1) {
-				event.reply(dpp::message("✅ No longer ignoring channel <#" + event.values[0] + ">").set_flags(dpp::m_ephemeral));
+				co_await event.co_reply(dpp::message("✅ No longer ignoring channel <#" + event.values[0] + ">").set_flags(dpp::m_ephemeral));
 			} else {
-				event.reply(dpp::message("❌ Channel <#" + event.values[0] + "> was not on the ignore list").set_flags(dpp::m_ephemeral));
+				co_await event.co_reply(dpp::message("❌ Channel <#" + event.values[0] + "> was not on the ignore list").set_flags(dpp::m_ephemeral));
 			}
 		}
+		co_return;
 	});
 
 	return dpp::slashcommand("ignoredchannels", "Manage channels beholder will ignore", bot.me.id)
@@ -50,7 +51,7 @@ dpp::slashcommand ignoredchannels_command::register_command(dpp::cluster& bot)
 }
 
 
-void ignoredchannels_command::route(const dpp::slashcommand_t &event)
+dpp::task<void> ignoredchannels_command::route(const dpp::slashcommand_t &event)
 {
 	dpp::command_interaction cmd_data = event.command.get_command_interaction();
 	auto subcommand = cmd_data.options[0];
@@ -65,15 +66,15 @@ void ignoredchannels_command::route(const dpp::slashcommand_t &event)
 		dpp::message msg(event.command.channel_id, "Select a channel which beholder will ignore.\nYou can repeatedly select from the list below to add multiple channels.");
 		select_menu.set_id("ignore_add_select_menu");
 		msg.add_component(dpp::component().add_component(select_menu)).set_flags(dpp::m_ephemeral);
-		event.reply(msg);
+		co_await event.co_reply(msg);
 	} else if (subcommand.name == "delete") {
 		dpp::message msg(event.command.channel_id, "Select a channel which beholder will no longer ignore.\nYou can repeatedly select from the list below to delete multiple channels.");
 		select_menu.set_id("ignore_del_select_menu");
 		msg.add_component(dpp::component().add_component(select_menu)).set_flags(dpp::m_ephemeral);
-		event.reply(msg);
+		co_await event.co_reply(msg);
 	} else {
 		std::string body;
-		db::resultset channels = db::query("SELECT channel_id FROM guild_ignored_channels WHERE guild_id = ?", { event.command.guild_id });
+		db::resultset channels = co_await db::co_query("SELECT channel_id FROM guild_ignored_channels WHERE guild_id = ?", { event.command.guild_id });
 		if (channels.size() == 0) {
 			body = "No channels are currently ignored";
 		} else {
@@ -91,6 +92,7 @@ void ignoredchannels_command::route(const dpp::slashcommand_t &event)
 			})
 			.set_colour(0x7aff7a)
 			.set_description(body);
-		event.reply(dpp::message().add_embed(embed));
+		co_await event.co_reply(dpp::message().add_embed(embed));
 	}
+	co_return;
 }

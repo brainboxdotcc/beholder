@@ -62,9 +62,9 @@ else()
 endif()
 
 set(CMAKE_CXX_FLAGS "-g -O2 -Wall -Wno-unused-private-field -Wno-psabi -Wempty-body -Wignored-qualifiers -Wimplicit-fallthrough -Wmissing-field-initializers -Wsign-compare -Wtype-limits -Wuninitialized -Wshift-negative-value")
-target_compile_definitions(${BOT_NAME} PUBLIC DPP_CORO=ON SPDLOG_FMT_EXTERNAL=ON CPPHTTPLIB_OPENSSL_SUPPORT)
+target_compile_definitions(${BOT_NAME} PUBLIC DPP_CORO=ON SPDLOG_FMT_EXTERNAL=ON)
 target_compile_definitions("tessd" PUBLIC DPP_CORO=ON SPDLOG_FMT_EXTERNAL=ON CPPHTTPLIB_OPENSSL_SUPPORT)
-target_compile_definitions("nsfwd" PUBLIC DPP_CORO=ON SPDLOG_FMT_EXTERNAL=ON CPPHTTPLIB_OPENSSL_SUPPORT)
+target_compile_definitions("nsfwd" PUBLIC DPP_CORO=ON SPDLOG_FMT_EXTERNAL=ON)
 
 target_include_directories(${BOT_NAME} PUBLIC
 	${CMAKE_CURRENT_SOURCE_DIR}/include
@@ -87,6 +87,7 @@ target_link_libraries("tessd"
 	tesseract
 	leptonica
 	ssl
+	sentry
 	crypto
 	fmt
 	CxxUrl
@@ -98,6 +99,7 @@ target_link_libraries("nsfwd"
 	tensorflow
 	drogon
 	jsoncpp
+	sentry
 	trantor
 	z
 	uuid
@@ -115,6 +117,7 @@ target_link_libraries(${BOT_NAME}
 	mysqlclient
 	crypto
 	ssl
+	sentry
 	CxxUrl
 	tre
 	${CMAKE_THREAD_LIBS_INIT}

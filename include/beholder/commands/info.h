@@ -2,7 +2,7 @@
  * 
  * Beholder, the image filtering bot
  *
- * Copyright 2019,2023 Craig Edwards <support@sporks.gg>
+ * Copyright 2019,2023,2026 Craig Edwards <support@sporks.gg>
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -24,5 +24,5 @@
 struct info_command : public command {
 	static constexpr std::string_view name{"info"};
 	static dpp::slashcommand register_command(dpp::cluster& bot);
-	static void route(const dpp::slashcommand_t &event);
+	static dpp::task<void> route(const dpp::slashcommand_t &event);
 };

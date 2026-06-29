@@ -2,7 +2,7 @@
  * 
  * Beholder, the image filtering bot
  *
- * Copyright 2019,2023 Craig Edwards <support@sporks.gg>
+ * Copyright 2019,2023,2026 Craig Edwards <support@sporks.gg>
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -21,14 +21,14 @@
 #include <beholder/database.h>
 #include <beholder/commands/ping.h>
 #include <beholder/database.h>
-#include <fmt/format.h>
+#include <fmt/core.h>
 
 dpp::slashcommand ping_command::register_command(dpp::cluster& bot)
 {
 	return dpp::slashcommand("ping", "Show bot latency statistics", bot.me.id);
 }
 
-void ping_command::route(const dpp::slashcommand_t &event)
+dpp::task<void> ping_command::route(const dpp::slashcommand_t &event)
 {
 	dpp::cluster* bot = event.owner;
 
@@ -48,10 +48,12 @@ void ping_command::route(const dpp::slashcommand_t &event)
 
 	/* Calculate the DB time */
 	double start = dpp::utility::time_f();
-	db::resultset q = db::query("SHOW TABLES");
+	db::resultset q = co_await db::co_query("SHOW TABLES");
 
 	double db_ping = (dpp::utility::time_f() - start) * 1000;
 	embed.add_field("Database Ping", fmt::format("{:.02f}ms", db_ping), true);
 
-	event.reply(dpp::message().add_embed(embed));
+	co_await event.co_reply(dpp::message().add_embed(embed));
+
+	co_return;
 }

@@ -2,7 +2,7 @@
  * 
  * Beholder, the image filtering bot
  *
- * Copyright 2019,2023 Craig Edwards <support@sporks.gg>
+ * Copyright 2019,2023,2026 Craig Edwards <support@sporks.gg>
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -28,9 +28,9 @@
 
 dpp::slashcommand addblock_command::register_command(dpp::cluster& bot)
 {
-	bot.on_message_context_menu([&bot](const dpp::message_context_menu_t& event) {
+	bot.on_message_context_menu([&bot](const dpp::message_context_menu_t& event) -> dpp::task<void> {
 		if (event.command.get_command_name() != "add images to block list") {
-			return;
+			co_return;
 		}
 
 		dpp::message msg = event.ctx_message;
@@ -49,7 +49,7 @@ dpp::slashcommand addblock_command::register_command(dpp::cluster& bot)
 		dpp::permission p = event.command.get_resolved_permission(event.command.usr.id);
 		if (!p.has(dpp::p_manage_guild)) {
 			event.edit_response(dpp::message(event.command.channel_id, "You require the manage server permission to add images to the block list.").set_flags(dpp::m_ephemeral));
-			return;
+			co_return;
 		}
 
 		std::vector<dpp::attachment> attaches;
@@ -148,37 +148,45 @@ dpp::slashcommand addblock_command::register_command(dpp::cluster& bot)
 
 		if (attaches.empty()) {
 			event.edit_response(dpp::message(event.command.channel_id, "No images or stickers found in this message.").set_flags(dpp::m_ephemeral));
-			return;
+			co_return;
 		}
 
 		dpp::message_create_t fake_event(&bot, event.shard, msg.build_json(true));
 		fake_event.msg = msg;
 
-		auto pending = std::make_shared<size_t>(attaches.size());
-		auto added = std::make_shared<size_t>(0);
+		std::vector<dpp::async<scan_result>> scans;
+		scans.reserve(attaches.size());
 
 		for (const dpp::attachment& attach : attaches) {
-			scanner_reactor::instance().submit(attach, bot, fake_event, [event, pending, added](const std::string& hash, const json& response) {
-				if (!hash.empty()) {
-					db::query("INSERT INTO block_list_items (guild_id, hash) VALUES(?,?) ON DUPLICATE KEY UPDATE hash = ?", {event.command.guild_id, hash, hash});
-					(*added)++;
-				}
-
-				(*pending)--;
-
-				if (*pending != 0) {
-					return;
-				}
-
-				if (*added == 0) {
-					event.edit_response(dpp::message(event.command.channel_id, "No images or stickers found in this message.").set_flags(dpp::m_ephemeral));
-				} else if (*added == 1) {
-					event.edit_response(dpp::message(event.command.channel_id, ":no_entry: **1** image has been **added to the block list**. It will be **instantly deleted** without performing any further checks.").set_flags(dpp::m_ephemeral));
-				} else {
-					event.edit_response(dpp::message(event.command.channel_id, ":no_entry: **" + std::to_string(*added) + "** images have been **added to the block list**. They will be **instantly deleted** without performing any further checks.").set_flags(dpp::m_ephemeral));
-				}
-			});
+			scans.emplace_back(scanner_reactor::instance().co_submit(attach, bot, fake_event));
 		}
+
+		size_t added = 0;
+
+		for (auto& scan : scans) {
+			auto result = co_await scan;
+
+			if (result.hash.empty()) {
+				continue;
+			}
+
+			co_await db::co_query(
+				"INSERT INTO block_list_items (guild_id, hash) VALUES(?,?) ON DUPLICATE KEY UPDATE hash = ?",
+				{ event.command.guild_id, result.hash, result.hash }
+			);
+
+			added++;
+		}
+
+		if (added == 0) {
+			event.edit_response(dpp::message(event.command.channel_id, "No images or stickers found in this message.").set_flags(dpp::m_ephemeral));
+		} else if (added == 1) {
+			event.edit_response(dpp::message(event.command.channel_id, ":no_entry: **1** image has been **added to the block list**. It will be **instantly deleted** without performing any further checks.").set_flags(dpp::m_ephemeral));
+		} else {
+			event.edit_response(dpp::message(event.command.channel_id, ":no_entry: **" + std::to_string(added) + "** images have been **added to the block list**. They will be **instantly deleted** without performing any further checks.").set_flags(dpp::m_ephemeral));
+		}
+
+		co_return;
 	});
 
 	return dpp::slashcommand("Add images to block list", "Add any images found in this mesage to the block list", bot.me.id)
@@ -186,6 +194,6 @@ dpp::slashcommand addblock_command::register_command(dpp::cluster& bot)
 		.set_default_permissions(dpp::p_manage_guild);
 }
 
-void addblock_command::route(const dpp::slashcommand_t &event)
-{
+dpp::task<void> addblock_command::route(const dpp::slashcommand_t &event) {
+	co_return;
 }

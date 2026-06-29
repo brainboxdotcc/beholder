@@ -2,7 +2,7 @@
  * 
  * Beholder, the image filtering bot
  *
- * Copyright 2019,2023 Craig Edwards <support@sporks.gg>
+ * Copyright 2019,2023,2026 Craig Edwards <support@sporks.gg>
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -43,7 +43,7 @@ struct botlist {
 	 * If set to an empty string, no server count will be sent.
 	 */
 	static constexpr std::string_view server_count_field{};
-	
+
 	/**
 	 * @brief Field name to use in JSON POST data to hold the count of shards.
 	 * If set to an empty string, no shard count will be sent.
@@ -58,7 +58,7 @@ struct botlist {
 	 * 
 	 * @param bot reference to D++ cluster
 	 */
-	static void post(dpp::cluster& bot);
+	static dpp::task<void> post(dpp::cluster& bot);
 
 protected:
 	/**
@@ -66,20 +66,20 @@ protected:
 	 * Will complete in the background, this is fire-and-forget.
 	 * On error, an error will be logged to the logger. Should be called
 	 * by a botlist::post() implementation.
-	 * 
+	 *
 	 * @param bot cluster reference
 	 * @param key configuration key name
-	 * @param url bot list url formatter
+	 * @param api_url bot list api_url formatter
 	 * @param count_field count field in postdata
 	 * @param shards_field shards field in postdata
 	 */
-	static void run(dpp::cluster& bot, const std::string_view key, const std::string_view url, const std::string_view count_field, const std::string_view shards_field);
+	static dpp::task<void> run(dpp::cluster& bot, const std::string_view key, const std::string_view api_url, const std::string_view count_field, const std::string_view shards_field);
 };
 
 /**
  * @brief Represents the botlist::post() function
  */
-using botlist_router = auto (*)(dpp::cluster&) -> void;
+using botlist_router = auto (*)(dpp::cluster&) -> dpp::task<void>;
 
 /**
  * @brief Represents a list of registered botlists stored in an unordered_map
@@ -90,7 +90,7 @@ registered_botlist_list& get_botlist_map();
 
 /**
  * @brief Register a botlist
- * 
+ *
  * @tparam T botlist handler struct to register
  */
 template <typename T> void register_botlist()
@@ -101,7 +101,7 @@ template <typename T> void register_botlist()
 
 /**
  * @brief Request that all botlists are updated
- * 
+ *
  * @param bot cluster reference
  */
-void post_botlists(dpp::cluster &bot);
+dpp::task<void> post_botlists(dpp::cluster &bot);

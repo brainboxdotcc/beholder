@@ -2,7 +2,7 @@
  *
  * Beholder, the image filtering bot
  *
- * Copyright 2019,2023 Craig Edwards <support@sporks.gg>
+ * Copyright 2019,2023,2026 Craig Edwards <support@sporks.gg>
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -76,6 +76,11 @@ struct reactor_fd {
 	std::shared_ptr<scan_job> job;
 };
 
+struct scan_result {
+	std::string hash;
+	dpp::json response;
+};
+
 class scanner_reactor {
 public:
 	static scanner_reactor& instance()
@@ -85,6 +90,8 @@ public:
 	}
 
 	void submit(const dpp::attachment& attach, dpp::cluster& bot, const dpp::message_create_t& ev, scan_callback callback = nullptr);
+
+	dpp::async<scan_result> co_submit(const dpp::attachment& attach, dpp::cluster& bot, const dpp::message_create_t& ev);
 
 private:
 	int epoll_fd{-1};

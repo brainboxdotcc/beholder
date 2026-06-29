@@ -2,7 +2,7 @@
  * 
  * Beholder, the image filtering bot
  *
- * Copyright 2019,2023 Craig Edwards <support@sporks.gg>
+ * Copyright 2019,2023,2026 Craig Edwards <support@sporks.gg>
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -23,7 +23,7 @@
 #include <beholder/whitelist.h>
 #include <beholder/proc/json_frame.h>
 #include <CxxUrl/url.hpp>
-#include <fmt/format.h>
+#include <fmt/core.h>
 #include <beholder/reactor.h>
 #include <sys/epoll.h>
 #include <sys/eventfd.h>
@@ -42,26 +42,26 @@
 
 extern char **environ;
 
-static std::vector<std::string> get_ocr_patterns(dpp::snowflake guild_id, dpp::snowflake channel_id)
+static dpp::task<std::vector<std::string>> get_ocr_patterns(dpp::snowflake guild_id, dpp::snowflake channel_id)
 {
 	std::vector<std::string> patterns;
-	db::resultset rows = db::query("SELECT pattern FROM guild_patterns WHERE guild_id = ? AND (channel_id = ? OR channel_id IS NULL)", {guild_id, channel_id});
+	db::resultset rows = co_await db::co_query("SELECT pattern FROM guild_patterns WHERE guild_id = ? AND (channel_id = ? OR channel_id IS NULL)", {guild_id, channel_id});
 
 	for (const db::row& row : rows) {
 		patterns.emplace_back(row.at("pattern"));
 	}
 
-	return patterns;
+	co_return patterns;
 }
 
-static json get_basic_nsfw_config(dpp::cluster& bot, dpp::snowflake guild_id)
+static dpp::task<json> get_basic_nsfw_config(dpp::cluster& bot, dpp::snowflake guild_id)
 {
-	db::resultset settings = db::query("SELECT basic_nsfw_suggestive, basic_nsfw_porn, basic_nsfw_drawing, basic_nsfw_hentai FROM guild_config WHERE guild_id = ?", {guild_id});
+	db::resultset settings = co_await db::co_query("SELECT basic_nsfw_suggestive, basic_nsfw_porn, basic_nsfw_drawing, basic_nsfw_hentai FROM guild_config WHERE guild_id = ?", {guild_id});
 
 	if (settings.empty()) {
 		bot.log(dpp::ll_debug, "Guild " + guild_id.str() + " using unconfigured basic scan defaults");
 
-		return {
+		co_return {
 			{"suggestive", true},
 			{"porn", true},
 			{"drawing", false},
@@ -69,7 +69,7 @@ static json get_basic_nsfw_config(dpp::cluster& bot, dpp::snowflake guild_id)
 		};
 	}
 
-	return {
+	co_return {
 		{"suggestive", settings[0].at("basic_nsfw_suggestive") == "1"},
 		{"porn", settings[0].at("basic_nsfw_porn") == "1"},
 		{"drawing", settings[0].at("basic_nsfw_drawing") == "1"},
@@ -77,17 +77,17 @@ static json get_basic_nsfw_config(dpp::cluster& bot, dpp::snowflake guild_id)
 	};
 }
 
-static json get_scan_cache(const std::string& hash)
+static dpp::task<json> get_scan_cache(const std::string& hash)
 {
 	json cache = json::object();
 
-	db::resultset ocr = db::query("SELECT ocr FROM scan_cache WHERE hash = ?", {hash});
+	db::resultset ocr = co_await db::co_query("SELECT ocr FROM scan_cache WHERE hash = ?", {hash});
 
 	if (!ocr.empty()) {
 		cache["ocr"] = ocr[0].at("ocr");
 	}
 
-	db::resultset basic = db::query("SELECT basic FROM basic_cache WHERE hash = ?", {hash});
+	db::resultset basic = co_await db::co_query("SELECT basic FROM basic_cache WHERE hash = ?", {hash});
 
 	if (!basic.empty()) {
 		try {
@@ -96,34 +96,34 @@ static json get_scan_cache(const std::string& hash)
 		}
 	}
 
-	return cache;
+	co_return cache;
 }
 
-static void write_scan_cache(const std::string& hash, const json& response, dpp::snowflake guild_id)
+static dpp::task<void> write_scan_cache(const std::string& hash, const json& response, dpp::snowflake guild_id)
 {
 	if (!response.contains("cache") || !response.at("cache").is_object()) {
-		return;
+		co_return;
 	}
 
 	const json& cache = response.at("cache");
 
 	if (cache.contains("ocr") && cache.at("ocr").is_string()) {
 		const std::string ocr = cache.at("ocr").get<std::string>();
-		db::query("INSERT INTO scan_cache (hash, ocr) VALUES(?,?) ON DUPLICATE KEY UPDATE ocr = ?", {hash, ocr, ocr});
+		co_await db::co_query("INSERT INTO scan_cache (hash, ocr) VALUES(?,?) ON DUPLICATE KEY UPDATE ocr = ?", {hash, ocr, ocr});
 		INCREMENT_STATISTIC("cache_miss", guild_id);
 	}
 
 	if (cache.contains("basic_nsfw") && cache.at("basic_nsfw").is_object()) {
 		const std::string basic = cache.at("basic_nsfw").dump();
-		db::query("INSERT INTO basic_cache (hash, basic) VALUES(?,?) ON DUPLICATE KEY UPDATE basic = ?", {hash, basic, basic});
+		co_await db::co_query("INSERT INTO basic_cache (hash, basic) VALUES(?,?) ON DUPLICATE KEY UPDATE basic = ?", {hash, basic, basic});
 		INCREMENT_STATISTIC("cache_miss", guild_id);
 	}
 }
 
-static void increment_block_stat(const json& response, dpp::snowflake guild_id)
+static dpp::task<void> increment_block_stat(const json& response, dpp::snowflake guild_id)
 {
 	if (!response.contains("scanner") || !response.at("scanner").is_string()) {
-		return;
+		co_return;
 	}
 
 	const std::string scanner = response.at("scanner").get<std::string>();
@@ -132,41 +132,27 @@ static void increment_block_stat(const json& response, dpp::snowflake guild_id)
 		INCREMENT_STATISTIC("images_ocr", guild_id);
 	} else if (scanner == "basic_nsfw") {
 		INCREMENT_STATISTIC("images_nsfw", guild_id);
-	} else if (scanner == "premium") {
-		if (response.contains("results") && response.at("results").is_array()) {
-			for (const json& result : response.at("results")) {
-				if (!result.is_object() || !result.contains("scanner") || result.at("scanner") != "premium") {
-					continue;
-				}
-
-				if (!result.contains("raw") || !result.at("raw").is_object()) {
-					continue;
-				}
-
-				break;
-			}
-		}
 	}
 }
 
-bool handle_scan_response(json response, std::string hash, dpp::cluster& bot, const dpp::message_create_t ev, const dpp::attachment attach)
+dpp::task<bool> handle_scan_response(json response, std::string hash, dpp::cluster& bot, const dpp::message_create_t ev, const dpp::attachment attach)
 {
 	bot.log(dpp::ll_info, "Scan hash: " + hash);
 	if (!response.contains("stage") || response.at("stage") != "scan") {
 		bot.log(dpp::ll_warning, "tessd returned non-scan response");
-		return false;
+		co_return false;
 	}
-	write_scan_cache(hash, response, ev.msg.guild_id);
+	co_await write_scan_cache(hash, response, ev.msg.guild_id);
 	if (!response.contains("status") || response.at("status") != "blocked") {
 		bot.log(dpp::ll_warning, "tessd status: not blocked: " + response.dump());
-		return false;
+		co_return false;
 	}
 	const std::string text = response.contains("text") && response.at("text").is_string() ? response.at("text").get<std::string>() : "Image blocked";
 	const double trigger = response.contains("trigger") && response.at("trigger").is_number() ? response.at("trigger").get<double>() : 0.0;
 	const double threshold = response.contains("threshold") && response.at("threshold").is_number() ? response.at("threshold").get<double>() : 0.0;
 	bot.log(dpp::ll_warning, "delete and warn; hash=" + hash);
-	increment_block_stat(response, ev.msg.guild_id);
-	return delete_message_and_warn(hash, "", bot, ev, attach, text, trigger, threshold);
+	co_await increment_block_stat(response, ev.msg.guild_id);
+	co_return co_await delete_message_and_warn(hash, "", bot, ev, attach, text, trigger, threshold);
 }
 
 json make_fetch_request(const dpp::attachment& attach)
@@ -192,16 +178,16 @@ json make_fetch_request(const dpp::attachment& attach)
 	return request;
 }
 
-json make_continue_request(dpp::cluster& bot, dpp::snowflake guild_id, dpp::snowflake channel_id, const std::string& hash)
+dpp::task<json> make_continue_request(dpp::cluster& bot, dpp::snowflake guild_id, dpp::snowflake channel_id, const std::string& hash)
 {
 	json request = {
 		{"action", "continue"},
-		{"ocr_patterns", get_ocr_patterns(guild_id, channel_id)},
-		{"basic_nsfw", get_basic_nsfw_config(bot, guild_id)},
-		{"cache", get_scan_cache(hash)}
+		{"ocr_patterns", co_await get_ocr_patterns(guild_id, channel_id)},
+		{"basic_nsfw", co_await get_basic_nsfw_config(bot, guild_id)},
+		{"cache", co_await get_scan_cache(hash)}
 	};
 
-	return request;
+	co_return request;
 }
 
 scan_request::scan_request(const dpp::attachment& attach, const dpp::message_create_t& ev, dpp::cluster& bot, scan_callback callback) : attach(attach), ev(ev), bot(&bot), callback(callback)
@@ -237,6 +223,23 @@ void set_nonblocking(int fd)
 std::string make_json_frame(const json& frame)
 {
 	return std::string(proc::json_marker) + frame.dump() + "\n";
+}
+
+dpp::async<scan_result> scanner_reactor::co_submit(const dpp::attachment& attach, dpp::cluster& bot, const dpp::message_create_t& ev) {
+	return dpp::async<scan_result>{
+		[attach, &bot, ev, this] <typename C> (C&& cc) {
+			return submit(attach, bot, ev,[cc = std::forward<C>(cc)] (
+					const std::string& hash,
+					const dpp::json& response
+				) mutable {
+					cc(scan_result{
+						.hash = hash,
+						.response = response,
+					});
+				}
+			);
+		}
+	};
 }
 
 void scanner_reactor::submit(const dpp::attachment& attach, dpp::cluster& bot, const dpp::message_create_t& ev, scan_callback callback)
@@ -655,7 +658,7 @@ void scanner_reactor::process_hash_frame(const std::shared_ptr<scan_job>& job, c
 	}
 
 	job->stage = scan_stage::writing_continue;
-	job->output_buffer = make_json_frame(make_continue_request(*job->bot, job->ev.msg.guild_id, job->ev.msg.channel_id, job->hash));
+	job->output_buffer = make_json_frame(make_continue_request(*job->bot, job->ev.msg.guild_id, job->ev.msg.channel_id, job->hash).sync_wait());
 	job->output_offset = 0;
 	modify_or_add_stdin(job);
 }
@@ -707,7 +710,7 @@ void scanner_reactor::close_job_io(const std::shared_ptr<scan_job>& job)
 	remove_fd(job->stdout_fd);
 }
 
-void download_image(const dpp::attachment attach, dpp::cluster& bot, const dpp::message_create_t ev)
+dpp::task<void> download_image(const dpp::attachment attach, dpp::cluster& bot, const dpp::message_create_t ev)
 {
 	std::string lower_url = attach.url;
 	std::string path;
@@ -716,7 +719,7 @@ void download_image(const dpp::attachment attach, dpp::cluster& bot, const dpp::
 		path = u.path();
 	} catch (const std::exception& e) {
 		bot.log(dpp::ll_info, "Not a URL: " + attach.url + ": " + std::string(e.what()));
-		return;
+		co_return;
 	}
 
 	bot.log(dpp::ll_info, "Scan image: " + attach.url);
@@ -724,21 +727,20 @@ void download_image(const dpp::attachment attach, dpp::cluster& bot, const dpp::
 	for (int index = 0; whitelist[index] != nullptr; ++index) {
 		if (match(attach.url.c_str(), whitelist[index])) {
 			bot.log(dpp::ll_info, "Image " + attach.url + " is whitelisted by " + std::string(whitelist[index]) + "; not scanning");
-			return;
+			co_return;
 		}
 	}
 
 	if (attach.width * attach.height > 33554432) {
 		bot.log(dpp::ll_info, "Image dimensions of " + std::to_string(attach.width) + "x" + std::to_string(attach.height) + " too large to be a screenshot");
-		return;
+		co_return;
 	}
 
 	if (tessd_process_count() >= max_concurrency) {
 		bot.log(dpp::ll_info, "Too many concurrent images, skipped");
-		return;
+		co_return;
 	}
 
-	scanner_reactor::instance().submit(attach, bot, ev, [&bot, ev, attach](const std::string& hash, const json& response) {
-		handle_scan_response(response, hash, bot, ev, attach);
-	});
+	auto response = co_await scanner_reactor::instance().co_submit(attach, bot, ev);
+	co_await handle_scan_response(response.response, response.hash, bot, ev, attach);
 }
