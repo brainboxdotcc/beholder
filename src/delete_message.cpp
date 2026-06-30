@@ -103,18 +103,16 @@ dpp::task<bool> delete_message_and_warn(std::string hash, std::string image, dpp
 	}
 
 	if (logchannel.size()) {
+
+		dpp::snowflake log_channel(logchannel[0].at("log_channel"));
+
 		if (logchannel[0].at("log_channel").length()) {
 			if (delete_failed) {
-				bot.message_create(
-					dpp::message(
-						dpp::snowflake(logchannel[0].at("log_channel")),
-						"Failed to delete message: " + dpp::utility::message_url(ev.msg.guild_id, ev.msg.channel_id, ev.msg.id) + " - Please check bot permissions."
-						)
-					);
+				bot.message_create(dpp::message(log_channel, "Failed to delete message: " + dpp::utility::message_url(ev.msg.guild_id, ev.msg.channel_id, ev.msg.id) + ": " + cc.get_error().human_readable));
 			}
 
 			dpp::message delete_msg;
-			delete_msg.set_channel_id(logchannel[0].at("log_channel")).add_embed(
+			delete_msg.set_channel_id(log_channel).add_embed(
 				dpp::embed()
 					.set_description("**Attachment:** `" + attach.filename + "`\n🔗 [Image link](" + attach.url + ")")
 					.add_field("Sent By", "`" + ev.msg.author.format_username() + "`", true)
