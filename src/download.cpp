@@ -2,7 +2,7 @@
  * 
  * Beholder, the image filtering bot
  *
- * Copyright 2019,2023 Craig Edwards <support@sporks.gg>
+ * Copyright 2019,2023,2026 Craig Edwards <support@sporks.gg>
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -23,7 +23,7 @@
 #include <beholder/whitelist.h>
 #include <beholder/proc/json_frame.h>
 #include <CxxUrl/url.hpp>
-#include <fmt/format.h>
+#include <fmt/core.h>
 #include <beholder/reactor.h>
 #include <sys/epoll.h>
 #include <sys/eventfd.h>
@@ -162,11 +162,9 @@ bool handle_scan_response(json response, std::string hash, dpp::cluster& bot, co
 		return false;
 	}
 	const std::string text = response.contains("text") && response.at("text").is_string() ? response.at("text").get<std::string>() : "Image blocked";
-	const double trigger = response.contains("trigger") && response.at("trigger").is_number() ? response.at("trigger").get<double>() : 0.0;
-	const double threshold = response.contains("threshold") && response.at("threshold").is_number() ? response.at("threshold").get<double>() : 0.0;
 	bot.log(dpp::ll_warning, "delete and warn; hash=" + hash);
 	increment_block_stat(response, ev.msg.guild_id);
-	return delete_message_and_warn(hash, "", bot, ev, attach, text, trigger, threshold);
+	return delete_message_and_warn(hash, "", bot, ev, attach, text);
 }
 
 json make_fetch_request(const dpp::attachment& attach)

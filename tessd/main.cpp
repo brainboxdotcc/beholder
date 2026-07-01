@@ -2,7 +2,7 @@
  * 
  * Beholder, the image filtering bot
  *
- * Copyright 2019,2023 Craig Edwards <support@sporks.gg>
+ * Copyright 2019,2023,2026 Craig Edwards <support@sporks.gg>
  *
  * Licensed under the Apache License, Version 2.0
  *
@@ -22,7 +22,7 @@
 #include <sstream>
 #include <string>
 #include <sys/resource.h>
-#include <fmt/format.h>
+#include <fmt/core.h>
 #include <vector>
 
 /**

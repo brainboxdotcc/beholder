@@ -6,7 +6,7 @@
 #include <cstring>
 #include <iostream>
 #include <vector>
-#include <fmt/format.h>
+#include <fmt/core.h>
 
 inline constexpr size_t INPUT_HEIGHT = 299;
 inline constexpr size_t INPUT_WIDTH = 299;

@@ -2,7 +2,7 @@
  * 
  * Beholder, the image filtering bot
  *
- * Copyright 2019,2023 Craig Edwards <support@sporks.gg>
+ * Copyright 2019,2023,2026 Craig Edwards <support@sporks.gg>
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -18,12 +18,13 @@
  *
  ************************************************************************************/
 #include <set>
-#include <fmt/format.h>
+#include <fmt/core.h>
 #include <CxxUrl/url.hpp>
 #include <beholder/listeners.h>
 #include <beholder/database.h>
 #include <beholder/beholder.h>
 #include <beholder/command.h>
+#include <beholder/sarcasm.h>
 
 #include <beholder/commands/logchannel.h>
 #include <beholder/commands/roles.h>
@@ -241,62 +242,97 @@ more powerful filtering options planned. More information will be announced on t
 		}
 	}
 
+	using button_handler_t = std::function<void(const dpp::button_click_t &event, const std::vector<std::string>& parts, dpp::cluster& bot, const db::resultset& logchannel)>;
+
+	void on_button_add_block_list(const dpp::button_click_t &event, const std::vector<std::string>& parts, dpp::cluster& bot, const db::resultset& logchannel) {
+		/* Block */
+		std::string hash = parts[2];
+		db::query("INSERT INTO block_list_items (guild_id, hash) VALUES(?,?) ON DUPLICATE KEY UPDATE hash = ?", {event.command.guild_id, hash, hash});
+		event.reply(":no_entry: This image has been **added to the block list** by " + event.command.usr.get_mention() + ". It will be **instantly deleted** without performing any further checks.");
+	}
+
+	void on_button_remove_block_list(const dpp::button_click_t &event, const std::vector<std::string>& parts, dpp::cluster& bot, const db::resultset& logchannel) {
+		/* Unblock */
+		std::string hash = parts[2];
+		db::query("DELETE FROM block_list_items WHERE guild_id = ? AND hash = ?", {event.command.guild_id, hash});
+		event.reply(":white_check_mark: This image has been **removed from the block list** by " + event.command.usr.get_mention() + ". It will now be **checked normally**.");
+	}
+
+	void on_button_kick_member(const dpp::button_click_t &event, const std::vector<std::string>& parts, dpp::cluster& bot, const db::resultset& logchannel) {
+		/* Kick */
+		dpp::snowflake user_id(parts[2]);
+		bot.guild_member_kick(event.command.guild_id, user_id, [&bot, parts, event](const auto& cc) {
+			if (cc.is_error()) {
+				event.reply(":no_entry: Unable to kick user: " + cc.get_error().human_readable);
+				return;
+			}
+			event.reply(":white_check_mark: User <@" + parts[2] + "> has been **kicked** by " + event.command.usr.get_mention() + ".");
+		});
+	}
+
+	void on_button_timeout_member(const dpp::button_click_t &event, const std::vector<std::string>& parts, dpp::cluster& bot, const db::resultset& logchannel) {
+		/* Timeout */
+		dpp::snowflake user_id(parts[2]);
+		bot.guild_member_timeout(event.command.guild_id, user_id, time(nullptr) + 300, [&bot, parts, event](const auto& cc) {
+			if (cc.is_error()) {
+				event.reply(":no_entry: Unable to timeout user: " + cc.get_error().human_readable);
+				return;
+			}
+			event.reply(":white_check_mark: User <@" + parts[2] + "> has been **timed out** by " + event.command.usr.get_mention() + " for **five minutes**.");
+		});
+	}
+
+	void on_button_ban_member(const dpp::button_click_t &event, const std::vector<std::string>& parts, dpp::cluster& bot, const db::resultset& logchannel) {
+		/* Ban */
+		dpp::snowflake user_id(parts[2]);
+		bot.guild_ban_add(event.command.guild_id, user_id, 86400, [&bot, parts, event](const auto& cc) {
+			if (cc.is_error()) {
+				event.reply(":no_entry: Unable to ban user: " + cc.get_error().human_readable);
+				return;
+			}
+			event.reply(":white_check_mark: User <@" + parts[2] + "> has been **banned** by " + event.command.usr.get_mention() + ". Messages for the past day deleted.");
+		});
+	}
+
 	void on_button_click(const dpp::button_click_t &event) {
 		dpp::permission p = event.command.get_resolved_permission(event.command.usr.id);
-		if (!p.has(dpp::p_manage_guild)) {
-			event.reply(dpp::message(event.command.channel_id, "You require the manage server permission to add images to the block list.").set_flags(dpp::m_ephemeral));
-			return;
-		}
+		dpp::permission bot_permissions = event.command.app_permissions;
+
+		struct permission_check {
+			const dpp::permission permission;
+			const std::string_view name;
+			const std::string_view check;
+			const button_handler_t handler;
+		};
+
+		const std::map<std::string_view, permission_check> permissions_per_section = {
+			{"BL", {dpp::p_manage_guild, "manage server", "add images to the block list", on_button_add_block_list}},
+			{"UB", {dpp::p_manage_guild, "manage server", "remove images from the block list", on_button_remove_block_list}},
+			{"KI", {dpp::p_kick_members, "kick members", "kick members from the server", on_button_kick_member}},
+			{"TI", {dpp::p_moderate_members, "moderate members", "timeout members", on_button_timeout_member}},
+			{"BA", {dpp::p_ban_members, "ban members", "ban members from the server", on_button_ban_member}},
+		};
+
 		dpp::cluster& bot = *(event.owner);
 		std::vector<std::string> parts = dpp::utility::tokenize(event.custom_id, ";");
 		bot.log(dpp::ll_info, "Button click with id: " + event.custom_id);
-		auto logchannel = db::query("SELECT embeds_disabled, log_channel, embed_title, embed_body FROM guild_config WHERE guild_id = ?", { event.command.guild_id });
-		if (logchannel.size()) {
-			if (parts.size() < 3) {
-				return;
-			}
-			if (parts[0] == "BL") {
-				/* Block */
-				std::string hash = parts[2];
-				db::query("INSERT INTO block_list_items (guild_id, hash) VALUES(?,?) ON DUPLICATE KEY UPDATE hash = ?", {event.command.guild_id, hash, hash});
-				event.reply(":no_entry: This image has been **added to the block list** by " + event.command.usr.get_mention() + ". It will be **instantly deleted** without performing any further checks.");
-			} else if (parts[0] == "UB") {
-				/* Unblock */
-				std::string hash = parts[2];
-				db::query("DELETE FROM block_list_items WHERE guild_id = ? AND hash = ?", {event.command.guild_id, hash});
-				event.reply(":white_check_mark: This image has been **removed from the block list** by " + event.command.usr.get_mention() + ". It will now be **checked normally**.");
-			} else if (parts[0] == "KI") {
-				/* Kick */
-				dpp::snowflake user_id(parts[2]);
-				bot.guild_member_kick(event.command.guild_id, user_id, [&bot, parts, event](const auto& cc) {
-					if (cc.is_error()) {
-						event.reply(":no_entry: Unable to kick user: " + cc.get_error().human_readable);
-						return;
-					}
-					event.reply(":white_check_mark: User <@" + parts[2] + "> has been **kicked** by " + event.command.usr.get_mention() + ".");
-				});
-			} else if (parts[0] == "TI") {
-				/* Timeout */
-				dpp::snowflake user_id(parts[2]);
-				bot.guild_member_timeout(event.command.guild_id, user_id, time(nullptr) + 300, [&bot, parts, event](const auto& cc) {
-					if (cc.is_error()) {
-						event.reply(":no_entry: Unable to timeout user: " + cc.get_error().human_readable);
-						return;
-					}
-					event.reply(":white_check_mark: User <@" + parts[2] + "> has been **timed out** by " + event.command.usr.get_mention() + " for **five minutes**.");
-				});
-			} else if (parts[0] == "BA") {
-				/* Timeout */
-				dpp::snowflake user_id(parts[2]);
-				bot.guild_ban_add(event.command.guild_id, user_id, 86400, [&bot, parts, event](const auto& cc) {
-					if (cc.is_error()) {
-						event.reply(":no_entry: Unable to ban user: " + cc.get_error().human_readable);
-						return;
-					}
-					event.reply(":white_check_mark: User <@" + parts[2] + "> has been **banned** by " + event.command.usr.get_mention() + ". Messages for the past day deleted.");
-				});
-			}
+		db::resultset logchannel = db::query("SELECT embeds_disabled, log_channel, embed_title, embed_body FROM guild_config WHERE guild_id = ?", { event.command.guild_id });
+		if (!logchannel.size() || parts.size() < 3) {
+			event.reply(dpp::message(event.command.channel_id, "There's something weird about this button, or your server's configuration is missing.").set_flags(dpp::m_ephemeral));
+			return;
 		}
+		auto check = permissions_per_section.find(parts[0]);
+		if (check == permissions_per_section.end()) {
+			event.reply(dpp::message(event.command.channel_id, "Missing permissions information in the bot for this interaction. This is a bug, please contact the developer.").set_flags(dpp::m_ephemeral));
+			return;
+		} else if (!p.has(check->second.permission)) {
+			event.reply(dpp::message(event.command.channel_id, "You require the " + std::string(check->second.name) + " permission to " + std::string(check->second.check)).set_flags(dpp::m_ephemeral));
+			return;
+		} else if (!bot_permissions.has(check->second.permission)) {
+			event.reply(dpp::message(event.command.channel_id, "I do not have the " + std::string(check->second.name) + " permission to " + std::string(check->second.check)).set_flags(dpp::m_ephemeral));
+			return;
+		}
+		check->second.handler(event, parts, bot, logchannel);
 	}
 
 	void on_slashcommand(const dpp::slashcommand_t &event) {
@@ -311,47 +347,6 @@ more powerful filtering options planned. More information will be announced on t
 			)
 		);
 		route_command(event);
-	}
-
-	void sarcastic_ping(const dpp::message_create_t &ev) {
-		std::vector<std::string> replies{
-			"@user stop poking me!",
-			"@user that tickles!",
-			"Yes, @user?",
-			"What, @user?",
-			"@user, yes, im here, hello!",
-			"I'm a bot, @user, I dont do idle conversation",
-			"@user, can't you see i have a job to do?",
-			"@user HAIIIII <a:kekeke:959959620430995557>",
-			"I am a bot, and i'm watching your images.",
-			"@user, do you have a moment to hear about Brain, our lord and saviour?",
-			"@user you're sus.",
-			"@user perhaps you want `/info`.",
-			"@user I was asleep. Thanks for waking me.",
-			"DND, currently yeeting your message in another channel",
-			"@user, i was going to leave you on read but i didnt want to hurt your feelings",
-			"Your command?",
-			"I hear you.",
-			"Your will?",
-			"@user I don't have time for games!",
-			"@user do not try my patience!",
-			"How may I help?",
-			"You must construct additional pylons.",
-			"I am sworn to ~~carry your burdens~~ watch your chat",
-			"Developer todo: *Insert witty bot response before release*",
-			"https://media.tenor.com/I0R6wPzYDiMAAAAd/buzz-lightyear-that-seems-to-be-no-sign-of-intelligent-life-anywhere.gif",
-			"https://media.tenor.com/Xp-gkoRvnIEAAAAd/dumb-wizard-of-ozz.gif",
-			"hello @user?",
-			"For more information on what this bot is, visit <https://beholder.cc>",
-		};
-		std::vector<std::string>::iterator rand_iter = replies.begin();
-		std::advance(rand_iter, std::rand() % replies.size());
-		std::string response = replace_string(*rand_iter, "@user", ev.msg.author.get_mention());
-		ev.owner->message_create(
-			dpp::message(ev.msg.channel_id, response)
-				.set_allowed_mentions(true, false, false, true, {}, {})
-				.set_reference(ev.msg.id, ev.msg.guild_id, ev.msg.channel_id, false)
-		);
 	}
 
 	void on_message_update(const dpp::message_update_t& event) {

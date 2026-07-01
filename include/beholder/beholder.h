@@ -2,7 +2,7 @@
  * 
  * Beholder, the image filtering bot
  *
- * Copyright 2019,2023 Craig Edwards <support@sporks.gg>
+ * Copyright 2019,2023,2026 Craig Edwards <support@sporks.gg>
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -86,7 +86,7 @@ void download_image(const dpp::attachment attach, dpp::cluster& bot, const dpp::
  * @param text What the attachment was flagged for.
  * @param trigger premium trigger threshold
  */
-bool delete_message_and_warn(std::string hash, std::string image, dpp::cluster& bot, const dpp::message_create_t ev, const dpp::attachment attach, const std::string text, double trigger = 0.0, double threshold = 0.0);
+bool delete_message_and_warn(std::string hash, std::string image, dpp::cluster& bot, const dpp::message_create_t ev, const dpp::attachment attach, const std::string text);
 
 std::string replace_string(std::string subject, const std::string& search, const std::string& replace);
 

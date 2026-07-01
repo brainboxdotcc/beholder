@@ -2,7 +2,7 @@
  * 
  * Beholder, the image filtering bot
  *
- * Copyright 2019,2023 Craig Edwards <support@sporks.gg>
+ * Copyright 2019,2023,2026 Craig Edwards <support@sporks.gg>
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -17,7 +17,7 @@
  * limitations under the License.
  *
  ************************************************************************************/
-#include <fmt/format.h>
+#include <fmt/core.h>
 #include <spdlog/spdlog.h>
 #include <spdlog/async.h>
 #include <spdlog/sinks/stdout_color_sinks.h>

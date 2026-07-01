@@ -1,5 +1,5 @@
 /************************************************************************************
- * 
+ *
  * Beholder, the image filtering bot
  *
  * Copyright 2019,2023,2026 Craig Edwards <support@sporks.gg>
@@ -18,11 +18,7 @@
  *
  ************************************************************************************/
 #pragma once
-#include <beholder/beholder.h>
-#include <beholder/command.h>
+#include <string>
+#include <vector>
 
-struct addblock_command : public command {
-	static constexpr std::string_view name{"Add images to block list"};
-	static dpp::slashcommand register_command(dpp::cluster& bot);
-	static void route(const dpp::slashcommand_t &event);
-};
+void sarcastic_ping(const dpp::message_create_t &ev);
