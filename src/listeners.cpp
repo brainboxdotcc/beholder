@@ -180,6 +180,22 @@ more powerful filtering options planned. More information will be announced on t
 		}
 	}
 
+	std::string comma(const std::string& number)
+	{
+		std::string out;
+		out.reserve(number.size() + number.size() / 3);
+		auto first = number.size() % 3;
+		if (first == 0) {
+			first = 3;
+		}
+		out.append(number.substr(0, first));
+		for (size_t i = first; i < number.size(); i += 3) {
+			out += ',';
+			out.append(number.substr(i, 3));
+		}
+		return out;
+	}
+
 	void on_ready(const dpp::ready_t &event) {
 		dpp::cluster& bot = *event.owner;
 		if (dpp::run_once<struct register_bot_commands>()) {
@@ -197,12 +213,15 @@ more powerful filtering options planned. More information will be announced on t
 			});
 
 			auto set_presence = [&bot]() {
-				bot.current_application_get([&bot](const dpp::confirmation_callback_t& v) {
-					if (!v.is_error()) {
-						dpp::application app = std::get<dpp::application>(v.value);
-						bot.set_presence(dpp::presence(dpp::ps_online, dpp::at_watching, fmt::format("images on {} servers", app.approximate_guild_count)));
-					}
-				});
+				db::resultset counts = db::query("SELECT COUNT(*) as guild_total FROM guild_cache");
+				std::string guild_count = counts[0].at("guild_total");
+				std::string scanned{"0"}, blocked{"0"};
+				db::resultset stats = db::query("SELECT SUM(images_scanned) as images_scanned, SUM(images_blocked + images_ocr + images_nsfw) AS images_deleted FROM guild_statistics");
+				if (!stats.empty()) {
+					scanned = stats[0].at("images_scanned");
+					blocked = stats[0].at("images_deleted");
+				}
+				bot.set_presence(dpp::presence(dpp::ps_online, dpp::at_custom, fmt::format("Protecting {} servers. {} images scanned, {} removed.", comma(guild_count), comma(scanned), comma(blocked))));
 			};
 
 			bot.start_timer([&bot, set_presence](dpp::timer t) {
@@ -353,6 +372,13 @@ more powerful filtering options planned. More information will be announced on t
 		if (event.msg.author.is_bot() || event.msg.author.id.empty()) {
 			return;
 		}
+
+		constexpr double one_week = 7 * 24 * 60 * 60;
+		if (dpp::utility::time_f() - event.msg.id.get_creation_time() > one_week) {
+			event.owner->log(dpp::ll_debug, "Dropped message edit " + event.msg.id.str() + " older than one week");
+			return;
+		}
+
 		try {
 			dpp::json j = dpp::json::parse(event.raw_event).at("d");
 			if (!j.contains("member") || !j["member"].is_object()) {

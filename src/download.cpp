@@ -132,20 +132,6 @@ static void increment_block_stat(const json& response, dpp::snowflake guild_id)
 		INCREMENT_STATISTIC("images_ocr", guild_id);
 	} else if (scanner == "basic_nsfw") {
 		INCREMENT_STATISTIC("images_nsfw", guild_id);
-	} else if (scanner == "premium") {
-		if (response.contains("results") && response.at("results").is_array()) {
-			for (const json& result : response.at("results")) {
-				if (!result.is_object() || !result.contains("scanner") || result.at("scanner") != "premium") {
-					continue;
-				}
-
-				if (!result.contains("raw") || !result.at("raw").is_object()) {
-					continue;
-				}
-
-				break;
-			}
-		}
 	}
 }
 
