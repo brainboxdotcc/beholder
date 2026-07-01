@@ -20,7 +20,6 @@
 #include <beholder/beholder.h>
 #include <beholder/database.h>
 #include <beholder/commands/patterns.h>
-#include <beholder/database.h>
 
 dpp::slashcommand patterns_command::register_command(dpp::cluster& bot)
 {

@@ -255,6 +255,7 @@ more powerful filtering options planned. More information will be announced on t
 	void on_guild_delete(const dpp::guild_delete_t &event) {
 		if (!event.deleted.is_unavailable()) {
 			db::query("DELETE FROM guild_cache WHERE id = ?", { event.deleted.id });
+			db::query("DELETE FROM channel_settings WHERE guild_id = ?", { event.deleted.id });
 			db::query("DELETE FROM guild_config WHERE guild_id = ?", { event.deleted.id });
 			db::query("DELETE FROM guild_statistics WHERE guild_id = ?", { event.deleted.id });
 			event.owner->log(dpp::ll_info, "Removed from guild: " + event.deleted.id.str());

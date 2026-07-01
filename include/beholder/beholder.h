@@ -34,6 +34,13 @@ namespace colours {
 	constexpr uint32_t good = 0x7aff7a;
 };
 
+enum action : uint8_t {
+	act_nothing = 0,
+	act_silence = 1,
+	act_kick = 2,
+	act_ban = 3,
+};
+
 #define INCREMENT_STATISTIC(STAT_NAME, GUILD_ID) \
 		db::query("INSERT INTO guild_statistics (guild_id, stat_date, " STAT_NAME ") VALUES(?,NOW(),1) ON DUPLICATE KEY UPDATE " STAT_NAME " = " STAT_NAME " + 1", { GUILD_ID });
 

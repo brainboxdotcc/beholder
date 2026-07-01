@@ -62,9 +62,10 @@ bool delete_message_and_warn(std::string hash, std::string image, dpp::cluster& 
 
 		bool delete_failed = cc.is_error();
 
-		db::resultset logchannel = db::query("SELECT embeds_disabled, log_channel, embed_title, embed_body FROM guild_config WHERE guild_id = ?", {ev.msg.guild_id});
+		db::resultset logchannel = db::query("SELECT log_channel, embed_title, embed_body FROM guild_config WHERE guild_id = ?", {ev.msg.guild_id});
+		db::resultset channel_settings = db::query("SELECT * FROM channel_settings WHERE guild_id = ? AND channel_id = ?", {ev.msg.guild_id, ev.msg.channel_id});
 
-		if (logchannel.size() == 0 || logchannel[0].at("embeds_disabled") == "0") {
+		if (logchannel.size() == 0 || (channel_settings.size() && channel_settings[0].at("warn") == "1")) {
 			std::string message_body = logchannel.size() == 0 ? "" : logchannel[0].at("embed_body");
 			std::string message_title = logchannel.size() == 0 ? "" : logchannel[0].at("embed_title");
 
@@ -90,8 +91,65 @@ bool delete_message_and_warn(std::string hash, std::string image, dpp::cluster& 
 			);
 		}
 
+		if (channel_settings.size()) {
+			uint8_t action = atoi(channel_settings[0].at("action").c_str());
+			uint64_t silence_length = atoi(channel_settings[0].at("silence_length").c_str());
+			uint64_t ban_length = atoi(channel_settings[0].at("ban_length").c_str());
+			switch (action) {
+				case action::act_nothing:
+					bot.log(dpp::ll_info, "Automatic action: Nothing");
+					break;
+				case action::act_silence:
+					bot.log(dpp::ll_info, "Automatic action: Silence");
+					bot.guild_member_timeout(ev.msg.guild_id, ev.msg.author.id, time(nullptr) + silence_length, [&bot, ev, logchannel, silence_length](const auto& cc) {
+						if (logchannel.size() && logchannel[0].at("log_channel").length()) {
+							dpp::snowflake log_channel(logchannel[0].at("log_channel"));
+							if (cc.is_error()) {
+								bot.log(dpp::ll_info, "Automatic action: Silence failed; " + cc.get_error().human_readable + " - message to " + log_channel.str());
+								bot.message_create(dpp::message(log_channel, ":no_entry: Unable to timeout user: " + cc.get_error().human_readable));
+								return;
+							}
+							bot.log(dpp::ll_info, "Automatic action: Timed out");
+							bot.message_create(dpp::message(log_channel, ":white_check_mark: User <@" + ev.msg.author.id.str() + "> has been **timed out** for **" + std::to_string(silence_length) + " minutes**."));
+						}
+					});
+
+					break;
+				case action::act_kick:
+					bot.log(dpp::ll_info, "Automatic action: Kick");
+					bot.guild_member_kick(ev.msg.guild_id, ev.msg.author.id, [&bot, ev, logchannel](const auto& cc) {
+						if (logchannel.size() && logchannel[0].at("log_channel").length()) {
+							dpp::snowflake log_channel(logchannel[0].at("log_channel"));
+							if (cc.is_error()) {
+								bot.log(dpp::ll_info, "Automatic action: Kick failed; " + cc.get_error().human_readable + " - message to " + log_channel.str());
+								bot.message_create(dpp::message(log_channel, ":no_entry: Unable to kick user: " + cc.get_error().human_readable));
+								return;
+							}
+							bot.log(dpp::ll_info, "Automatic action: Kicked");
+							bot.message_create(dpp::message(log_channel, ":white_check_mark: User <@" +  ev.msg.author.id.str() + "> has been **kicked**."));
+						}
+					});
+					break;
+				case action::act_ban:
+					bot.log(dpp::ll_info, "Automatic action: Ban");
+					bot.guild_ban_add(ev.msg.guild_id, ev.msg.author.id, ban_length * 60 * 60, [&bot, ev, logchannel, ban_length](const auto& cc) {
+						if (logchannel.size() && logchannel[0].at("log_channel").length()) {
+							dpp::snowflake log_channel(logchannel[0].at("log_channel"));
+							if (cc.is_error()) {
+								bot.log(dpp::ll_info, "Automatic action: Ban failed; " + cc.get_error().human_readable + " - message to " + log_channel.str());
+								bot.message_create(dpp::message(log_channel, ":no_entry: Unable to ban user: " + cc.get_error().human_readable));
+								return;
+							}
+							bot.log(dpp::ll_info, "Automatic action: Banned");
+							bot.message_create(dpp::message(log_channel, ":white_check_mark: User <@" + ev.msg.author.id.str() + "> has been **banned**. Messages for the past " + std::to_string(ban_length) + " hours deleted."));
+						}
+					});
+					break;
+			}
+		}
+
 		if (logchannel.size() && logchannel[0].at("log_channel").length()) {
-			dpp::snowflake log_channel(logchannel[0].at("log_channel").length());
+			dpp::snowflake log_channel(logchannel[0].at("log_channel"));
 
 			if (delete_failed) {
 				bot.message_create(dpp::message(log_channel, "Failed to delete message: " + dpp::utility::message_url(ev.msg.guild_id, ev.msg.channel_id, ev.msg.id) + ": " + cc.get_error().human_readable));
