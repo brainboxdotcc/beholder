@@ -22,7 +22,7 @@
 #include <beholder/command.h>
 
 struct patterns_command : public command {
-	static constexpr std::string_view name{"patterns"};
+	static constexpr std::string_view name{"pattern"};
 	static dpp::slashcommand register_command(dpp::cluster& bot);
 	static void route(const dpp::slashcommand_t &event);
 };
