@@ -54,26 +54,33 @@ static std::vector<std::string> get_ocr_patterns(dpp::snowflake guild_id, dpp::s
 	return patterns;
 }
 
-static json get_basic_nsfw_config(dpp::cluster& bot, dpp::snowflake guild_id)
+static json get_basic_nsfw_config(dpp::cluster& bot, dpp::snowflake guild_id, dpp::snowflake channel_id)
 {
-	db::resultset settings = db::query("SELECT basic_nsfw_suggestive, basic_nsfw_porn, basic_nsfw_drawing, basic_nsfw_hentai FROM guild_config WHERE guild_id = ?", {guild_id});
+	db::resultset settings = db::query(
+		"SELECT basic_nsfw_suggestive, basic_nsfw_porn, basic_nsfw_drawing, basic_nsfw_hentai "
+		"FROM channel_settings "
+		"WHERE guild_id = ? AND channel_id IN (?, 0) "
+		"ORDER BY channel_id = ? DESC "
+		"LIMIT 1",
+		{guild_id, channel_id, channel_id}
+	);
 
 	if (settings.empty()) {
 		bot.log(dpp::ll_debug, "Guild " + guild_id.str() + " using unconfigured basic scan defaults");
 
 		return {
-			{"suggestive", true},
-			{"porn", true},
-			{"drawing", false},
-			{"hentai", true}
+			{"suggestive", 0.75},
+			{"porn", 0.75},
+			{"drawing", 0.75},
+			{"hentai", 0.75}
 		};
 	}
 
 	return {
-		{"suggestive", settings[0].at("basic_nsfw_suggestive") == "1"},
-		{"porn", settings[0].at("basic_nsfw_porn") == "1"},
-		{"drawing", settings[0].at("basic_nsfw_drawing") == "1"},
-		{"hentai", settings[0].at("basic_nsfw_hentai") == "1"}
+		{"suggestive", settings[0].at("basic_nsfw_suggestive")},
+		{"porn", settings[0].at("basic_nsfw_porn")},
+		{"drawing", settings[0].at("basic_nsfw_drawing")},
+		{"hentai", settings[0].at("basic_nsfw_hentai")}
 	};
 }
 
@@ -181,7 +188,7 @@ json make_continue_request(dpp::cluster& bot, dpp::snowflake guild_id, dpp::snow
 	json request = {
 		{"action", "continue"},
 		{"ocr_patterns", get_ocr_patterns(guild_id, channel_id)},
-		{"basic_nsfw", get_basic_nsfw_config(bot, guild_id)},
+		{"basic_nsfw", get_basic_nsfw_config(bot, guild_id, channel_id)},
 		{"cache", get_scan_cache(hash)}
 	};
 
