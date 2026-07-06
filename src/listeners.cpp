@@ -319,18 +319,19 @@ more powerful filtering options planned. More information will be announced on t
 		dpp::permission bot_permissions = event.command.app_permissions;
 
 		struct permission_check {
-			const dpp::permission permission;
+			const dpp::permission permission_user;
+			const dpp::permission permission_bot;
 			const std::string_view name;
 			const std::string_view check;
 			const button_handler_t handler;
 		};
 
 		const std::map<std::string_view, permission_check> permissions_per_section = {
-			{"BL", {dpp::p_manage_guild, "manage server", "add images to the block list", on_button_add_block_list}},
-			{"UB", {dpp::p_manage_guild, "manage server", "remove images from the block list", on_button_remove_block_list}},
-			{"KI", {dpp::p_kick_members, "kick members", "kick members from the server", on_button_kick_member}},
-			{"TI", {dpp::p_moderate_members, "moderate members", "timeout members", on_button_timeout_member}},
-			{"BA", {dpp::p_ban_members, "ban members", "ban members from the server", on_button_ban_member}},
+			{"BL", {dpp::p_manage_guild, 0, "manage server", "add images to the block list", on_button_add_block_list}},
+			{"UB", {dpp::p_manage_guild, 0, "manage server", "remove images from the block list", on_button_remove_block_list}},
+			{"KI", {dpp::p_kick_members, dpp::p_kick_members, "kick members", "kick members from the server", on_button_kick_member}},
+			{"TI", {dpp::p_moderate_members, dpp::p_moderate_members, "moderate members", "timeout members", on_button_timeout_member}},
+			{"BA", {dpp::p_ban_members, dpp::p_ban_members, "ban members", "ban members from the server", on_button_ban_member}},
 		};
 
 		dpp::cluster& bot = *(event.owner);
@@ -345,10 +346,10 @@ more powerful filtering options planned. More information will be announced on t
 		if (check == permissions_per_section.end()) {
 			event.reply(dpp::message(event.command.channel_id, "Missing permissions information in the bot for this interaction. This is a bug, please contact the developer.").set_flags(dpp::m_ephemeral));
 			return;
-		} else if (!p.has(check->second.permission)) {
+		} else if (check->second.permission_user && !p.has(check->second.permission_user)) {
 			event.reply(dpp::message(event.command.channel_id, "You require the " + std::string(check->second.name) + " permission to " + std::string(check->second.check)).set_flags(dpp::m_ephemeral));
 			return;
-		} else if (!bot_permissions.has(check->second.permission)) {
+		} else if (check->second.permission_bot && !bot_permissions.has(check->second.permission_bot)) {
 			event.reply(dpp::message(event.command.channel_id, "I do not have the " + std::string(check->second.name) + " permission to " + std::string(check->second.check)).set_flags(dpp::m_ephemeral));
 			return;
 		}
