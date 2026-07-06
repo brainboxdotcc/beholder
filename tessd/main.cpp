@@ -436,8 +436,7 @@ scan_result scan_ocr(const dpp::json& command, const std::string& file_content)
 	return result;
 }
 
-scan_result scan_basic_nsfw(const dpp::json& command, const std::string& file_content)
-{
+scan_result scan_basic_nsfw(const dpp::json& command, const std::string& file_content) {
 	scan_result result;
 	result.scanner = "basic_nsfw";
 	result.scanner_name = "NSFW Rules";
@@ -489,52 +488,32 @@ scan_result scan_basic_nsfw(const dpp::json& command, const std::string& file_co
 
 	result.raw = answer;
 
-	if (suggestive_threshold > 0.0) {
-		const double score = answer.at("sexy").get<double>();
-
-		if (score > suggestive_threshold) {
-			result.blocked = true;
-			result.text = fmt::format("NSFW: Suggestive ({0:.02f}{1})", score * 100, '%');
-			result.trigger = score;
-			result.threshold = suggestive_threshold;
-			return result;
+	auto check = [&result, &answer](const std::string& key, const std::string& label, double threshold) -> bool {
+		if (threshold == 0.0) {
+			return false;
 		}
+		const double score = answer.at(key).get<double>();
+		if (score <= threshold) {
+			return false;
+		}
+		result.blocked = true;
+		result.text = fmt::format("NSFW: {} ({:.02f}{})", label, score * 100, '%');
+		result.trigger = score;
+		result.threshold = threshold;
+		return true;
+	};
+
+	if (check("sexy", "Suggestive", suggestive_threshold)) {
+		return result;
 	}
-
-	if (porn_threshold > 0.0) {
-		const double score = answer.at("porn").get<double>();
-
-		if (score > porn_threshold) {
-			result.blocked = true;
-			result.text = fmt::format("NSFW: Pornography ({0:.02f}{1})", score * 100, '%');
-			result.trigger = score;
-			result.threshold = porn_threshold;
-			return result;
-		}
+	if (check("porn", "Pornography", porn_threshold)) {
+		return result;
 	}
-
-	if (drawing_threshold > 0.0) {
-		const double score = answer.at("drawing").get<double>();
-
-		if (score > drawing_threshold) {
-			result.blocked = true;
-			result.text = fmt::format("NSFW: Drawing ({0:.02f}{1})", score * 100, '%');
-			result.trigger = score;
-			result.threshold = drawing_threshold;
-			return result;
-		}
+	if (check("drawing", "Drawing", drawing_threshold)) {
+		return result;
 	}
-
-	if (hentai_threshold > 0.0) {
-		const double score = answer.at("hentai").get<double>();
-
-		if (score > hentai_threshold) {
-			result.blocked = true;
-			result.text = fmt::format("NSFW: Hentai ({0:.02f}{1})", score * 100, '%');
-			result.trigger = score;
-			result.threshold = hentai_threshold;
-			return result;
-		}
+	if (check("hentai", "Hentai", hentai_threshold)) {
+		return result;
 	}
 
 	result.text = "No match";
