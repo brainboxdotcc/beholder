@@ -42,8 +42,7 @@
 
 extern char **environ;
 
-static std::vector<std::string> get_ocr_patterns(dpp::snowflake guild_id, dpp::snowflake channel_id)
-{
+static std::vector<std::string> get_ocr_patterns(dpp::snowflake guild_id, dpp::snowflake channel_id) {
 	std::vector<std::string> patterns;
 	db::resultset rows = db::query("SELECT pattern FROM guild_patterns WHERE guild_id = ? AND (channel_id = ? OR channel_id IS NULL)", {guild_id, channel_id});
 
@@ -54,8 +53,17 @@ static std::vector<std::string> get_ocr_patterns(dpp::snowflake guild_id, dpp::s
 	return patterns;
 }
 
-static json get_basic_nsfw_config(dpp::cluster& bot, dpp::snowflake guild_id, dpp::snowflake channel_id)
-{
+double safe_stod(const std::string& s) {
+	errno = 0;
+	char* end = nullptr;
+	double d = std::strtod(s.c_str(), &end);
+	if (end == s.c_str() || *end != '\0' || errno == ERANGE) {
+		return 0.0;
+	}
+	return d;
+}
+
+static json get_basic_nsfw_config(dpp::cluster& bot, dpp::snowflake guild_id, dpp::snowflake channel_id) {
 	db::resultset settings = db::query(
 		"SELECT basic_nsfw_suggestive, basic_nsfw_porn, basic_nsfw_drawing, basic_nsfw_hentai "
 		"FROM channel_settings "
@@ -66,26 +74,23 @@ static json get_basic_nsfw_config(dpp::cluster& bot, dpp::snowflake guild_id, dp
 	);
 
 	if (settings.empty()) {
-		bot.log(dpp::ll_debug, "Guild " + guild_id.str() + " using unconfigured basic scan defaults");
-
 		return {
-			{"suggestive", 0.75},
-			{"porn", 0.75},
-			{"drawing", 0.75},
-			{"hentai", 0.75}
+			{"suggestive", 0.9},
+			{"porn", 0.9},
+			{"hentai", 0.9},
+			{"drawing", 0},
 		};
 	}
 
 	return {
-		{"suggestive", settings[0].at("basic_nsfw_suggestive")},
-		{"porn", settings[0].at("basic_nsfw_porn")},
-		{"drawing", settings[0].at("basic_nsfw_drawing")},
-		{"hentai", settings[0].at("basic_nsfw_hentai")}
+		{"suggestive", safe_stod(settings[0].at("basic_nsfw_suggestive"))},
+		{"porn", safe_stod(settings[0].at("basic_nsfw_porn"))},
+		{"drawing", safe_stod(settings[0].at("basic_nsfw_drawing"))},
+		{"hentai", safe_stod(settings[0].at("basic_nsfw_hentai"))}
 	};
 }
 
-static json get_scan_cache(const std::string& hash)
-{
+static json get_scan_cache(const std::string& hash) {
 	json cache = json::object();
 
 	db::resultset ocr = db::query("SELECT ocr FROM scan_cache WHERE hash = ?", {hash});
@@ -106,8 +111,7 @@ static json get_scan_cache(const std::string& hash)
 	return cache;
 }
 
-static void write_scan_cache(const std::string& hash, const json& response, dpp::snowflake guild_id)
-{
+static void write_scan_cache(const std::string& hash, const json& response, dpp::snowflake guild_id) {
 	if (!response.contains("cache") || !response.at("cache").is_object()) {
 		return;
 	}
@@ -127,8 +131,7 @@ static void write_scan_cache(const std::string& hash, const json& response, dpp:
 	}
 }
 
-static void increment_block_stat(const json& response, dpp::snowflake guild_id)
-{
+static void increment_block_stat(const json& response, dpp::snowflake guild_id) {
 	if (!response.contains("scanner") || !response.at("scanner").is_string()) {
 		return;
 	}
@@ -142,8 +145,7 @@ static void increment_block_stat(const json& response, dpp::snowflake guild_id)
 	}
 }
 
-bool handle_scan_response(json response, std::string hash, dpp::cluster& bot, const dpp::message_create_t ev, const dpp::attachment attach)
-{
+bool handle_scan_response(json response, std::string hash, dpp::cluster& bot, const dpp::message_create_t ev, const dpp::attachment attach) {
 	bot.log(dpp::ll_info, "Scan hash: " + hash);
 	if (!response.contains("stage") || response.at("stage") != "scan") {
 		bot.log(dpp::ll_warning, "tessd returned non-scan response");
@@ -160,8 +162,7 @@ bool handle_scan_response(json response, std::string hash, dpp::cluster& bot, co
 	return delete_message_and_warn(hash, "", bot, ev, attach, text);
 }
 
-json make_fetch_request(const dpp::attachment& attach)
-{
+json make_fetch_request(const dpp::attachment& attach) {
 	json request = {
 		{"action", "fetch"},
 		{"url", attach.url},
@@ -183,8 +184,7 @@ json make_fetch_request(const dpp::attachment& attach)
 	return request;
 }
 
-json make_continue_request(dpp::cluster& bot, dpp::snowflake guild_id, dpp::snowflake channel_id, const std::string& hash)
-{
+json make_continue_request(dpp::cluster& bot, dpp::snowflake guild_id, dpp::snowflake channel_id, const std::string& hash) {
 	json request = {
 		{"action", "continue"},
 		{"ocr_patterns", get_ocr_patterns(guild_id, channel_id)},
@@ -203,21 +203,18 @@ scan_job::scan_job(const scan_request& request) : attach(request.attach), ev(req
 {
 }
 
-int pidfd_open(pid_t pid)
-{
+int pidfd_open(pid_t pid) {
 	return static_cast<int>(syscall(SYS_pidfd_open, pid, 0));
 }
 
-void close_fd(int& fd)
-{
+void close_fd(int& fd) {
 	if (fd != -1) {
 		close(fd);
 		fd = -1;
 	}
 }
 
-void set_nonblocking(int fd)
-{
+void set_nonblocking(int fd) {
 	int flags = fcntl(fd, F_GETFL, 0);
 	if (flags == -1) {
 		return;
@@ -225,13 +222,11 @@ void set_nonblocking(int fd)
 	fcntl(fd, F_SETFL, flags | O_NONBLOCK);
 }
 
-std::string make_json_frame(const json& frame)
-{
+std::string make_json_frame(const json& frame) {
 	return std::string(proc::json_marker) + frame.dump() + "\n";
 }
 
-void scanner_reactor::submit(const dpp::attachment& attach, dpp::cluster& bot, const dpp::message_create_t& ev, scan_callback callback)
-{
+void scanner_reactor::submit(const dpp::attachment& attach, dpp::cluster& bot, const dpp::message_create_t& ev, scan_callback callback) {
 	{
 		std::lock_guard<std::mutex> lock(queue_mutex);
 		requests.emplace_back(attach, ev, bot, callback);
@@ -241,8 +236,7 @@ void scanner_reactor::submit(const dpp::attachment& attach, dpp::cluster& bot, c
 	write(queue_fd, &value, sizeof(value));
 }
 
-scanner_reactor::scanner_reactor()
-{
+scanner_reactor::scanner_reactor() {
 	epoll_fd = epoll_create1(EPOLL_CLOEXEC);
 
 	if (epoll_fd == -1) {
@@ -270,8 +264,7 @@ scanner_reactor::scanner_reactor()
 	worker.detach();
 }
 
-void scanner_reactor::add_fd(int fd, uint32_t events, reactor_fd_type type, const std::shared_ptr<scan_job>& job)
-{
+void scanner_reactor::add_fd(int fd, uint32_t events, reactor_fd_type type, const std::shared_ptr<scan_job>& job) {
 	epoll_event ev{};
 	ev.events = events;
 	ev.data.fd = fd;
@@ -287,8 +280,7 @@ void scanner_reactor::add_fd(int fd, uint32_t events, reactor_fd_type type, cons
 	}
 }
 
-void scanner_reactor::modify_fd(int fd, uint32_t events)
-{
+void scanner_reactor::modify_fd(int fd, uint32_t events) {
 	epoll_event ev{};
 	ev.events = events;
 	ev.data.fd = fd;

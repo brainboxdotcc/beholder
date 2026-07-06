@@ -440,16 +440,14 @@ scan_result scan_basic_nsfw(const dpp::json& command, const std::string& file_co
 {
 	scan_result result;
 	result.scanner = "basic_nsfw";
-	result.scanner_name = "Basic NSFW Rules";
+	result.scanner_name = "NSFW Rules";
 
-const dpp::json settings = command.contains("basic_nsfw") && command.at("basic_nsfw").is_object()
-	? command.at("basic_nsfw")
-	: dpp::json::object();
+	const dpp::json settings = command.contains("basic_nsfw") && command.at("basic_nsfw").is_object() ? command.at("basic_nsfw") : dpp::json::object();
 
-	const double suggestive_threshold = settings.contains("suggestive") ? settings.at("suggestive").get<double>() : 0.75;
-	const double porn_threshold = settings.contains("porn") ? settings.at("porn").get<double>() : 0.75;
+	const double suggestive_threshold = settings.contains("suggestive") ? settings.at("suggestive").get<double>() : 0.9;
+	const double porn_threshold = settings.contains("porn") ? settings.at("porn").get<double>() : 0.9;
 	const double drawing_threshold = settings.contains("drawing") ? settings.at("drawing").get<double>() : 0.0;
-	const double hentai_threshold = settings.contains("hentai") ? settings.at("hentai").get<double>() : 0.75;
+	const double hentai_threshold = settings.contains("hentai") ? settings.at("hentai").get<double>() : 0.9;
 	
 	if (suggestive_threshold == 0.0 &&
 		porn_threshold == 0.0 &&
@@ -470,19 +468,19 @@ const dpp::json settings = command.contains("basic_nsfw") && command.at("basic_n
 		auto res = cli.Post("/", file_content, "application/octet-stream");
 
 		if (!res) {
-			result.text = "Basic NSFW API Error: " + httplib::to_string(res.error());
+			result.text = "NSFW API Error: " + httplib::to_string(res.error());
 			return result;
 		}
 
 		if (res->status >= 400) {
-			result.text = "Basic NSFW API HTTP status " + std::to_string(res->status);
+			result.text = "NSFW API HTTP status " + std::to_string(res->status);
 			return result;
 		}
 
 		answer = dpp::json::parse(res->body);
 
 		if (answer.contains("error")) {
-			result.text = "Basic NSFW API Error: " + answer.at("error").get<std::string>();
+			result.text = "NSFW API Error: " + answer.at("error").get<std::string>();
 			return result;
 		}
 
@@ -496,7 +494,7 @@ const dpp::json settings = command.contains("basic_nsfw") && command.at("basic_n
 
 		if (score > suggestive_threshold) {
 			result.blocked = true;
-			result.text = fmt::format("Basic NSFW: Suggestive ({0:.02f}{1})", score * 100, '%');
+			result.text = fmt::format("NSFW: Suggestive ({0:.02f}{1})", score * 100, '%');
 			result.trigger = score;
 			result.threshold = suggestive_threshold;
 			return result;
@@ -508,7 +506,7 @@ const dpp::json settings = command.contains("basic_nsfw") && command.at("basic_n
 
 		if (score > porn_threshold) {
 			result.blocked = true;
-			result.text = fmt::format("Basic NSFW: Pornography ({0:.02f}{1})", score * 100, '%');
+			result.text = fmt::format("NSFW: Pornography ({0:.02f}{1})", score * 100, '%');
 			result.trigger = score;
 			result.threshold = porn_threshold;
 			return result;
@@ -520,7 +518,7 @@ const dpp::json settings = command.contains("basic_nsfw") && command.at("basic_n
 
 		if (score > drawing_threshold) {
 			result.blocked = true;
-			result.text = fmt::format("Basic NSFW: Drawing ({0:.02f}{1})", score * 100, '%');
+			result.text = fmt::format("NSFW: Drawing ({0:.02f}{1})", score * 100, '%');
 			result.trigger = score;
 			result.threshold = drawing_threshold;
 			return result;
@@ -532,7 +530,7 @@ const dpp::json settings = command.contains("basic_nsfw") && command.at("basic_n
 
 		if (score > hentai_threshold) {
 			result.blocked = true;
-			result.text = fmt::format("Basic NSFW: Hentai ({0:.02f}{1})", score * 100, '%');
+			result.text = fmt::format("NSFW: Hentai ({0:.02f}{1})", score * 100, '%');
 			result.trigger = score;
 			result.threshold = hentai_threshold;
 			return result;
@@ -608,9 +606,9 @@ dpp::json scan_all(const dpp::json& command, const std::string& hash, const std:
 		} catch (const std::exception& e) {
 			scan_result result;
 			result.scanner = "basic_nsfw";
-			result.scanner_name = "Basic NSFW Rules";
+			result.scanner_name = "NSFW Rules";
 			result.enabled = true;
-			result.text = std::string("Basic NSFW Error: ") + e.what();
+			result.text = std::string("NSFW Error: ") + e.what();
 			results.emplace_back(result);
 		}
 	}
