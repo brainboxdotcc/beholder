@@ -101,7 +101,7 @@ bool delete_message_and_warn(std::string hash, std::string image, dpp::cluster& 
 					break;
 				case action::act_silence:
 					bot.log(dpp::ll_info, "Automatic action: Silence");
-					bot.guild_member_timeout(ev.msg.guild_id, ev.msg.author.id, time(nullptr) + silence_length, [&bot, ev, logchannel, silence_length](const auto& cc) {
+					bot.guild_member_timeout(ev.msg.guild_id, ev.msg.author.id, time(nullptr) + (silence_length * 60), [&bot, ev, logchannel, silence_length](const auto& cc) {
 						if (logchannel.size() && logchannel[0].at("log_channel").length()) {
 							dpp::snowflake log_channel(logchannel[0].at("log_channel"));
 							if (cc.is_error()) {
