@@ -589,7 +589,7 @@ dpp::json run_basic_nsfw_gif(const std::string& file_content, const std::vector<
 				return;
 			}
 
-			for (const std::string& key : {"sexy", "porn", "drawing", "hentai"}) {
+			for (const std::string key : {"sexy", "porn", "drawing", "hentai"}) {
 				if (frame_answer.at(key).get<double>() > answer.at(key).get<double>()) {
 					answer[key] = frame_answer.at(key);
 				}
@@ -795,13 +795,17 @@ dpp::json scan_all(const dpp::json& command, const std::string& hash, const std:
 	return response;
 }
 
-int main()
+int main(int argc, char** argv)
 {
 	std::signal(SIGALRM, tessd_timeout);
 	alarm(60);
 
 	set_limit(RLIMIT_DATA, one_gigabyte);
 	set_limit(RLIMIT_RSS, one_gigabyte);
+
+	if (argc > 1) {
+		return tessd_cli(argc, argv);
+	}
 
 	dpp::json request;
 

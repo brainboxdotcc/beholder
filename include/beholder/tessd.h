@@ -21,6 +21,9 @@
 #include <vector>
 #include <cstddef>
 #include <functional>
+#include <stdlib.h>
+#include <dpp/json.h>
+#include <string>
 
 namespace tessd {
 
@@ -58,5 +61,10 @@ namespace tessd {
 
 using gif_frame_callback = std::function<void(std::size_t, const unsigned char*, int, int)>;
 
-std::vector<std::size_t> gif_frames_to_scan(const unsigned char* gif_data, std::size_t gif_size, double threshold = 8.0);
+std::vector<std::size_t> gif_frames_to_scan(const unsigned char* gif_data, std::size_t gif_size, double threshold = 6.0, std::size_t* total_frames = nullptr);
 void decode_gif_frames(const unsigned char* gif_data, std::size_t gif_size, const std::vector<std::size_t>& frames, const gif_frame_callback& callback);
+
+int tessd_cli(int argc, char** argv);
+
+std::string run_tesseract_gif(const std::string& file_content, const std::vector<std::size_t>& frames);
+dpp::json run_basic_nsfw_gif(const std::string& file_content, const std::vector<std::size_t>& frames);
