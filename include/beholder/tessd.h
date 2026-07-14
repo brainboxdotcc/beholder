@@ -71,6 +71,6 @@ dpp::json run_basic_nsfw_gif(const std::string& file_content, const std::vector<
 std::string run_tesseract_mp4(const std::string& file_content, const std::vector<std::size_t>& frames);
 dpp::json run_basic_nsfw_mp4(const std::string& file_content, const std::vector<std::size_t>& frames);
 
-std::vector<std::size_t> mp4_frames_to_scan(const unsigned char* mp4_data, std::size_t mp4_size, double threshold = 6.0, std::size_t* total_frames = nullptr);
+std::vector<std::size_t> mp4_frames_to_scan(const unsigned char* mp4_data, std::size_t mp4_size, double threshold = 12.0, std::size_t* total_frames = nullptr);
 void decode_mp4_frames(const unsigned char* mp4_data, std::size_t mp4_size, const std::vector<std::size_t>& frames, const gif_frame_callback& callback);
 

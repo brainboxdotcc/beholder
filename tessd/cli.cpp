@@ -79,7 +79,7 @@ int tessd_cli(int argc, char** argv)
 		return 1;
 	}
 
-	double threshold = 6.0;
+	double threshold = command == "gif-frames" ? 6.0  : 12.0;
 	bool frames_only = false;
 
 	for (int arg = 3; arg < argc; ++arg) {
