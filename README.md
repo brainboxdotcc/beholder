@@ -17,7 +17,7 @@ Beholder focuses on fast, privacy-conscious image moderation without storing use
 * Image hash blocking and allow-listing
 * Moderator review actions (block, unblock, timeout, kick, ban)
 * Customisable moderation messages
-* Discord log channel integration
+* Scanning of entire gifs by change detection
 
 ## Architecture
 
@@ -78,6 +78,7 @@ Insert data into the database for your guild and moderation patterns.
 * libcrypto/libssl
 * libtesseract-dev
 * libleptonica-dev
+* libopencv-dev
 * ImageMagick Convert
 * libmysqlclient 8.x
 * g++ 11.4 or later
