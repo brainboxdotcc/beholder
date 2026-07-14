@@ -800,6 +800,9 @@ int main(int argc, char** argv)
 	std::signal(SIGALRM, tessd_timeout);
 	alarm(60);
 
+	// Shut up, leptonica!
+	close(STDERR_FILENO);
+
 	set_limit(RLIMIT_DATA, one_gigabyte);
 	set_limit(RLIMIT_RSS, one_gigabyte);
 
