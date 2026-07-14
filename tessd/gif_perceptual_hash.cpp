@@ -9,12 +9,13 @@
 #include <opencv2/core.hpp>
 #include <opencv2/img_hash.hpp>
 #include <opencv2/imgproc.hpp>
+#include "beholder/tessd.h"
 
 /*
  * This must be compiled in the same translation unit as STB_IMAGE_IMPLEMENTATION
  * because it deliberately uses stb_image's internal GIF decoder API.
  */
-std::vector<std::size_t> gif_frames_to_scan(const unsigned char* gif_data, std::size_t gif_size, double threshold = 8.0)
+std::vector<std::size_t> gif_frames_to_scan(const unsigned char* gif_data, std::size_t gif_size, double threshold)
 {
 	if (!gif_data || gif_size == 0 || gif_size > static_cast<std::size_t>(std::numeric_limits<int>::max())) {
 		throw std::invalid_argument("Invalid GIF data");
@@ -44,7 +45,7 @@ std::vector<std::size_t> gif_frames_to_scan(const unsigned char* gif_data, std::
 		}
 
 		/*
-		 * stbi__gif_load_next() returns gif_state.out, which is the complete
+		 * stbi__gif_load_next() returns gif_state.out, which is the full
 		 * composited GIF canvas after applying this frame.
 		 *
 		 * OpenCV does not own this memory. The Mat is only a temporary view.
@@ -78,3 +79,52 @@ std::vector<std::size_t> gif_frames_to_scan(const unsigned char* gif_data, std::
 	return frames;
 }
 
+void decode_gif_frames(const unsigned char* gif_data, std::size_t gif_size, const std::vector<std::size_t>& frames, const gif_frame_callback& callback)
+{
+	if (!gif_data || gif_size == 0 || gif_size > static_cast<std::size_t>(std::numeric_limits<int>::max())) {
+		throw std::invalid_argument("Invalid GIF data");
+	}
+
+	if (frames.empty()) {
+		return;
+	}
+
+	stbi__context gif_context{};
+	stbi__gif gif_state{};
+
+	stbi__start_mem(&gif_context, gif_data, static_cast<int>(gif_size));
+
+	std::size_t frame_index = 0;
+	std::size_t selected_index = 0;
+	int components = 0;
+
+	try {
+		while (selected_index < frames.size()) {
+			unsigned char* pixels = stbi__gif_load_next(&gif_context, &gif_state, &components, STBI_rgb_alpha, nullptr);
+
+			if (!pixels) {
+				throw std::runtime_error("GIF ended before all selected frames were decoded");
+			}
+
+			if (gif_state.w <= 0 || gif_state.h <= 0) {
+				throw std::runtime_error("Invalid GIF frame dimensions");
+			}
+
+			if (frame_index == frames[selected_index]) {
+				callback(frame_index, pixels, gif_state.w, gif_state.h);
+				++selected_index;
+			}
+
+			++frame_index;
+		}
+	} catch (...) {
+		STBI_FREE(gif_state.out);
+		STBI_FREE(gif_state.history);
+		STBI_FREE(gif_state.background);
+		throw;
+	}
+
+	STBI_FREE(gif_state.out);
+	STBI_FREE(gif_state.history);
+	STBI_FREE(gif_state.background);
+}

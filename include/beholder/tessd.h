@@ -19,6 +19,8 @@
  ************************************************************************************/
 #pragma once
 #include <vector>
+#include <cstddef>
+#include <functional>
 
 namespace tessd {
 
@@ -54,4 +56,7 @@ namespace tessd {
 
 };
 
+using gif_frame_callback = std::function<void(std::size_t, const unsigned char*, int, int)>;
+
 std::vector<std::size_t> gif_frames_to_scan(const unsigned char* gif_data, std::size_t gif_size, double threshold = 8.0);
+void decode_gif_frames(const unsigned char* gif_data, std::size_t gif_size, const std::vector<std::size_t>& frames, const gif_frame_callback& callback);

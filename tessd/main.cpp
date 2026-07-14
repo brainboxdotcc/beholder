@@ -60,6 +60,34 @@ struct scan_result {
 	dpp::json cache = nullptr;
 };
 
+Pix* rgba_to_pix(const unsigned char* pixels, int width, int height)
+{
+	if (!pixels || width <= 0 || height <= 0) {
+		return nullptr;
+	}
+
+	Pix* image = pixCreate(width, height, 32);
+
+	if (!image) {
+		return nullptr;
+	}
+
+	l_uint32* destination = pixGetData(image);
+	const int words_per_line = pixGetWpl(image);
+
+	for (int y = 0; y < height; ++y) {
+		l_uint32* destination_line = destination + (y * words_per_line);
+		const unsigned char* source_line = pixels + (static_cast<std::size_t>(y) * static_cast<std::size_t>(width) * 4);
+
+		for (int x = 0; x < width; ++x) {
+			const unsigned char* source = source_line + (x * 4);
+			composeRGBPixel(source[0], source[1], source[2], &destination_line[x]);
+		}
+	}
+
+	return image;
+}
+
 void tessd_timeout(int sig)
 {
 	tessd::status(tessd::exit_code::timeout);
@@ -331,6 +359,51 @@ bool has_text(const std::string& text)
 	return false;
 }
 
+std::string run_tesseract_gif(const std::string& file_content, const std::vector<std::size_t>& frames)
+{
+	std::string text;
+
+	decode_gif_frames(
+		reinterpret_cast<const unsigned char*>(file_content.data()),
+		file_content.size(),
+		frames,
+		[&text](std::size_t, const unsigned char* pixels, int width, int height) {
+			const uint64_t pixel_count = static_cast<uint64_t>(width) * static_cast<uint64_t>(height);
+
+			if (pixel_count > max_pixels) {
+				throw std::runtime_error("image_size");
+			}
+
+			Pix* image = rgba_to_pix(pixels, width, height);
+
+			if (!image) {
+				throw std::runtime_error("pix_create_failed");
+			}
+
+			std::string frame_text;
+
+			try {
+				frame_text = run_tesseract_image(image);
+			} catch (...) {
+				pixDestroy(&image);
+				throw;
+			}
+
+			pixDestroy(&image);
+
+			if (has_text(frame_text)) {
+				if (!text.empty()) {
+					text += "\n";
+				}
+
+				text += frame_text;
+			}
+		}
+	);
+
+	return text;
+}
+
 std::string run_tesseract(const std::string& file_content)
 {
 	/**
@@ -384,7 +457,7 @@ std::string run_tesseract(const std::string& file_content)
 	return text;
 }
 
-scan_result scan_ocr(const dpp::json& command, const std::string& file_content)
+scan_result scan_ocr(const dpp::json& command, const std::string& file_content, const std::vector<std::size_t>& frames)
 {
 	scan_result result;
 	result.scanner = "ocr";
@@ -404,7 +477,7 @@ scan_result scan_ocr(const dpp::json& command, const std::string& file_content)
 	if (command.contains("cache") && command.at("cache").contains("ocr") && command.at("cache").at("ocr").is_string()) {
 		ocr_text = command.at("cache").at("ocr").get<std::string>();
 	} else {
-		ocr_text = run_tesseract(file_content);
+		ocr_text = frames.empty() ? run_tesseract(file_content) : run_tesseract_gif(file_content, frames);
 		result.cache = ocr_text;
 	}
 
@@ -436,7 +509,103 @@ scan_result scan_ocr(const dpp::json& command, const std::string& file_content)
 	return result;
 }
 
-scan_result scan_basic_nsfw(const dpp::json& command, const std::string& file_content) {
+dpp::json run_basic_nsfw(const std::string& file_content)
+{
+	httplib::Client cli("http://localhost:6969");
+	auto res = cli.Post("/", file_content, "application/octet-stream");
+
+	if (!res) {
+		throw std::runtime_error("NSFW API Error: " + httplib::to_string(res.error()));
+	}
+
+	if (res->status >= 400) {
+		throw std::runtime_error("NSFW API HTTP status " + std::to_string(res->status));
+	}
+
+	dpp::json answer = dpp::json::parse(res->body);
+
+	if (answer.contains("error")) {
+		throw std::runtime_error("NSFW API Error: " + answer.at("error").get<std::string>());
+	}
+
+	return answer;
+}
+
+std::string pix_to_png(Pix* image)
+{
+	l_uint8* data = nullptr;
+	size_t size = 0;
+
+	if (!image || pixWriteMemPng(&data, &size, image, 0.0f) != 0 || !data || size == 0) {
+		if (data) {
+			lept_free(data);
+		}
+
+		throw std::runtime_error("pix_write_png_failed");
+	}
+
+	std::string content(reinterpret_cast<const char*>(data), size);
+	lept_free(data);
+
+	return content;
+}
+
+dpp::json run_basic_nsfw_gif(const std::string& file_content, const std::vector<std::size_t>& frames)
+{
+	dpp::json answer;
+	bool first = true;
+
+	decode_gif_frames(
+		reinterpret_cast<const unsigned char*>(file_content.data()),
+		file_content.size(),
+		frames,
+		[&answer, &first](std::size_t, const unsigned char* pixels, int width, int height) {
+			if (static_cast<uint64_t>(width) * static_cast<uint64_t>(height) > max_pixels) {
+				throw std::runtime_error("image_size");
+			}
+
+			Pix* image = rgba_to_pix(pixels, width, height);
+
+			if (!image) {
+				throw std::runtime_error("pix_create_failed");
+			}
+
+			std::string png;
+
+			try {
+				png = pix_to_png(image);
+			} catch (...) {
+				pixDestroy(&image);
+				throw;
+			}
+
+			pixDestroy(&image);
+
+			const dpp::json frame_answer = run_basic_nsfw(png);
+
+			if (first) {
+				answer = frame_answer;
+				first = false;
+				return;
+			}
+
+			for (const std::string& key : {"sexy", "porn", "drawing", "hentai"}) {
+				if (frame_answer.at(key).get<double>() > answer.at(key).get<double>()) {
+					answer[key] = frame_answer.at(key);
+				}
+			}
+		}
+	);
+
+	if (first) {
+		throw std::runtime_error("no_gif_frames");
+	}
+
+	return answer;
+}
+
+scan_result scan_basic_nsfw(const dpp::json& command, const std::string& file_content, const std::vector<std::size_t>& frames)
+{
 	scan_result result;
 	result.scanner = "basic_nsfw";
 	result.scanner_name = "NSFW Rules";
@@ -447,11 +616,11 @@ scan_result scan_basic_nsfw(const dpp::json& command, const std::string& file_co
 	const double porn_threshold = settings.contains("porn") ? settings.at("porn").get<double>() : 0.9;
 	const double drawing_threshold = settings.contains("drawing") ? settings.at("drawing").get<double>() : 0.0;
 	const double hentai_threshold = settings.contains("hentai") ? settings.at("hentai").get<double>() : 0.9;
-	
+
 	if (suggestive_threshold == 0.0 &&
-		porn_threshold == 0.0 &&
-		drawing_threshold == 0.0 &&
-		hentai_threshold == 0.0) {
+	    porn_threshold == 0.0 &&
+	    drawing_threshold == 0.0 &&
+	    hentai_threshold == 0.0) {
 		result.text = "No match or not enabled";
 		return result;
 	}
@@ -463,23 +632,10 @@ scan_result scan_basic_nsfw(const dpp::json& command, const std::string& file_co
 	if (command.contains("cache") && command.at("cache").contains("basic") && command.at("cache").at("basic").is_object()) {
 		answer = command.at("cache").at("basic");
 	} else {
-		httplib::Client cli("http://localhost:6969");
-		auto res = cli.Post("/", file_content, "application/octet-stream");
-
-		if (!res) {
-			result.text = "NSFW API Error: " + httplib::to_string(res.error());
-			return result;
-		}
-
-		if (res->status >= 400) {
-			result.text = "NSFW API HTTP status " + std::to_string(res->status);
-			return result;
-		}
-
-		answer = dpp::json::parse(res->body);
-
-		if (answer.contains("error")) {
-			result.text = "NSFW API Error: " + answer.at("error").get<std::string>();
+		try {
+			answer = frames.empty() ? run_basic_nsfw(file_content) : run_basic_nsfw_gif(file_content, frames);
+		} catch (const std::exception& e) {
+			result.text = e.what();
 			return result;
 		}
 
@@ -492,10 +648,13 @@ scan_result scan_basic_nsfw(const dpp::json& command, const std::string& file_co
 		if (threshold == 0.0) {
 			return false;
 		}
+
 		const double score = answer.at(key).get<double>();
+
 		if (score <= threshold) {
 			return false;
 		}
+
 		result.blocked = true;
 		result.text = fmt::format("NSFW: {} ({:.02f}{})", label, score * 100, '%');
 		result.trigger = score;
@@ -506,12 +665,15 @@ scan_result scan_basic_nsfw(const dpp::json& command, const std::string& file_co
 	if (check("sexy", "Suggestive", suggestive_threshold)) {
 		return result;
 	}
+
 	if (check("porn", "Pornography", porn_threshold)) {
 		return result;
 	}
+
 	if (check("drawing", "Drawing", drawing_threshold)) {
 		return result;
 	}
+
 	if (check("hentai", "Hentai", hentai_threshold)) {
 		return result;
 	}
@@ -564,12 +726,24 @@ dpp::json result_to_json(const scan_result& result)
 
 dpp::json scan_all(const dpp::json& command, const std::string& hash, const std::string& file_content, const std::string& filename)
 {
-	const std::string prepared_content = flatten_gif(filename, file_content);
+	const bool premium = json_bool(command, "premium", false);
+	const bool scan_animation = premium && is_animated_gif(file_content);
+
+	std::vector<std::size_t> frames;
+
+	if (scan_animation) {
+		frames = gif_frames_to_scan(
+			reinterpret_cast<const unsigned char*>(file_content.data()),
+			file_content.size()
+		);
+	}
+
+	const std::string prepared_content = scan_animation ? file_content : flatten_gif(filename, file_content);
 
 	std::vector<scan_result> results;
 
 	try {
-		results.emplace_back(scan_ocr(command, prepared_content));
+		results.emplace_back(scan_ocr(command, prepared_content, frames));
 	} catch (const std::exception& e) {
 		scan_result result;
 		result.scanner = "ocr";
@@ -581,7 +755,7 @@ dpp::json scan_all(const dpp::json& command, const std::string& hash, const std:
 
 	if (!results.back().blocked) {
 		try {
-			results.emplace_back(scan_basic_nsfw(command, prepared_content));
+			results.emplace_back(scan_basic_nsfw(command, prepared_content, frames));
 		} catch (const std::exception& e) {
 			scan_result result;
 			result.scanner = "basic_nsfw";
