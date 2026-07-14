@@ -13,7 +13,7 @@ add_executable(${BOT_NAME} ${coresrc})
 
 find_package(CxxUrl REQUIRED)
 
-target_precompile_headers(${BOT_NAME} INTERFACE "src/3rdparty/httplib.h")
+find_package(OpenCV REQUIRED COMPONENTS core imgproc img_hash)
 
 aux_source_directory("tessd" tessdsrc)
 add_executable("tessd"
@@ -24,6 +24,10 @@ add_executable("tessd"
 	tessd/proc/cpipe.cpp
 	tessd/proc/spawn.cpp
 )
+
+target_precompile_headers("tessd" INTERFACE "tessd/3rdparty/httplib.h")
+
+target_compile_options(tessd PRIVATE -Wno-deprecated-enum-enum-conversion)
 
 aux_source_directory("nsfwd" nsfwdsrc)
 add_executable("nsfwd"
@@ -76,6 +80,10 @@ target_include_directories("tessd" PUBLIC
 	${DPP_INCLUDE_DIR}
 )
 
+target_include_directories("tessd" SYSTEM PRIVATE
+	${OpenCV_INCLUDE_DIRS}
+)
+
 target_include_directories("nsfwd" PUBLIC
 	${CMAKE_CURRENT_SOURCE_DIR}/include
 	/usr/include/jsoncpp
@@ -90,6 +98,7 @@ target_link_libraries("tessd"
 	crypto
 	fmt
 	CxxUrl
+	${OpenCV_LIBS}
 	${DPP_LIBRARIES}
 	${CMAKE_THREAD_LIBS_INIT}
 )

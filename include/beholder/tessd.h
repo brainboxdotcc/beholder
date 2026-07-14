@@ -18,6 +18,7 @@
  *
  ************************************************************************************/
 #pragma once
+#include <vector>
 
 namespace tessd {
 
@@ -52,3 +53,5 @@ namespace tessd {
 	}
 
 };
+
+std::vector<std::size_t> gif_frames_to_scan(const unsigned char* gif_data, std::size_t gif_size, double threshold = 8.0);

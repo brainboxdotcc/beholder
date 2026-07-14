@@ -26,7 +26,7 @@
  */
 struct infinitybots : public botlist {
 	static constexpr std::string_view name{"infinitybots.gg"};
-	static constexpr std::string_view url{"https://spider.infinitybots.gg/bots/stats"};
+	static constexpr std::string_view url{"https://spider.omniplex.gg/bots/stats"};
 	static constexpr std::string_view server_count_field{"servers"};
 	static constexpr std::string_view shard_count_field{"shards"};
 
