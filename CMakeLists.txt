@@ -84,6 +84,14 @@ target_include_directories("tessd" SYSTEM PRIVATE
 	${OpenCV_INCLUDE_DIRS}
 )
 
+find_package(PkgConfig REQUIRED)
+pkg_check_modules(FFMPEG REQUIRED IMPORTED_TARGET
+	libavformat
+	libavcodec
+	libavutil
+	libswscale
+)
+
 target_include_directories("nsfwd" PUBLIC
 	${CMAKE_CURRENT_SOURCE_DIR}/include
 	/usr/include/jsoncpp
@@ -99,6 +107,7 @@ target_link_libraries("tessd"
 	fmt
 	CxxUrl
 	${OpenCV_LIBS}
+	PkgConfig::FFMPEG
 	${DPP_LIBRARIES}
 	${CMAKE_THREAD_LIBS_INIT}
 )

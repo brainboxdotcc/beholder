@@ -404,6 +404,49 @@ std::string run_tesseract_gif(const std::string& file_content, const std::vector
 	return text;
 }
 
+std::string run_tesseract_mp4(const std::string& file_content, const std::vector<std::size_t>& frames)
+{
+	std::string text;
+
+	decode_mp4_frames(
+		reinterpret_cast<const unsigned char*>(file_content.data()),
+		file_content.size(),
+		frames,
+		[&text](std::size_t, const unsigned char* pixels, int width, int height) {
+			if (static_cast<uint64_t>(width) * static_cast<uint64_t>(height) > max_pixels) {
+				throw std::runtime_error("image_size");
+			}
+
+			Pix* image = rgba_to_pix(pixels, width, height);
+
+			if (!image) {
+				throw std::runtime_error("pix_create_failed");
+			}
+
+			std::string frame_text;
+
+			try {
+				frame_text = run_tesseract_image(image);
+			} catch (...) {
+				pixDestroy(&image);
+				throw;
+			}
+
+			pixDestroy(&image);
+
+			if (has_text(frame_text)) {
+				if (!text.empty()) {
+					text += "\n";
+				}
+
+				text += frame_text;
+			}
+		}
+	);
+
+	return text;
+}
+
 std::string run_tesseract(const std::string& file_content)
 {
 	/**
@@ -548,6 +591,60 @@ std::string pix_to_png(Pix* image)
 	lept_free(data);
 
 	return content;
+}
+
+dpp::json run_basic_nsfw_mp4(const std::string& file_content, const std::vector<std::size_t>& frames)
+{
+	dpp::json answer;
+	bool first = true;
+
+	decode_mp4_frames(
+		reinterpret_cast<const unsigned char*>(file_content.data()),
+		file_content.size(),
+		frames,
+		[&answer, &first](std::size_t, const unsigned char* pixels, int width, int height) {
+			if (static_cast<uint64_t>(width) * static_cast<uint64_t>(height) > max_pixels) {
+				throw std::runtime_error("image_size");
+			}
+
+			Pix* image = rgba_to_pix(pixels, width, height);
+
+			if (!image) {
+				throw std::runtime_error("pix_create_failed");
+			}
+
+			std::string png;
+
+			try {
+				png = pix_to_png(image);
+			} catch (...) {
+				pixDestroy(&image);
+				throw;
+			}
+
+			pixDestroy(&image);
+
+			const dpp::json frame_answer = run_basic_nsfw(png);
+
+			if (first) {
+				answer = frame_answer;
+				first = false;
+				return;
+			}
+
+			for (const std::string key : {"sexy", "porn", "drawing", "hentai"}) {
+				if (frame_answer.at(key).get<double>() > answer.at(key).get<double>()) {
+					answer[key] = frame_answer.at(key);
+				}
+			}
+		}
+	);
+
+	if (first) {
+		throw std::runtime_error("no_mp4_frames");
+	}
+
+	return answer;
 }
 
 dpp::json run_basic_nsfw_gif(const std::string& file_content, const std::vector<std::size_t>& frames)

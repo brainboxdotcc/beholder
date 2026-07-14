@@ -68,12 +68,13 @@ int tessd_cli(int argc, char** argv)
 	if (argc < 3) {
 		std::cerr << "Usage:\n";
 		std::cerr << "  tessd gif-frames <url> [threshold] [--frames-only]\n";
+		std::cerr << "  tessd mp4-frames <url> [threshold] [--frames-only]\n";
 		return 1;
 	}
 
 	const std::string command = argv[1];
 
-	if (command != "gif-frames") {
+	if (command != "gif-frames" && command != "mp4-frames") {
 		std::cerr << "Unknown command: " << command << '\n';
 		return 1;
 	}
@@ -108,13 +109,23 @@ int tessd_cli(int argc, char** argv)
 
 	try {
 		std::size_t total_frames = 0;
+		std::vector<std::size_t> frames;
 
-		const std::vector<std::size_t> frames = gif_frames_to_scan(
-			reinterpret_cast<const unsigned char*>(file_content.data()),
-			file_content.size(),
-			threshold,
-			&total_frames
-		);
+		if (command == "gif-frames") {
+			frames = gif_frames_to_scan(
+				reinterpret_cast<const unsigned char*>(file_content.data()),
+				file_content.size(),
+				threshold,
+				&total_frames
+			);
+		} else {
+			frames = mp4_frames_to_scan(
+				reinterpret_cast<const unsigned char*>(file_content.data()),
+				file_content.size(),
+				threshold,
+				&total_frames
+			);
+		}
 
 		std::cout << "Total frames: " << total_frames << '\n';
 		std::cout << "Selected frames: " << frames.size() << '\n';
@@ -127,13 +138,20 @@ int tessd_cli(int argc, char** argv)
 
 		std::cout << '\n';
 
+		if (frames.empty()) {
+			std::cerr << "No video frames decoded\n";
+			return 1;
+		}
+
 		if (frames_only) {
 			return 0;
 		}
 
 		std::cout << "\nOCR:\n";
 
-		const std::string ocr_text = run_tesseract_gif(file_content, frames);
+		const std::string ocr_text = command == "gif-frames"
+					     ? run_tesseract_gif(file_content, frames)
+					     : run_tesseract_mp4(file_content, frames);
 
 		if (ocr_text.empty()) {
 			std::cout << "(no text found)\n";
@@ -142,7 +160,12 @@ int tessd_cli(int argc, char** argv)
 		}
 
 		std::cout << "\nNSFW:\n";
-		std::cout << run_basic_nsfw_gif(file_content, frames).dump(2) << '\n';
+
+		const dpp::json nsfw = command == "gif-frames"
+				       ? run_basic_nsfw_gif(file_content, frames)
+				       : run_basic_nsfw_mp4(file_content, frames);
+
+		std::cout << nsfw.dump(2) << '\n';
 	} catch (const std::exception& e) {
 		std::cerr << "Error: " << e.what() << '\n';
 		return 1;
