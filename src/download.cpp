@@ -63,6 +63,97 @@ double safe_stod(const std::string& s) {
 	return d;
 }
 
+bool db_bool(const std::string& value, bool fallback)
+{
+	if (value.empty()) {
+		return fallback;
+	}
+
+	return value != "0";
+}
+
+std::vector<std::string> parse_language_list(const std::string& value)
+{
+	std::vector<std::string> languages;
+
+	if (value.empty()) {
+		return languages;
+	}
+
+	try {
+		const json parsed = json::parse(value);
+
+		if (!parsed.is_array()) {
+			return languages;
+		}
+
+		for (const auto& language : parsed) {
+			if (language.is_string() && !language.get_ref<const std::string&>().empty()) {
+				languages.emplace_back(language.get<std::string>());
+			}
+		}
+	} catch (const json::exception&) {
+	}
+
+	return languages;
+}
+
+static premium_scan_config get_premium_scan_config(dpp::snowflake guild_id, dpp::snowflake channel_id)
+{
+	premium_scan_config config;
+
+	db::resultset premium = db::query(
+		"SELECT 1 FROM premium_credits WHERE guild_id = ? AND active = 1 LIMIT 1",
+		{guild_id}
+	);
+
+	config.premium = !premium.empty();
+
+	if (!config.premium) {
+		return config;
+	}
+
+	db::resultset settings = db::query(
+		"SELECT prem_profanity_filter_enable, prem_anim_scan_enable, prem_video_scan_enable "
+		"FROM channel_settings "
+		"WHERE guild_id = ? AND channel_id IN (?, 0) "
+		"ORDER BY channel_id = ? DESC "
+		"LIMIT 1",
+		{guild_id, channel_id, channel_id}
+	);
+
+	if (settings.empty()) {
+		config.animated_scan_enabled = true;
+		config.video_scan_enabled = true;
+	} else {
+		config.profanity_enabled = db_bool(settings[0].at("prem_profanity_filter_enable"), false);
+		config.animated_scan_enabled = db_bool(settings[0].at("prem_anim_scan_enable"), true);
+		config.video_scan_enabled = db_bool(settings[0].at("prem_video_scan_enable"), true);
+	}
+
+	if (!config.profanity_enabled) {
+		return config;
+	}
+
+	db::resultset guild_config = db::query(
+		"SELECT prem_languages FROM guild_config WHERE guild_id = ? LIMIT 1",
+		{guild_id}
+	);
+
+	if (guild_config.empty()) {
+		config.profanity_enabled = false;
+		return config;
+	}
+
+	config.languages = parse_language_list(guild_config[0].at("prem_languages"));
+
+	if (config.languages.empty()) {
+		config.profanity_enabled = false;
+	}
+
+	return config;
+}
+
 static json get_basic_nsfw_config(dpp::cluster& bot, dpp::snowflake guild_id, dpp::snowflake channel_id) {
 	db::resultset settings = db::query(
 		"SELECT basic_nsfw_suggestive, basic_nsfw_porn, basic_nsfw_drawing, basic_nsfw_hentai "
@@ -145,13 +236,55 @@ static void increment_block_stat(const json& response, dpp::snowflake guild_id) 
 	}
 }
 
-bool handle_scan_response(json response, std::string hash, dpp::cluster& bot, const dpp::message_create_t ev, const dpp::attachment attach) {
+bool get_profanity_result(const json& response, std::string& original_text, std::string& censored_text)
+{
+	if (!response.contains("results") || !response.at("results").is_array()) {
+		return false;
+	}
+
+	for (const auto& result : response.at("results")) {
+		if (!result.is_object() ||
+		    !result.contains("scanner") ||
+		    !result.at("scanner").is_string() ||
+		    result.at("scanner") != "ocr" ||
+		    !result.contains("raw") ||
+		    !result.at("raw").is_object()) {
+			continue;
+		}
+
+		const json& raw = result.at("raw");
+
+		if (!raw.contains("text") ||
+		    !raw.at("text").is_string() ||
+		    !raw.contains("censored_text") ||
+		    !raw.at("censored_text").is_string()) {
+			return false;
+		}
+
+		original_text = raw.at("text").get<std::string>();
+		censored_text = raw.at("censored_text").get<std::string>();
+
+		return original_text != censored_text;
+	}
+
+	return false;
+}
+
+bool handle_scan_response(json response, std::string hash, dpp::cluster& bot, const dpp::message_create_t ev, const dpp::attachment attach)
+{
 	bot.log(dpp::ll_info, "Scan hash: " + hash);
 	if (!response.contains("stage") || response.at("stage") != "scan") {
 		bot.log(dpp::ll_warning, "tessd returned non-scan response");
 		return false;
 	}
 	write_scan_cache(hash, response, ev.msg.guild_id);
+	std::string original_text;
+	std::string censored_text;
+	if (get_profanity_result(response, original_text, censored_text)) {
+		bot.log(dpp::ll_warning, "delete and warn; profanity found; hash=" + hash);
+		INCREMENT_STATISTIC("images_ocr", ev.msg.guild_id);
+		return delete_message_and_warn(hash, "", bot, ev, attach, censored_text);
+	}
 	if (!response.contains("status") || response.at("status") != "blocked") {
 		bot.log(dpp::ll_warning, "tessd status: not blocked: " + response.dump());
 		return false;
@@ -184,12 +317,17 @@ json make_fetch_request(const dpp::attachment& attach) {
 	return request;
 }
 
-json make_continue_request(dpp::cluster& bot, dpp::snowflake guild_id, dpp::snowflake channel_id, const std::string& hash) {
-	db::resultset prem = db::query("SELECT 1 FROM premium_credits WHERE guild_id = ? AND active = 1", {guild_id});
-	bool has_premium = !prem.empty();
+json make_continue_request(dpp::cluster& bot, dpp::snowflake guild_id, dpp::snowflake channel_id, const std::string& hash)
+{
+	const premium_scan_config premium = get_premium_scan_config(guild_id, channel_id);
+
 	json request = {
 		{"action", "continue"},
-		{"premium", has_premium},
+		{"premium", premium.premium},
+		{"prem_profanity_filter_enable", premium.profanity_enabled},
+		{"prem_anim_scan_enable", premium.animated_scan_enabled},
+		{"prem_video_scan_enable", premium.video_scan_enabled},
+		{"prem_languages", premium.languages},
 		{"ocr_patterns", get_ocr_patterns(guild_id, channel_id)},
 		{"basic_nsfw", get_basic_nsfw_config(bot, guild_id, channel_id)},
 		{"cache", get_scan_cache(hash)}

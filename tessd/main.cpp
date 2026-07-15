@@ -515,6 +515,39 @@ std::string run_tesseract(const std::string& file_content)
 	return text;
 }
 
+std::string run_profanity_filter(const std::string& text, const std::vector<std::string>& languages)
+{
+	httplib::Client cli("http://localhost:6970");
+
+	const dpp::json payload = {
+		{"content", text},
+		{"censor-character", "*"},
+		{"languages", languages}
+	};
+
+	auto res = cli.Post("/bad-word-filter", payload.dump(), "application/json");
+
+	if (!res) {
+		throw std::runtime_error("Profanity API Error: " + httplib::to_string(res.error()));
+	}
+
+	if (res->status >= 400) {
+		throw std::runtime_error("Profanity API HTTP status " + std::to_string(res->status));
+	}
+
+	dpp::json answer = dpp::json::parse(res->body);
+
+	if (answer.contains("error")) {
+		throw std::runtime_error("Profanity API Error: " + answer.at("error").get<std::string>());
+	}
+
+	if (!answer.contains("censored-content") || !answer.at("censored-content").is_string()) {
+		throw std::runtime_error("Profanity API returned no censored content");
+	}
+
+	return answer.at("censored-content").get<std::string>();
+}
+
 scan_result scan_ocr(const dpp::json& command, const std::string& file_content, const std::vector<std::size_t>& frames, bool mp4, bool webp, bool avif)
 {
 	scan_result result;
@@ -522,8 +555,10 @@ scan_result scan_ocr(const dpp::json& command, const std::string& file_content, 
 	result.scanner_name = "Text Recognition Rules";
 
 	const std::vector<std::string> patterns = command.contains("ocr_patterns") ? json_string_array(command.at("ocr_patterns")) : std::vector<std::string>{};
+	const bool profanity_enabled = json_bool(command, "prem_profanity_filter_enable", false);
+	const std::vector<std::string> languages = command.contains("prem_languages") ? json_string_array(command.at("prem_languages")) : std::vector<std::string>{};
 
-	if (patterns.empty()) {
+	if (patterns.empty() && (!profanity_enabled || languages.empty())) {
 		result.text = "No match or not enabled";
 		return result;
 	}
@@ -554,6 +589,14 @@ scan_result scan_ocr(const dpp::json& command, const std::string& file_content, 
 	result.raw = {
 		{"text", ocr_text}
 	};
+
+	if (profanity_enabled && !languages.empty() && has_text(ocr_text)) {
+		try {
+			result.raw["censored_text"] = run_profanity_filter(ocr_text, languages);
+		} catch (const std::exception& e) {
+			result.raw["profanity_error"] = e.what();
+		}
+	}
 
 	std::vector<std::string> lines = dpp::utility::tokenize(ocr_text, "\n");
 
@@ -1006,12 +1049,14 @@ dpp::json run_basic_nsfw_avif(const std::string& file_content, const std::vector
 dpp::json scan_all(const dpp::json& command, const std::string& hash, const std::string& file_content, const std::string& filename)
 {
 	const bool premium = json_bool(command, "premium", false);
+	const bool animated_scan_enabled = premium && json_bool(command, "prem_anim_scan_enable", true);
+	const bool video_scan_enabled = premium && json_bool(command, "prem_video_scan_enable", true);
 	const bool webp = is_webp(file_content);
 	const bool avif = is_avif(file_content);
-	const bool scan_gif = premium && is_animated_gif(file_content);
-	const bool scan_webp = premium && webp && is_animated_webp(file_content);
-	const bool scan_avif = premium && avif && is_animated_avif(file_content);
-	const bool scan_mp4 = premium && !avif && (is_mp4(file_content) || is_webm(file_content));
+	const bool scan_gif = animated_scan_enabled && is_animated_gif(file_content);
+	const bool scan_webp = animated_scan_enabled && webp && is_animated_webp(file_content);
+	const bool scan_avif = animated_scan_enabled && avif && is_animated_avif(file_content);
+	const bool scan_mp4 = video_scan_enabled && !avif && (is_mp4(file_content) || is_webm(file_content));
 
 	std::vector<std::size_t> frames;
 

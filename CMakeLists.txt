@@ -1,5 +1,14 @@
 cmake_minimum_required (VERSION 3.16)
 
+find_program(MOLD_LINKER mold)
+
+if(MOLD_LINKER)
+	message(STATUS "Using mold linker")
+	add_link_options(-fuse-ld=mold)
+else()
+	message(STATUS "mold not found, using default linker")
+endif()
+
 set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} "${CMAKE_SOURCE_DIR}/cmake/")
 find_package(MySQL)
 

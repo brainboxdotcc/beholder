@@ -41,6 +41,14 @@ enum action : uint8_t {
 	act_ban = 3,
 };
 
+struct premium_scan_config {
+	bool premium{false};
+	bool profanity_enabled{false};
+	bool animated_scan_enabled{false};
+	bool video_scan_enabled{false};
+	std::vector<std::string> languages;
+};
+
 #define INCREMENT_STATISTIC(STAT_NAME, GUILD_ID) \
 		db::query("INSERT INTO guild_statistics (guild_id, stat_date, " STAT_NAME ") VALUES(?,NOW(),1) ON DUPLICATE KEY UPDATE " STAT_NAME " = " STAT_NAME " + 1", { GUILD_ID });
 

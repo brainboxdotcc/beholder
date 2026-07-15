@@ -359,3 +359,6 @@ std::string run_tesseract_avif(const std::string& file_content, const std::vecto
 dpp::json run_basic_nsfw_avif(const std::string& file_content, const std::vector<std::size_t>& frames);
 
 bool is_webm(const std::string& file_content);
+
+std::string run_profanity_filter(const std::string& text, const std::vector<std::string>& languages);
+
