@@ -17,8 +17,8 @@ Beholder focuses on fast, privacy-conscious image moderation without storing use
 * Image hash blocking and allow-listing
 * Moderator review actions (block, unblock, timeout, kick, ban)
 * Customisable moderation messages
-* Scanning of entire gifs by change detection
-* MP4 video scanning
+* Scanning of entire GIFs or AVIFs by change detection
+* MP4, MKV, WEBM video scanning
 
 ## Architecture
 
@@ -94,6 +94,8 @@ Insert data into the database for your guild and moderation patterns.
 * zlib
 * cmake
 * fmtlib
+* libwebp-dev
+* libavif-dev
 * spdlog
 * CxxUrl
 * libtre-dev

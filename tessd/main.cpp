@@ -222,7 +222,7 @@ bool fetch_image(const std::string& url, std::string& file_content)
 
 	if (!trusted_media_host(host)) {
 		cli.enable_server_certificate_verification(false);
-		//cli.set_proxy("127.0.0.1", 9080);
+		cli.set_proxy("127.0.0.1", 9080);
 	}
 
 	auto res = cli.Get(path);
