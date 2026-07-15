@@ -57,7 +57,7 @@ void info_command::route(const dpp::slashcommand_t &event) {
 	std::string guild_count = counts[0].at("guild_total");
 	std::string user_count = counts[0].at("user_total");
 	std::string pattern_count{"0"}, log_channel, scanned_today{"0"}, blocked_today{"0"};
-	db::resultset prem = db::query("SELECT 1FROM premium_credits WHERE guild_id = ? AND active = 1", {event.command.guild_id});
+	db::resultset prem = db::query("SELECT 1 FROM premium_credits WHERE guild_id = ? AND active = 1", {event.command.guild_id});
 	bool has_premium = !prem.empty();
 	db::resultset config = db::query("SELECT gc.*, COUNT(gp.pattern) AS patterns FROM guild_config gc LEFT JOIN guild_patterns gp ON gp.guild_id = gc.guild_id WHERE gc.guild_id = ? GROUP BY gc.guild_id", {event.command.guild_id});
 	if (!config.empty()) {

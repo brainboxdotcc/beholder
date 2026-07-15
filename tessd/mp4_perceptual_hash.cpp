@@ -279,58 +279,32 @@ const unsigned char* mp4_frame_rgba(mp4_decoder& decoder, int& width, int& heigh
 		throw std::runtime_error("invalid_video_frame_dimensions");
 	}
 
-	const std::size_t row_size = static_cast<std::size_t>(width) * 4;
-	const std::size_t buffer_size = row_size * static_cast<std::size_t>(height);
+	const int buffer_size = av_image_get_buffer_size(AV_PIX_FMT_RGBA, width, height, 1);
 
-	if (row_size / 4 != static_cast<std::size_t>(width) || (height > 0 && buffer_size / static_cast<std::size_t>(height) != row_size)) {
-		throw std::runtime_error("video_frame_size_overflow");
+	if (buffer_size < 0) {
+		throw std::runtime_error("av_image_get_buffer_size_failed: " + ffmpeg_error(buffer_size));
 	}
 
-	decoder.rgba.resize(buffer_size);
+	decoder.rgba.resize(static_cast<std::size_t>(buffer_size));
 
-	decoder.scaler = sws_getCachedContext(
-		decoder.scaler,
-		width,
-		height,
-		static_cast<AVPixelFormat>(decoder.frame->format),
-		width,
-		height,
-		AV_PIX_FMT_RGBA,
-		SWS_BILINEAR,
-		nullptr,
-		nullptr,
-		nullptr
-	);
+	decoder.scaler = sws_getCachedContext(decoder.scaler, width, height, static_cast<AVPixelFormat>(decoder.frame->format), width, height, AV_PIX_FMT_RGBA, SWS_BILINEAR, nullptr, nullptr, nullptr);
 
 	if (!decoder.scaler) {
 		throw std::runtime_error("sws_get_cached_context_failed");
 	}
 
-	uint8_t* destination[] = {
-		decoder.rgba.data(),
-		nullptr,
-		nullptr,
-		nullptr
-	};
+	uint8_t* destination[4]{};
+	int destination_stride[4]{};
 
-	int destination_stride[] = {
-		width * 4,
-		0,
-		0,
-		0
-	};
+	const int fill_result = av_image_fill_arrays(destination, destination_stride, decoder.rgba.data(), AV_PIX_FMT_RGBA, width, height, 1);
 
-	const int result = sws_scale(
-		decoder.scaler,
-		decoder.frame->data,
-		decoder.frame->linesize,
-		0,
-		height,
-		destination,
-		destination_stride
-	);
+	if (fill_result < 0) {
+		throw std::runtime_error("av_image_fill_arrays_failed: " + ffmpeg_error(fill_result));
+	}
 
-	if (result != height) {
+	const int scale_result = sws_scale(decoder.scaler, decoder.frame->data, decoder.frame->linesize, 0, height, destination, destination_stride);
+
+	if (scale_result != height) {
 		throw std::runtime_error("sws_scale_failed");
 	}
 
@@ -461,7 +435,7 @@ void decode_mp4_frames(const unsigned char* mp4_data, std::size_t mp4_size, cons
 		read_mp4_frames(
 			decoder,
 			[&](const unsigned char* pixels, int width, int height) {
-				if (frame_index == frames[selected_index]) {
+				if (selected_index < frames.size() && frame_index == frames[selected_index]) {
 					callback(frame_index, pixels, width, height);
 					++selected_index;
 				}

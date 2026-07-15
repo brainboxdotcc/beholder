@@ -70,7 +70,7 @@
  * having to run the rest of Beholder.
  */
 
-constexpr uint64_t one_gigabyte = 1073741824;
+constexpr uint64_t one_gigabyte = 1073741824ULL;
 constexpr uint64_t max_pixels = 33554432;
 
 struct scan_result {
@@ -97,7 +97,18 @@ Pix* rgba_to_pix(const unsigned char* pixels, int width, int height)
 		return nullptr;
 	}
 
-	std::memcpy(pixGetData(image), pixels, static_cast<std::size_t>(width) * height * 4);
+	l_uint32* destination = pixGetData(image);
+	const int words_per_line = pixGetWpl(image);
+
+	for (int y = 0; y < height; ++y) {
+		l_uint32* destination_line = destination + (y * words_per_line);
+		const unsigned char* source_line = pixels + (static_cast<std::size_t>(y) * static_cast<std::size_t>(width) * 4);
+
+		for (int x = 0; x < width; ++x) {
+			const unsigned char* source = source_line + (x * 4);
+			composeRGBPixel(source[0], source[1], source[2], &destination_line[x]);
+		}
+	}
 
 	return image;
 }
@@ -240,7 +251,7 @@ bool fetch_image(const std::string& url, std::string& file_content)
 		return false;
 	}
 
-	if (!is_mp4(file_content) && !validate_image_dimensions(res->body)) {
+	if (!is_mp4(res->body) && !validate_image_dimensions(res->body)) {
 		write_error("fetch", "invalid_image");
 		return false;
 	}
@@ -824,15 +835,9 @@ dpp::json scan_all(const dpp::json& command, const std::string& hash, const std:
 	std::vector<std::size_t> frames;
 
 	if (scan_gif) {
-		frames = gif_frames_to_scan(
-			reinterpret_cast<const unsigned char*>(file_content.data()),
-			file_content.size()
-		);
+		frames = gif_frames_to_scan(reinterpret_cast<const unsigned char*>(file_content.data()), file_content.size());
 	} else if (scan_mp4) {
-		frames = mp4_frames_to_scan(
-			reinterpret_cast<const unsigned char*>(file_content.data()),
-			file_content.size()
-		);
+		frames = mp4_frames_to_scan(reinterpret_cast<const unsigned char*>(file_content.data()), file_content.size());
 	}
 
 	const std::string prepared_content = scan_gif || scan_mp4 ? file_content : flatten_gif(filename, file_content);
