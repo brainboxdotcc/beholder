@@ -357,3 +357,5 @@ std::string run_tesseract_avif(const std::string& file_content, const std::vecto
  * @return NSFW classification result.
  */
 dpp::json run_basic_nsfw_avif(const std::string& file_content, const std::vector<std::size_t>& frames);
+
+bool is_webm(const std::string& file_content);

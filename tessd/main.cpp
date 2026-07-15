@@ -252,7 +252,7 @@ bool fetch_image(const std::string& url, std::string& file_content)
 		return false;
 	}
 
-	if (!is_mp4(res->body) && !is_webp(res->body) && !is_avif(res->body) && !validate_image_dimensions(res->body)) {
+	if (!is_webm(res->body) && !is_mp4(res->body) && !is_webp(res->body) && !is_avif(res->body) && !validate_image_dimensions(res->body)) {
 		write_error("fetch", "invalid_image");
 		return false;
 	}
@@ -1011,7 +1011,7 @@ dpp::json scan_all(const dpp::json& command, const std::string& hash, const std:
 	const bool scan_gif = premium && is_animated_gif(file_content);
 	const bool scan_webp = premium && webp && is_animated_webp(file_content);
 	const bool scan_avif = premium && avif && is_animated_avif(file_content);
-	const bool scan_mp4 = premium && !avif && is_mp4(file_content);
+	const bool scan_mp4 = premium && !avif && (is_mp4(file_content) || is_webm(file_content));
 
 	std::vector<std::size_t> frames;
 

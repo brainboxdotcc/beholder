@@ -55,6 +55,17 @@ bool is_mp4(const std::string& file_content)
 	return data[4] == 'f' && data[5] == 't' && data[6] == 'y' && data[7] == 'p';
 }
 
+bool is_webm(const std::string& file_content)
+{
+	if (file_content.size() < 4) {
+		return false;
+	}
+
+	const auto* data = reinterpret_cast<const unsigned char*>(file_content.data());
+
+	return data[0] == 0x1a && data[1] == 0x45 && data[2] == 0xdf && data[3] == 0xa3;
+}
+
 std::string ffmpeg_error(int error)
 {
 	char buffer[AV_ERROR_MAX_STRING_SIZE]{};
