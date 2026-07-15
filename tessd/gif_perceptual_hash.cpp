@@ -17,9 +17,6 @@
  * limitations under the License.
  *
  ************************************************************************************/
-#include <cstddef>
-#include <cstdint>
-#include <cstring>
 #include <limits>
 #include <stdexcept>
 #include <vector>
@@ -30,7 +27,7 @@
 #include <opencv2/core.hpp>
 #include <opencv2/img_hash.hpp>
 #include <opencv2/imgproc.hpp>
-#include "beholder/tessd.h"
+#include <beholder/tessd.h>
 
 constexpr std::size_t max_gif_scan_frames = 250;
 

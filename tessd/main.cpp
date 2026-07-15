@@ -85,12 +85,13 @@ struct scan_result {
 	dpp::json cache = nullptr;
 };
 
-Pix* rgba_to_pix(const unsigned char* pixels, int width, int height)
+Pix* rgba_to_pix(const unsigned char* pixels, int width, int height, int stride = 0)
 {
 	if (!pixels || width <= 0 || height <= 0) {
 		return nullptr;
 	}
 
+	const int actual_stride = (stride > 0) ? stride : (width * 4);
 	Pix* image = pixCreate(width, height, 32);
 
 	if (!image) {
@@ -102,7 +103,7 @@ Pix* rgba_to_pix(const unsigned char* pixels, int width, int height)
 
 	for (int y = 0; y < height; ++y) {
 		l_uint32* destination_line = destination + (y * words_per_line);
-		const unsigned char* source_line = pixels + (static_cast<std::size_t>(y) * static_cast<std::size_t>(width) * 4);
+		const unsigned char* source_line = pixels + (static_cast<std::size_t>(y) * static_cast<std::size_t>(actual_stride));
 
 		for (int x = 0; x < width; ++x) {
 			const unsigned char* source = source_line + (x * 4);

@@ -19,9 +19,6 @@
  ************************************************************************************/
 #include <beholder/tessd.h>
 #include <algorithm>
-#include <cerrno>
-#include <cstddef>
-#include <cstdint>
 #include <cstring>
 #include <limits>
 #include <stdexcept>
@@ -144,6 +141,7 @@ struct mp4_decoder {
 	SwsContext* scaler{nullptr};
 	int video_stream{-1};
 	std::vector<unsigned char> rgba;
+	int rgba_stride{0};
 };
 
 void close_mp4_decoder(mp4_decoder& decoder)
@@ -270,7 +268,7 @@ void open_mp4_decoder(mp4_decoder& decoder, const unsigned char* mp4_data, std::
 	}
 }
 
-const unsigned char* mp4_frame_rgba(mp4_decoder& decoder, int& width, int& height)
+const unsigned char* mp4_frame_rgba(mp4_decoder& decoder, int& width, int& height, int& out_stride)
 {
 	width = decoder.frame->width;
 	height = decoder.frame->height;
@@ -279,7 +277,13 @@ const unsigned char* mp4_frame_rgba(mp4_decoder& decoder, int& width, int& heigh
 		throw std::runtime_error("invalid_video_frame_dimensions");
 	}
 
-	const int buffer_size = av_image_get_buffer_size(AV_PIX_FMT_RGBA, width, height, 1);
+	/*
+	 * libswscale on the production FFmpeg version has been observed writing
+	 * slightly beyond the calculated RGBA image buffer for some MP4 inputs.
+	 * Leave defensive padding so this cannot corrupt the process heap.
+	 */
+	constexpr int alignment = 32;
+	const int buffer_size = av_image_get_buffer_size(AV_PIX_FMT_RGBA, width, height, alignment) + 64;
 
 	if (buffer_size < 0) {
 		throw std::runtime_error("av_image_get_buffer_size_failed: " + ffmpeg_error(buffer_size));
@@ -296,7 +300,7 @@ const unsigned char* mp4_frame_rgba(mp4_decoder& decoder, int& width, int& heigh
 	uint8_t* destination[4]{};
 	int destination_stride[4]{};
 
-	const int fill_result = av_image_fill_arrays(destination, destination_stride, decoder.rgba.data(), AV_PIX_FMT_RGBA, width, height, 1);
+	const int fill_result = av_image_fill_arrays(destination, destination_stride, decoder.rgba.data(), AV_PIX_FMT_RGBA, width, height, alignment);
 
 	if (fill_result < 0) {
 		throw std::runtime_error("av_image_fill_arrays_failed: " + ffmpeg_error(fill_result));
@@ -308,12 +312,12 @@ const unsigned char* mp4_frame_rgba(mp4_decoder& decoder, int& width, int& heigh
 		throw std::runtime_error("sws_scale_failed");
 	}
 
+	// Pass the actual allocated stride back to the caller
+	out_stride = destination_stride[0];
 	return decoder.rgba.data();
 }
 
-template<typename FrameCallback>
-void read_mp4_frames(mp4_decoder& decoder, const FrameCallback& callback)
-{
+template<typename FrameCallback> void read_mp4_frames(mp4_decoder& decoder, const FrameCallback& callback) {
 	auto receive_frames = [&decoder, &callback]() {
 		while (true) {
 			const int result = avcodec_receive_frame(decoder.codec, decoder.frame);
@@ -328,9 +332,10 @@ void read_mp4_frames(mp4_decoder& decoder, const FrameCallback& callback)
 
 			int width = 0;
 			int height = 0;
-			const unsigned char* pixels = mp4_frame_rgba(decoder, width, height);
+			int stride = 0;
+			const unsigned char* pixels = mp4_frame_rgba(decoder, width, height, stride);
 
-			if (!callback(pixels, width, height)) {
+			if (!callback(pixels, width, height, stride)) {
 				av_frame_unref(decoder.frame);
 				return false;
 			}
@@ -380,8 +385,12 @@ std::vector<std::size_t> mp4_frames_to_scan(const unsigned char* mp4_data, std::
 
 		read_mp4_frames(
 			decoder,
-			[&](const unsigned char* pixels, int width, int height) {
-				cv::Mat rgba(height, width, CV_8UC4, const_cast<unsigned char*>(pixels));
+			// We accept the stride parameter directly from read_mp4_frames here
+			[&](const unsigned char* pixels, int width, int height, int stride) {
+				// We pass 'stride' as the 5th argument (step) to cv::Mat.
+				// This tells OpenCV exactly where each row ends, padding and all,
+				// with zero copy overhead!
+				cv::Mat rgba(height, width, CV_8UC4, const_cast<unsigned char*>(pixels), stride);
 				cv::Mat greyscale;
 				cv::Mat current_hash;
 
@@ -431,12 +440,31 @@ void decode_mp4_frames(const unsigned char* mp4_data, std::size_t mp4_size, cons
 
 		std::size_t frame_index = 0;
 		std::size_t selected_index = 0;
+		std::vector<unsigned char> packed_buffer;
 
 		read_mp4_frames(
 			decoder,
-			[&](const unsigned char* pixels, int width, int height) {
+			[&](const unsigned char* pixels, int width, int height, int stride) {
 				if (selected_index < frames.size() && frame_index == frames[selected_index]) {
-					callback(frame_index, pixels, width, height);
+
+					const int expected_stride = width * 4;
+					const unsigned char* callback_pixels = pixels;
+
+					// If FFmpeg padded the row (stride > width * 4), pack it tightly!
+					if (stride != expected_stride) {
+						packed_buffer.resize(expected_stride * height);
+						for (int y = 0; y < height; ++y) {
+							std::memcpy(
+								packed_buffer.data() + (y * expected_stride),
+								pixels + (y * stride),
+								expected_stride
+							);
+						}
+						callback_pixels = packed_buffer.data();
+					}
+
+					// Invoke the 4-parameter callback with the tightly packed buffer
+					callback(frame_index, callback_pixels, width, height);
 					++selected_index;
 				}
 
