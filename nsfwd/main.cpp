@@ -10,6 +10,9 @@
 #include <beholder/logger.h>
 #include <nsfwd/log_aggregator.h>
 #include <nsfwd/nsfwd.h>
+#include <fmt/format.h>
+#include <drogon/drogon.h>
+#include <dpp/dpp.h>
 
 using namespace drogon;
 
@@ -39,7 +42,7 @@ int run_server() {
 		[&input_op, &output_op, &session](const drogon::HttpRequestPtr &req, std::function<void(const drogon::HttpResponsePtr &)> &&callback) {
 
 			auto json_error = [&](drogon::HttpStatusCode code, std::string_view message) {
-				auto body = fmt::format("{{\"error\":\"{}\"}}", message);
+				auto body = fmt::format(fmt::runtime("{{\"error\":\"{}\"}}"), message);
 				auto resp = drogon::HttpResponse::newHttpResponse();
 				resp->setStatusCode(code);
 				resp->setContentTypeCode(drogon::CT_APPLICATION_JSON);
@@ -81,7 +84,7 @@ int run_server() {
 			float *results = output_tensor.as<float>();
 
 			auto reply_body = fmt::format(
-				"{{\"drawing\":{:.6f},\"hentai\":{:.6f},\"neutral\":{:.6f},\"porn\":{:.6f},\"sexy\":{:.6f}}}\n",
+				fmt::runtime("{{\"drawing\":{:.6f},\"hentai\":{:.6f},\"neutral\":{:.6f},\"porn\":{:.6f},\"sexy\":{:.6f}}}\n"),
 				results[INDEX_DRAWING],
 				results[INDEX_HENTAI],
 				results[INDEX_NEUTRAL],
@@ -93,7 +96,7 @@ int run_server() {
 			resp->setBody(reply_body);
 
 			double end = dpp::utility::time_f();
-			LOG_INFO << "POST / -> Image: " << image.get_width() << "x" << image.get_height() << "x" << image.get_channels() << " (" << fmt::format("{:.2f}", (end - start) * 1000.0) << "ms)";
+			LOG_INFO << "POST / -> Image: " << image.get_width() << "x" << image.get_height() << "x" << image.get_channels() << " (" << fmt::format(fmt::runtime("{:.2f}"), (end - start) * 1000.0) << "ms)";
 
 			callback(resp);
 		},

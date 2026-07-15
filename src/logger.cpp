@@ -17,7 +17,7 @@
  * limitations under the License.
  *
  ************************************************************************************/
-#include <fmt/core.h>
+#include <fmt/format.h>
 #include <spdlog/spdlog.h>
 #include <spdlog/async.h>
 #include <spdlog/sinks/stdout_color_sinks.h>

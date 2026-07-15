@@ -23,7 +23,7 @@
 #include <beholder/whitelist.h>
 #include <beholder/proc/json_frame.h>
 #include <CxxUrl/url.hpp>
-#include <fmt/core.h>
+#include <fmt/format.h>
 #include <beholder/reactor.h>
 #include <sys/epoll.h>
 #include <sys/eventfd.h>
@@ -601,7 +601,7 @@ void scanner_reactor::start_job(const scan_request& request)
 	job->output_buffer = make_json_frame(make_fetch_request(job->attach));
 	job->output_offset = 0;
 
-	job->bot->log(dpp::ll_info, fmt::format("spawned tessd; pid={}", job->pid));
+	job->bot->log(dpp::ll_info, fmt::format(fmt::runtime("spawned tessd; pid={}"), job->pid));
 
 	try {
 		add_fd(job->stdin_fd, EPOLLOUT | EPOLLERR | EPOLLHUP, reactor_fd_type::child_stdin, job);
@@ -818,7 +818,7 @@ void scanner_reactor::handle_child_exit(const std::shared_ptr<scan_job>& job)
 	int status{0};
 	waitpid(job->pid, &status, WNOHANG);
 
-	job->bot->log(status == 0 ? dpp::ll_info : dpp::ll_warning, fmt::format("tessd exited with status {}", status));
+	job->bot->log(status == 0 ? dpp::ll_info : dpp::ll_warning, fmt::format(fmt::runtime("tessd exited with status {}"), status));
 
 	remove_fd(job->stdin_fd);
 	remove_fd(job->stdout_fd);
@@ -853,7 +853,7 @@ void download_image(const dpp::attachment attach, dpp::cluster& bot, const dpp::
 	}
 
 	if (attach.width * attach.height > 33554432) {
-		bot.log(dpp::ll_info, "Image dimensions of " + std::to_string(attach.width) + "x" + std::to_string(attach.height) + " too large to be a screenshot");
+		bot.log(dpp::ll_info, "Image dimensions of " + std::to_string(attach.width) + "x" + std::to_string(attach.height) + " too large");
 		return;
 	}
 

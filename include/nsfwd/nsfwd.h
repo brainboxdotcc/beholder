@@ -1,12 +1,10 @@
 #pragma once
 #include <stdint.h>
 #include <beholder/proc/spawn.h>
-#include <drogon/drogon.h>
 #include <tensorflow/c/c_api.h>
 #include <cstring>
 #include <iostream>
 #include <vector>
-#include <fmt/core.h>
 
 inline constexpr size_t INPUT_HEIGHT = 299;
 inline constexpr size_t INPUT_WIDTH = 299;

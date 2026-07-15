@@ -21,7 +21,7 @@
 #include <beholder/database.h>
 #include <beholder/commands/ping.h>
 #include <beholder/database.h>
-#include <fmt/core.h>
+#include <fmt/format.h>
 
 dpp::slashcommand ping_command::register_command(dpp::cluster& bot)
 {
@@ -44,14 +44,14 @@ void ping_command::route(const dpp::slashcommand_t &event)
 	/* Get the rest ping from discord. */
 	double discord_api_ping = bot->rest_ping * 1000;
 
-	embed.add_field("REST Ping", fmt::format("{:.02f}ms", discord_api_ping), true);
+	embed.add_field("REST Ping", fmt::format(fmt::runtime("{:.02f}ms"), discord_api_ping), true);
 
 	/* Calculate the DB time */
 	double start = dpp::utility::time_f();
 	db::resultset q = db::query("SHOW TABLES");
 
 	double db_ping = (dpp::utility::time_f() - start) * 1000;
-	embed.add_field("Database Ping", fmt::format("{:.02f}ms", db_ping), true);
+	embed.add_field("Database Ping", fmt::format(fmt::runtime("{:.02f}ms"), db_ping), true);
 
 	event.reply(dpp::message().add_embed(embed));
 }

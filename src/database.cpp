@@ -22,7 +22,7 @@
 #include <beholder/database.h>
 #include <beholder/config.h>
 #include <mysql/mysql.h>
-#include <fmt/core.h>
+#include <fmt/format.h>
 #include <iostream>
 #include <unordered_map>
 #include <mutex>
@@ -210,10 +210,10 @@ namespace db {
 		creator = &bot;
 		const json dbconf = config::get("database");
 		if (!db::connect(dbconf["host"], dbconf["username"], dbconf["password"], dbconf["database"], dbconf["port"])) {
-			creator->log(dpp::ll_critical, fmt::format("Database connection error connecting to {}: {}", dbconf["database"].get<std::string>(), mysql_error(&connection)));
+			creator->log(dpp::ll_critical, fmt::format(fmt::runtime("Database connection error connecting to {}: {}"), dbconf["database"].get<std::string>(), mysql_error(&connection)));
 			exit(2);
 		}
-		creator->log(dpp::ll_info, fmt::format("Connected to database: {}", dbconf["database"].get<std::string>()));
+		creator->log(dpp::ll_info, fmt::format(fmt::runtime("Connected to database: {}"), dbconf["database"].get<std::string>()));
 	}
 
 	/**
@@ -262,7 +262,7 @@ namespace db {
 
 	void log_error(const std::string& format, const std::string& error) {
 		if (!format.empty()) {
-			last_error = fmt::format("{} (query: {})", error, format);
+			last_error = fmt::format(fmt::runtime("{} (query: {})"), error, format);
 			if (error == "Lost connection to MySQL server during query") {
 				db::close();
 				db::init(*creator);
@@ -312,7 +312,7 @@ namespace db {
 			cached_queries = {};
 			const json dbconf = config::get("database");
 			if (!db::unsafe_connect(dbconf["host"], dbconf["username"], dbconf["password"], dbconf["database"], dbconf["port"])) {
-				creator->log(dpp::ll_critical, fmt::format("Database connection error connecting to {}: {}", dbconf["database"].get<std::string>(), mysql_error(&connection)));
+				creator->log(dpp::ll_critical, fmt::format(fmt::runtime("Database connection error connecting to {}: {}"), dbconf["database"].get<std::string>(), mysql_error(&connection)));
 				return rv;
 			}
 		}

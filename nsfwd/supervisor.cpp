@@ -4,6 +4,7 @@
 #include <fstream>
 #include <signal.h>
 #include <unistd.h>
+#include <dpp/dpp.h>
 
 constexpr size_t max_child_rss = 8ULL * 1024 * 1024 * 1024;
 

@@ -18,7 +18,7 @@
  *
  ************************************************************************************/
 #include <set>
-#include <fmt/core.h>
+#include <fmt/format.h>
 #include <CxxUrl/url.hpp>
 #include <beholder/listeners.h>
 #include <beholder/database.h>
@@ -221,7 +221,7 @@ more powerful filtering options planned. More information will be announced on t
 					scanned = stats[0].at("images_scanned");
 					blocked = stats[0].at("images_deleted");
 				}
-				bot.set_presence(dpp::presence(dpp::ps_online, dpp::at_custom, fmt::format("Protecting {} servers. {} images scanned, {} removed.", comma(guild_count), comma(scanned), comma(blocked))));
+				bot.set_presence(dpp::presence(dpp::ps_online, dpp::at_custom, fmt::format(fmt::runtime("Protecting {} servers. {} images scanned, {} removed."), comma(guild_count), comma(scanned), comma(blocked))));
 			};
 
 			bot.start_timer([&bot, set_presence](dpp::timer t) {
@@ -360,7 +360,7 @@ more powerful filtering options planned. More information will be announced on t
 		event.owner->log(
 			dpp::ll_info,
 			fmt::format(
-				"COMMAND: {} by {} ({} Guild: {})",
+				fmt::runtime("COMMAND: {} by {} ({} Guild: {})"),
 				event.command.get_command_name(),
 				event.command.usr.format_username(),
 				event.command.usr.id,

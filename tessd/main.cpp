@@ -32,7 +32,7 @@
 #include <sstream>
 #include <string>
 #include <sys/resource.h>
-#include <fmt/core.h>
+#include <fmt/format.h>
 #include <vector>
 
 /**
@@ -818,7 +818,7 @@ scan_result scan_basic_nsfw(const dpp::json& command, const std::string& file_co
 		}
 
 		result.blocked = true;
-		result.text = fmt::format("NSFW: {} ({:.02f}{})", label, score * 100, '%');
+		result.text = fmt::format(fmt::runtime("NSFW: {} ({:.02f}{})"), label, score * 100, '%');
 		result.trigger = score;
 		result.threshold = threshold;
 		return true;

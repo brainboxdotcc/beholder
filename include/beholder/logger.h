@@ -18,7 +18,11 @@
  *
  ************************************************************************************/
 #pragma once
-#include <dpp/dpp.h>
+#include <string>
+
+namespace dpp {
+	class log_t;
+};
 
 namespace logger {
 
