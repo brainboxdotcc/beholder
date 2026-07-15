@@ -222,3 +222,73 @@ std::string rgba_to_png(const unsigned char* pixels, int width, int height);
  * @return True if the GIF contains animation control blocks.
  */
 bool is_animated_gif(const std::string& file_content);
+
+/**
+ * @brief Determine whether file data contains a WebP image.
+ *
+ * @param file_content File data.
+ * @return True if the file has a valid WebP container signature.
+ */
+bool is_webp(const std::string& file_content);
+
+/**
+ * @brief Determine whether a WebP image is animated.
+ *
+ * @param file_content WebP file data.
+ * @return True if the WebP bitstream contains animation.
+ */
+bool is_animated_webp(const std::string& file_content);
+
+/**
+ * @brief Select perceptually distinct frames from an animated WebP image.
+ *
+ * @param webp_data Pointer to WebP file data.
+ * @param webp_size Size of WebP data in bytes.
+ * @param threshold Minimum perceptual hash distance required to select a frame.
+ * @param total_frames Optional pointer receiving the total number of decoded frames.
+ * @return Vector of selected frame indices.
+ */
+std::vector<std::size_t> webp_frames_to_scan(const unsigned char* webp_data, std::size_t webp_size, double threshold = 6.0, std::size_t* total_frames = nullptr);
+
+/**
+ * @brief Decode selected frames from an animated WebP image.
+ *
+ * Frames are supplied to the callback as complete composited 32-bit RGBA images.
+ *
+ * @param webp_data Pointer to WebP file data.
+ * @param webp_size Size of WebP data in bytes.
+ * @param frames Frame indices to decode.
+ * @param callback Callback invoked for each decoded frame.
+ */
+void decode_webp_frames(const unsigned char* webp_data, std::size_t webp_size, const std::vector<std::size_t>& frames, const animation_frame_callback& callback);
+
+/**
+ * @brief Flatten a WebP image to its first frame.
+ *
+ * Static and animated WebP images are converted to PNG so they can pass through
+ * the existing static image scanning pipeline.
+ *
+ * @param file_content WebP file data.
+ * @return PNG image data containing the first frame.
+ */
+std::string flatten_webp(const std::string& file_content);
+
+/**
+ * @brief Perform OCR across selected WebP frames.
+ *
+ * @param file_content WebP file data.
+ * @param frames Frame indices to scan.
+ * @return Concatenated OCR output.
+ */
+std::string run_tesseract_webp(const std::string& file_content, const std::vector<std::size_t>& frames);
+
+/**
+ * @brief Perform NSFW classification across selected WebP frames.
+ *
+ * The highest score for each category is returned.
+ *
+ * @param file_content WebP file data.
+ * @param frames Frame indices to scan.
+ * @return NSFW classification result.
+ */
+dpp::json run_basic_nsfw_webp(const std::string& file_content, const std::vector<std::size_t>& frames);

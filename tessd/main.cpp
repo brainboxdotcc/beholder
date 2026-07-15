@@ -252,7 +252,7 @@ bool fetch_image(const std::string& url, std::string& file_content)
 		return false;
 	}
 
-	if (!is_mp4(res->body) && !validate_image_dimensions(res->body)) {
+	if (!is_mp4(res->body) && !is_webp(res->body) && !validate_image_dimensions(res->body)) {
 		write_error("fetch", "invalid_image");
 		return false;
 	}
@@ -372,6 +372,7 @@ bool has_text(const std::string& text)
 
 	return false;
 }
+
 
 std::string run_tesseract_gif(const std::string& file_content, const std::vector<std::size_t>& frames)
 {
@@ -514,7 +515,7 @@ std::string run_tesseract(const std::string& file_content)
 	return text;
 }
 
-scan_result scan_ocr(const dpp::json& command, const std::string& file_content, const std::vector<std::size_t>& frames, bool mp4)
+scan_result scan_ocr(const dpp::json& command, const std::string& file_content, const std::vector<std::size_t>& frames, bool mp4, bool webp)
 {
 	scan_result result;
 	result.scanner = "ocr";
@@ -537,7 +538,13 @@ scan_result scan_ocr(const dpp::json& command, const std::string& file_content, 
 		ocr_text = run_tesseract(file_content);
 		result.cache = ocr_text;
 	} else {
-		ocr_text = mp4 ? run_tesseract_mp4(file_content, frames) : run_tesseract_gif(file_content, frames);
+		if (mp4) {
+			ocr_text = run_tesseract_mp4(file_content, frames);
+		} else if (webp) {
+			ocr_text = run_tesseract_webp(file_content, frames);
+		} else {
+			ocr_text = run_tesseract_gif(file_content, frames);
+		}
 		result.cache = ocr_text;
 	}
 
@@ -703,7 +710,7 @@ dpp::json run_basic_nsfw_gif(const std::string& file_content, const std::vector<
 	return answer;
 }
 
-scan_result scan_basic_nsfw(const dpp::json& command, const std::string& file_content, const std::vector<std::size_t>& frames, bool mp4)
+scan_result scan_basic_nsfw(const dpp::json& command, const std::string& file_content, const std::vector<std::size_t>& frames, bool mp4, bool webp)
 {
 	scan_result result;
 	result.scanner = "basic_nsfw";
@@ -735,7 +742,13 @@ scan_result scan_basic_nsfw(const dpp::json& command, const std::string& file_co
 			if (frames.empty()) {
 				answer = run_basic_nsfw(file_content);
 			} else {
-				answer = mp4 ? run_basic_nsfw_mp4(file_content, frames) : run_basic_nsfw_gif(file_content, frames);
+				if (mp4) {
+					answer = run_basic_nsfw_mp4(file_content, frames);
+				} else if (webp) {
+					answer = run_basic_nsfw_webp(file_content, frames);
+				} else {
+					answer = run_basic_nsfw_gif(file_content, frames);
+				}
 			}
 		} catch (const std::exception& e) {
 			result.text = e.what();
@@ -827,26 +840,118 @@ dpp::json result_to_json(const scan_result& result)
 	return out;
 }
 
+std::string run_tesseract_webp(const std::string& file_content, const std::vector<std::size_t>& frames)
+{
+	std::string text;
+
+	decode_webp_frames(
+		reinterpret_cast<const unsigned char*>(file_content.data()),
+		file_content.size(),
+		frames,
+		[&text](std::size_t, const unsigned char* pixels, int width, int height) {
+			if (static_cast<uint64_t>(width) * static_cast<uint64_t>(height) > max_pixels) {
+				throw std::runtime_error("image_size");
+			}
+
+			Pix* image = rgba_to_pix(pixels, width, height);
+
+			if (!image) {
+				throw std::runtime_error("pix_create_failed");
+			}
+
+			std::string frame_text;
+
+			try {
+				frame_text = run_tesseract_image(image);
+			} catch (...) {
+				pixDestroy(&image);
+				throw;
+			}
+
+			pixDestroy(&image);
+
+			if (has_text(frame_text)) {
+				if (!text.empty()) {
+					text += "\n";
+				}
+
+				text += frame_text;
+			}
+		}
+	);
+
+	return text;
+}
+
+dpp::json run_basic_nsfw_webp(const std::string& file_content, const std::vector<std::size_t>& frames)
+{
+	dpp::json answer;
+	bool first = true;
+
+	decode_webp_frames(
+		reinterpret_cast<const unsigned char*>(file_content.data()),
+		file_content.size(),
+		frames,
+		[&answer, &first](std::size_t, const unsigned char* pixels, int width, int height) {
+			if (static_cast<uint64_t>(width) * static_cast<uint64_t>(height) > max_pixels) {
+				throw std::runtime_error("image_size");
+			}
+
+			const dpp::json frame_answer = run_basic_nsfw(rgba_to_png(pixels, width, height));
+
+			if (first) {
+				answer = frame_answer;
+				first = false;
+				return;
+			}
+
+			for (const std::string key : {"sexy", "porn", "drawing", "hentai"}) {
+				if (frame_answer.at(key).get<double>() > answer.at(key).get<double>()) {
+					answer[key] = frame_answer.at(key);
+				}
+			}
+		}
+	);
+
+	if (first) {
+		throw std::runtime_error("no_webp_frames");
+	}
+
+	return answer;
+}
+
 dpp::json scan_all(const dpp::json& command, const std::string& hash, const std::string& file_content, const std::string& filename)
 {
 	const bool premium = json_bool(command, "premium", false);
+	const bool webp = is_webp(file_content);
 	const bool scan_gif = premium && is_animated_gif(file_content);
+	const bool scan_webp = premium && webp && is_animated_webp(file_content);
 	const bool scan_mp4 = premium && is_mp4(file_content);
 
 	std::vector<std::size_t> frames;
 
 	if (scan_gif) {
 		frames = gif_frames_to_scan(reinterpret_cast<const unsigned char*>(file_content.data()), file_content.size());
+	} else if (scan_webp) {
+		frames = webp_frames_to_scan(reinterpret_cast<const unsigned char*>(file_content.data()), file_content.size());
 	} else if (scan_mp4) {
 		frames = mp4_frames_to_scan(reinterpret_cast<const unsigned char*>(file_content.data()), file_content.size());
 	}
 
-	const std::string prepared_content = scan_gif || scan_mp4 ? file_content : flatten_gif(filename, file_content);
+	std::string prepared_content;
+
+	if (scan_gif || scan_webp || scan_mp4) {
+		prepared_content = file_content;
+	} else if (webp) {
+		prepared_content = flatten_webp(file_content);
+	} else {
+		prepared_content = flatten_gif(filename, file_content);
+	}
 
 	std::vector<scan_result> results;
 
 	try {
-		results.emplace_back(scan_ocr(command, prepared_content, frames, scan_mp4));
+		results.emplace_back(scan_ocr(command, prepared_content, frames, scan_mp4, scan_webp));
 	} catch (const std::exception& e) {
 		scan_result result;
 		result.scanner = "ocr";
@@ -858,7 +963,7 @@ dpp::json scan_all(const dpp::json& command, const std::string& hash, const std:
 
 	if (!results.back().blocked) {
 		try {
-			results.emplace_back(scan_basic_nsfw(command, prepared_content, frames, scan_mp4));
+			results.emplace_back(scan_basic_nsfw(command, prepared_content, frames, scan_mp4, scan_webp));
 		} catch (const std::exception& e) {
 			scan_result result;
 			result.scanner = "basic_nsfw";

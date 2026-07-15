@@ -85,12 +85,10 @@ target_include_directories("tessd" SYSTEM PRIVATE
 )
 
 find_package(PkgConfig REQUIRED)
-pkg_check_modules(FFMPEG REQUIRED IMPORTED_TARGET
-	libavformat
-	libavcodec
-	libavutil
-	libswscale
-)
+
+pkg_check_modules(WEBP REQUIRED IMPORTED_TARGET libwebp libwebpdemux)
+
+pkg_check_modules(FFMPEG REQUIRED IMPORTED_TARGET libavformat libavcodec libavutil libswscale)
 
 target_include_directories("nsfwd" PUBLIC
 	${CMAKE_CURRENT_SOURCE_DIR}/include
@@ -107,6 +105,7 @@ target_link_libraries("tessd"
 	fmt
 	CxxUrl
 	${OpenCV_LIBS}
+	PkgConfig::WEBP
 	PkgConfig::FFMPEG
 	${DPP_LIBRARIES}
 	${CMAKE_THREAD_LIBS_INIT}
