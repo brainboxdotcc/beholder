@@ -107,6 +107,7 @@ target_link_libraries("tessd"
 	${OpenCV_LIBS}
 	PkgConfig::WEBP
 	PkgConfig::FFMPEG
+	avif
 	${DPP_LIBRARIES}
 	${CMAKE_THREAD_LIBS_INIT}
 )

@@ -292,3 +292,68 @@ std::string run_tesseract_webp(const std::string& file_content, const std::vecto
  * @return NSFW classification result.
  */
 dpp::json run_basic_nsfw_webp(const std::string& file_content, const std::vector<std::size_t>& frames);
+
+/**
+ * @brief Determine whether file data contains an AVIF image.
+ *
+ * @param file_content File data.
+ * @return True if the file contains an AVIF-compatible file type.
+ */
+bool is_avif(const std::string& file_content);
+
+/**
+ * @brief Determine whether an AVIF image contains multiple frames.
+ *
+ * @param file_content AVIF file data.
+ * @return True if the AVIF contains an image sequence.
+ */
+bool is_animated_avif(const std::string& file_content);
+
+/**
+ * @brief Select perceptually distinct frames from an animated AVIF image.
+ *
+ * @param avif_data Pointer to AVIF file data.
+ * @param avif_size Size of AVIF data in bytes.
+ * @param threshold Minimum perceptual hash distance required to select a frame.
+ * @param total_frames Optional pointer receiving the total number of decoded frames.
+ * @return Vector of selected frame indices.
+ */
+std::vector<std::size_t> avif_frames_to_scan(const unsigned char* avif_data, std::size_t avif_size, double threshold = 6.0, std::size_t* total_frames = nullptr);
+
+/**
+ * @brief Decode selected frames from an AVIF image sequence.
+ *
+ * Frames are supplied to the callback as tightly packed 32-bit RGBA images.
+ *
+ * @param avif_data Pointer to AVIF file data.
+ * @param avif_size Size of AVIF data in bytes.
+ * @param frames Frame indices to decode.
+ * @param callback Callback invoked for each decoded frame.
+ */
+void decode_avif_frames(const unsigned char* avif_data, std::size_t avif_size, const std::vector<std::size_t>& frames, const animation_frame_callback& callback);
+
+/**
+ * @brief Flatten an AVIF image to its first frame.
+ *
+ * @param file_content AVIF file data.
+ * @return PNG image data containing the first decoded frame.
+ */
+std::string flatten_avif(const std::string& file_content);
+
+/**
+ * @brief Perform OCR across selected AVIF frames.
+ *
+ * @param file_content AVIF file data.
+ * @param frames Frame indices to scan.
+ * @return Concatenated OCR output.
+ */
+std::string run_tesseract_avif(const std::string& file_content, const std::vector<std::size_t>& frames);
+
+/**
+ * @brief Perform NSFW classification across selected AVIF frames.
+ *
+ * @param file_content AVIF file data.
+ * @param frames Frame indices to scan.
+ * @return NSFW classification result.
+ */
+dpp::json run_basic_nsfw_avif(const std::string& file_content, const std::vector<std::size_t>& frames);
