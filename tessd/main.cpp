@@ -22,9 +22,9 @@
 #include <leptonica/allheaders.h>
 #include <beholder/beholder.h>
 #include <beholder/proc/json_frame.h>
-#include <beholder/proc/spawn.h>
 #include <beholder/tessd.h>
 #include "3rdparty/httplib.h"
+#include <beholder/trusted_hosts.h>
 #include <CxxUrl/url.hpp>
 #include <cctype>
 #include <csignal>
@@ -97,18 +97,7 @@ Pix* rgba_to_pix(const unsigned char* pixels, int width, int height)
 		return nullptr;
 	}
 
-	l_uint32* destination = pixGetData(image);
-	const int words_per_line = pixGetWpl(image);
-
-	for (int y = 0; y < height; ++y) {
-		l_uint32* destination_line = destination + (y * words_per_line);
-		const unsigned char* source_line = pixels + (static_cast<std::size_t>(y) * static_cast<std::size_t>(width) * 4);
-
-		for (int x = 0; x < width; ++x) {
-			const unsigned char* source = source_line + (x * 4);
-			composeRGBPixel(source[0], source[1], source[2], &destination_line[x]);
-		}
-	}
+	std::memcpy(pixGetData(image), pixels, static_cast<std::size_t>(width) * height * 4);
 
 	return image;
 }
@@ -188,6 +177,17 @@ bool validate_image_dimensions(const std::string& file_content)
 	return pixels <= max_pixels;
 }
 
+bool trusted_media_host(const std::string& host)
+{
+	for (const char* trusted_host : trusted) {
+		if (match(host.c_str(), trusted_host)) {
+			return true;
+		}
+	}
+
+	return false;
+}
+
 bool fetch_image(const std::string& url, std::string& file_content)
 {
 	Url parsed(url);
@@ -195,9 +195,21 @@ bool fetch_image(const std::string& url, std::string& file_content)
 	const std::string path = build_path_with_query(parsed);
 
 	httplib::Client cli(host.c_str());
-	cli.enable_server_certificate_verification(false);
 
-	if (host != "https://cdn.discordapp.com") {
+	cli.set_default_headers({
+		{ "User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/149.0.0.0 Safari/537.36" },
+		{ "Accept", "image/*,video/*,*/*;q=0.8" },
+		{ "Accept-Language", "en-GB,en;q=0.9" },
+		{ "Cache-Control", "no-cache" },
+		{ "Pragma", "no-cache" },
+		{ "Referer", host + "/" },
+	});
+	cli.set_keep_alive(true);
+	cli.set_follow_location(true);
+	cli.set_read_timeout(5);
+
+	if (!trusted_media_host(host)) {
+		cli.enable_server_certificate_verification(false);
 		cli.set_proxy("127.0.0.1", 9080);
 	}
 

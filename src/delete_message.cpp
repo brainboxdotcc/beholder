@@ -63,7 +63,10 @@ bool delete_message_and_warn(std::string hash, std::string image, dpp::cluster& 
 		bool delete_failed = cc.is_error();
 
 		db::resultset logchannel = db::query("SELECT log_channel, embed_title, embed_body FROM guild_config WHERE guild_id = ?", {ev.msg.guild_id});
-		db::resultset channel_settings = db::query("SELECT * FROM channel_settings WHERE guild_id = ? AND channel_id = ?", {ev.msg.guild_id, ev.msg.channel_id});
+		db::resultset channel_settings = db::query(
+			"SELECT * FROM channel_settings WHERE guild_id = ? AND channel_id IN (?, 0) ORDER BY channel_id = ? DESC LIMIT 1",
+			{ev.msg.guild_id, ev.msg.channel_id, ev.msg.channel_id}
+		);
 
 		if (logchannel.size() == 0 || (channel_settings.size() && channel_settings[0].at("warn") == "1")) {
 			std::string message_body = logchannel.size() == 0 ? "" : logchannel[0].at("embed_body");
