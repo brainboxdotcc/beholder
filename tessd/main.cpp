@@ -4,7 +4,17 @@
  *
  * Copyright 2019,2023,2026 Craig Edwards <support@sporks.gg>
  *
- * Licensed under the Apache License, Version 2.0
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ * http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
  *
  ************************************************************************************/
 #include <dpp/dpp.h>
@@ -43,6 +53,21 @@
  * By isolating tesseract in its own program like this, we ensure that Linux can free up the
  * memory leak for us. We can also pre-launch copies of this program, each waiting for stdin
  * in a similar way to how fastcgi works. This would improve performance if needed.
+ *
+ * Whilst OCR was the original reason for this process existing, it now also handles other
+ * image analysis tasks. It downloads media from URLs, calculates SHA-256 hashes for cache
+ * lookups, performs local NSFW classification, and scans animated GIFs and MP4 videos by
+ * selecting only perceptually distinct frames rather than processing every single frame.
+ * This keeps the expensive image processing code together in one place.
+ *
+ * Keeping all of this work in a separate process also improves robustness. The worker runs
+ * under strict memory and execution time limits, so if a buggy image decoder, OCR engine or
+ * malformed input causes it to fail, the main bot process remains unaffected and can simply
+ * launch another worker.
+ *
+ * The worker communicates with the parent process using a simple length-prefixed JSON protocol
+ * over stdin/stdout. This also makes it easy to test standalone from the command line without
+ * having to run the rest of Beholder.
  */
 
 constexpr uint64_t one_gigabyte = 1073741824;
@@ -88,9 +113,10 @@ Pix* rgba_to_pix(const unsigned char* pixels, int width, int height)
 	return image;
 }
 
-void tessd_timeout(int sig)
-{
-	tessd::status(tessd::exit_code::timeout);
+void tessd_timeout(int) {
+	static constexpr auto timeout_frame = proc::make_json_frame("{\"stage\":\"alarm\",\"status\":\"error\",\"error\":\"timeout\"}\n");
+	::write(STDOUT_FILENO, timeout_frame.data(), timeout_frame.size() - 1);
+	::_exit(static_cast<int>(tessd::exit_code::timeout));
 }
 
 void set_limit(int type, uint64_t max)
@@ -122,7 +148,7 @@ void write_error(const std::string& stage, const std::string& error, const std::
 		{"status", "error"},
 		{"error", error},
 		{"detail", detail}
-	  });
+	});
 }
 
 std::string build_path_with_query(const Url& url)
@@ -202,7 +228,7 @@ bool fetch_image(const std::string& url, std::string& file_content)
 		return false;
 	}
 
-	if (!validate_image_dimensions(res->body)) {
+	if (!is_mp4(file_content) && !validate_image_dimensions(res->body)) {
 		write_error("fetch", "invalid_image");
 		return false;
 	}
@@ -236,42 +262,6 @@ bool is_animated_gif(const std::string& file_content)
 	}
 
 	return false;
-}
-
-/**
- * @brief Given an image file, check if it is a gif, and if it is animated.
- * If it is, flatten it by extracting just the first frame using imagemagick.
- *
- * @param bot Reference to D++ cluster
- * @param attach message attachment
- * @param file_content file content
- * @return std::string new file content
- */
-std::string flatten_gif(const std::string& filename, const std::string& file_content)
-{
-	if (!is_animated_gif(file_content)) {
-		return file_content;
-	}
-
-	const char* const argv[] = {"/usr/bin/convert", "-[0]", "png:-", nullptr};
-	spawn convert(argv);
-	convert.stdin.write(file_content.data(), file_content.length());
-	convert.send_eof();
-
-	std::ostringstream stream;
-	stream << convert.stdout.rdbuf();
-
-	if (convert.wait() != 0) {
-		return file_content;
-	}
-
-	const std::string flattened = stream.str();
-
-	if (flattened.empty()) {
-		return file_content;
-	}
-
-	return flattened;
 }
 
 std::vector<std::string> json_string_array(const dpp::json& value)
@@ -500,7 +490,7 @@ std::string run_tesseract(const std::string& file_content)
 	return text;
 }
 
-scan_result scan_ocr(const dpp::json& command, const std::string& file_content, const std::vector<std::size_t>& frames)
+scan_result scan_ocr(const dpp::json& command, const std::string& file_content, const std::vector<std::size_t>& frames, bool mp4)
 {
 	scan_result result;
 	result.scanner = "ocr";
@@ -519,8 +509,11 @@ scan_result scan_ocr(const dpp::json& command, const std::string& file_content, 
 
 	if (command.contains("cache") && command.at("cache").contains("ocr") && command.at("cache").at("ocr").is_string()) {
 		ocr_text = command.at("cache").at("ocr").get<std::string>();
+	} else if (frames.empty()) {
+		ocr_text = run_tesseract(file_content);
+		result.cache = ocr_text;
 	} else {
-		ocr_text = frames.empty() ? run_tesseract(file_content) : run_tesseract_gif(file_content, frames);
+		ocr_text = mp4 ? run_tesseract_mp4(file_content, frames) : run_tesseract_gif(file_content, frames);
 		result.cache = ocr_text;
 	}
 
@@ -661,22 +654,7 @@ dpp::json run_basic_nsfw_gif(const std::string& file_content, const std::vector<
 				throw std::runtime_error("image_size");
 			}
 
-			Pix* image = rgba_to_pix(pixels, width, height);
-
-			if (!image) {
-				throw std::runtime_error("pix_create_failed");
-			}
-
-			std::string png;
-
-			try {
-				png = pix_to_png(image);
-			} catch (...) {
-				pixDestroy(&image);
-				throw;
-			}
-
-			pixDestroy(&image);
+			const std::string png = rgba_to_png(pixels, width, height);
 
 			const dpp::json frame_answer = run_basic_nsfw(png);
 
@@ -701,7 +679,7 @@ dpp::json run_basic_nsfw_gif(const std::string& file_content, const std::vector<
 	return answer;
 }
 
-scan_result scan_basic_nsfw(const dpp::json& command, const std::string& file_content, const std::vector<std::size_t>& frames)
+scan_result scan_basic_nsfw(const dpp::json& command, const std::string& file_content, const std::vector<std::size_t>& frames, bool mp4)
 {
 	scan_result result;
 	result.scanner = "basic_nsfw";
@@ -730,7 +708,11 @@ scan_result scan_basic_nsfw(const dpp::json& command, const std::string& file_co
 		answer = command.at("cache").at("basic");
 	} else {
 		try {
-			answer = frames.empty() ? run_basic_nsfw(file_content) : run_basic_nsfw_gif(file_content, frames);
+			if (frames.empty()) {
+				answer = run_basic_nsfw(file_content);
+			} else {
+				answer = mp4 ? run_basic_nsfw_mp4(file_content, frames) : run_basic_nsfw_gif(file_content, frames);
+			}
 		} catch (const std::exception& e) {
 			result.text = e.what();
 			return result;
@@ -824,23 +806,29 @@ dpp::json result_to_json(const scan_result& result)
 dpp::json scan_all(const dpp::json& command, const std::string& hash, const std::string& file_content, const std::string& filename)
 {
 	const bool premium = json_bool(command, "premium", false);
-	const bool scan_animation = premium && is_animated_gif(file_content);
+	const bool scan_gif = premium && is_animated_gif(file_content);
+	const bool scan_mp4 = premium && is_mp4(file_content);
 
 	std::vector<std::size_t> frames;
 
-	if (scan_animation) {
+	if (scan_gif) {
 		frames = gif_frames_to_scan(
+			reinterpret_cast<const unsigned char*>(file_content.data()),
+			file_content.size()
+		);
+	} else if (scan_mp4) {
+		frames = mp4_frames_to_scan(
 			reinterpret_cast<const unsigned char*>(file_content.data()),
 			file_content.size()
 		);
 	}
 
-	const std::string prepared_content = scan_animation ? file_content : flatten_gif(filename, file_content);
+	const std::string prepared_content = scan_gif || scan_mp4 ? file_content : flatten_gif(filename, file_content);
 
 	std::vector<scan_result> results;
 
 	try {
-		results.emplace_back(scan_ocr(command, prepared_content, frames));
+		results.emplace_back(scan_ocr(command, prepared_content, frames, scan_mp4));
 	} catch (const std::exception& e) {
 		scan_result result;
 		result.scanner = "ocr";
@@ -852,7 +840,7 @@ dpp::json scan_all(const dpp::json& command, const std::string& hash, const std:
 
 	if (!results.back().blocked) {
 		try {
-			results.emplace_back(scan_basic_nsfw(command, prepared_content, frames));
+			results.emplace_back(scan_basic_nsfw(command, prepared_content, frames, scan_mp4));
 		} catch (const std::exception& e) {
 			scan_result result;
 			result.scanner = "basic_nsfw";

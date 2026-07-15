@@ -185,8 +185,11 @@ json make_fetch_request(const dpp::attachment& attach) {
 }
 
 json make_continue_request(dpp::cluster& bot, dpp::snowflake guild_id, dpp::snowflake channel_id, const std::string& hash) {
+	db::resultset prem = db::query("SELECT 1 FROM premium_credits WHERE guild_id = ? AND active = 1", {guild_id});
+	bool has_premium = !prem.empty();
 	json request = {
 		{"action", "continue"},
+		{"premium", has_premium},
 		{"ocr_patterns", get_ocr_patterns(guild_id, channel_id)},
 		{"basic_nsfw", get_basic_nsfw_config(bot, guild_id, channel_id)},
 		{"cache", get_scan_cache(hash)}

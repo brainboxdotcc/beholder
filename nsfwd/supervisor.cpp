@@ -17,7 +17,7 @@ static size_t child_rss(pid_t pid) {
 	return resident * sysconf(_SC_PAGESIZE);
 }
 
-int run_supervisor(const char* self) {
+[[noreturn]] void run_supervisor(const char* self) {
 	logger::init("nsfwd-logs/nsfwd.log");
 
 	while (true) {

@@ -27,7 +27,7 @@ add_executable("tessd"
 
 target_precompile_headers("tessd" INTERFACE "tessd/3rdparty/httplib.h")
 
-target_compile_options(tessd PRIVATE -Wno-deprecated-enum-enum-conversion)
+target_compile_options(tessd PRIVATE -Wno-deprecated-enum-enum-conversion -Wno-missing-field-initializers)
 
 aux_source_directory("nsfwd" nsfwdsrc)
 add_executable("nsfwd"

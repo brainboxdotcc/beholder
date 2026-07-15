@@ -108,5 +108,5 @@ int main(int argc, char **argv) {
 	if (argc > 1 && std::string_view(argv[1]) == "--child") {
 		return run_server();
 	}
-	return run_supervisor(argv[0]);
+	run_supervisor(argv[0]);
 }

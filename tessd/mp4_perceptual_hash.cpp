@@ -4,7 +4,17 @@
  *
  * Copyright 2019,2023,2026 Craig Edwards <support@sporks.gg>
  *
- * Licensed under the Apache License, Version 2.0
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ * http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
  *
  ************************************************************************************/
 #include <beholder/tessd.h>
@@ -36,6 +46,17 @@ struct mp4_memory_buffer {
 	std::size_t size{0};
 	std::size_t position{0};
 };
+
+bool is_mp4(const std::string& file_content)
+{
+	if (file_content.size() < 12) {
+		return false;
+	}
+
+	const auto* data = reinterpret_cast<const unsigned char*>(file_content.data());
+
+	return data[4] == 'f' && data[5] == 't' && data[6] == 'y' && data[7] == 'p';
+}
 
 std::string ffmpeg_error(int error)
 {
@@ -423,7 +444,7 @@ std::vector<std::size_t> mp4_frames_to_scan(const unsigned char* mp4_data, std::
 	}
 }
 
-void decode_mp4_frames(const unsigned char* mp4_data, std::size_t mp4_size, const std::vector<std::size_t>& frames, const gif_frame_callback& callback)
+void decode_mp4_frames(const unsigned char* mp4_data, std::size_t mp4_size, const std::vector<std::size_t>& frames, const animation_frame_callback& callback)
 {
 	if (frames.empty()) {
 		return;

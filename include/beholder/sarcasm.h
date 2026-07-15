@@ -21,4 +21,8 @@
 #include <string>
 #include <vector>
 
+/**
+ * @brief Responds to direct mentions with the warmth, empathy and emotional
+ * availability users have inexplicably come to expect.
+ */
 void sarcastic_ping(const dpp::message_create_t &ev);

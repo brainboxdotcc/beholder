@@ -4,7 +4,17 @@
  *
  * Copyright 2019,2023,2026 Craig Edwards <support@sporks.gg>
  *
- * Licensed under the Apache License, Version 2.0
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ * http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
  *
  ************************************************************************************/
 #include <beholder/tessd.h>
@@ -112,19 +122,9 @@ int tessd_cli(int argc, char** argv)
 		std::vector<std::size_t> frames;
 
 		if (command == "gif-frames") {
-			frames = gif_frames_to_scan(
-				reinterpret_cast<const unsigned char*>(file_content.data()),
-				file_content.size(),
-				threshold,
-				&total_frames
-			);
+			frames = gif_frames_to_scan(reinterpret_cast<const unsigned char*>(file_content.data()), file_content.size(), threshold, &total_frames);
 		} else {
-			frames = mp4_frames_to_scan(
-				reinterpret_cast<const unsigned char*>(file_content.data()),
-				file_content.size(),
-				threshold,
-				&total_frames
-			);
+			frames = mp4_frames_to_scan( reinterpret_cast<const unsigned char*>(file_content.data()), file_content.size(), threshold, &total_frames);
 		}
 
 		std::cout << "Total frames: " << total_frames << '\n';
@@ -149,9 +149,7 @@ int tessd_cli(int argc, char** argv)
 
 		std::cout << "\nOCR:\n";
 
-		const std::string ocr_text = command == "gif-frames"
-					     ? run_tesseract_gif(file_content, frames)
-					     : run_tesseract_mp4(file_content, frames);
+		const std::string ocr_text = command == "gif-frames" ? run_tesseract_gif(file_content, frames) : run_tesseract_mp4(file_content, frames);
 
 		if (ocr_text.empty()) {
 			std::cout << "(no text found)\n";
@@ -161,9 +159,7 @@ int tessd_cli(int argc, char** argv)
 
 		std::cout << "\nNSFW:\n";
 
-		const dpp::json nsfw = command == "gif-frames"
-				       ? run_basic_nsfw_gif(file_content, frames)
-				       : run_basic_nsfw_mp4(file_content, frames);
+		const dpp::json nsfw = command == "gif-frames" ? run_basic_nsfw_gif(file_content, frames) : run_basic_nsfw_mp4(file_content, frames);
 
 		std::cout << nsfw.dump(2) << '\n';
 	} catch (const std::exception& e) {
