@@ -128,7 +128,7 @@ int tessd_cli(int argc, char** argv);
  * @param frames Frame indices to scan.
  * @return Concatenated OCR output.
  */
-std::string run_tesseract_gif(const std::string& file_content, const std::vector<std::size_t>& frames);
+std::string run_tesseract_gif(const std::string& file_content, const std::vector<std::size_t>& frames, const std::string& languages);
 
 /**
  * @brief Perform NSFW classification across selected GIF frames.
@@ -148,7 +148,7 @@ dpp::json run_basic_nsfw_gif(const std::string& file_content, const std::vector<
  * @param frames Frame indices to scan.
  * @return Concatenated OCR output.
  */
-std::string run_tesseract_mp4(const std::string& file_content, const std::vector<std::size_t>& frames);
+std::string run_tesseract_mp4(const std::string& file_content, const std::vector<std::size_t>& frames, const std::string& languages);
 
 /**
  * @brief Perform NSFW classification across selected MP4 frames.
@@ -280,7 +280,7 @@ std::string flatten_webp(const std::string& file_content);
  * @param frames Frame indices to scan.
  * @return Concatenated OCR output.
  */
-std::string run_tesseract_webp(const std::string& file_content, const std::vector<std::size_t>& frames);
+std::string run_tesseract_webp(const std::string& file_content, const std::vector<std::size_t>& frames, const std::string& languages);
 
 /**
  * @brief Perform NSFW classification across selected WebP frames.
@@ -347,7 +347,7 @@ std::string flatten_avif(const std::string& file_content);
  * @param frames Frame indices to scan.
  * @return Concatenated OCR output.
  */
-std::string run_tesseract_avif(const std::string& file_content, const std::vector<std::size_t>& frames);
+std::string run_tesseract_avif(const std::string& file_content, const std::vector<std::size_t>& frames, const std::string& languages);
 
 /**
  * @brief Perform NSFW classification across selected AVIF frames.

@@ -34,6 +34,8 @@
 #include <sys/resource.h>
 #include <fmt/format.h>
 #include <vector>
+#include <unordered_map>
+#include <unordered_set>
 
 /**
  * @brief Tesseract Daemon
@@ -84,6 +86,94 @@ struct scan_result {
 	dpp::json raw = dpp::json::object();
 	dpp::json cache = nullptr;
 };
+
+bool json_bool(const dpp::json& value, const std::string& key, bool fallback);
+
+std::vector<std::string> json_string_array(const dpp::json& value);
+
+std::string tesseract_language_code(const std::string& language)
+{
+	static const std::unordered_map<std::string, std::string> languages = {
+		{"ar", "ara"},
+		{"az", "aze"},
+		{"bg", "bul"},
+		{"ca", "cat"},
+		{"cs", "ces"},
+		{"cy", "cym"},
+		{"da", "dan"},
+		{"de", "deu"},
+		{"el", "ell"},
+		{"en", "eng"},
+		{"es", "spa"},
+		{"et", "est"},
+		{"fa", "fas"},
+		{"fi", "fin"},
+		{"fr", "fra"},
+		{"ga", "gle"},
+		{"gd", "gla"},
+		{"he", "heb"},
+		{"hi", "hin"},
+		{"hr", "hrv"},
+		{"hu", "hun"},
+		{"id", "ind"},
+		{"it", "ita"},
+		{"ja", "jpn"},
+		{"ko", "kor"},
+		{"lt", "lit"},
+		{"lv", "lav"},
+		{"nl", "nld"},
+		{"no", "nor"},
+		{"pl", "pol"},
+		{"pt", "por"},
+		{"ro", "ron"},
+		{"ru", "rus"},
+		{"sk", "slk"},
+		{"sl", "slv"},
+		{"sr", "srp"},
+		{"sv", "swe"},
+		{"th", "tha"},
+		{"tr", "tur"},
+		{"uk", "ukr"},
+		{"vi", "vie"},
+		{"zh", "chi_sim"},
+		{"zh-cn", "chi_sim"},
+		{"zh-tw", "chi_tra"},
+	};
+
+	const auto found = languages.find(language);
+	return found == languages.end() ? "" : found->second;
+}
+
+std::string get_tesseract_languages(const dpp::json& command)
+{
+	std::vector<std::string> languages{"eng"};
+	std::unordered_set<std::string> added{"eng"};
+
+	if (!json_bool(command, "premium", false) || !command.contains("prem_languages")) {
+		return "eng";
+	}
+
+	for (const std::string& language : json_string_array(command.at("prem_languages"))) {
+		const std::string mapped = tesseract_language_code(language);
+
+		if (!mapped.empty() && !added.contains(mapped)) {
+			languages.push_back(mapped);
+			added.emplace(mapped);
+		}
+	}
+
+	std::string result;
+
+	for (const std::string& language : languages) {
+		if (!result.empty()) {
+			result += "+";
+		}
+
+		result += language;
+	}
+
+	return result;
+}
 
 Pix* rgba_to_pix(const unsigned char* pixels, int width, int height, int stride = 0)
 {
@@ -314,7 +404,7 @@ bool json_bool(const dpp::json& value, const std::string& key, bool fallback)
 	return value.at(key).get<bool>();
 }
 
-static std::string run_tesseract_image_with_psm(Pix* image, tesseract::PageSegMode psm)
+static std::string run_tesseract_image_with_psm(Pix* image, tesseract::PageSegMode psm, const std::string& languages)
 {
 	/**
 	 * RAII isn't a thing in tesseract land. We can't just initialise the object
@@ -323,9 +413,13 @@ static std::string run_tesseract_image_with_psm(Pix* image, tesseract::PageSegMo
 	 */
 	tesseract::TessBaseAPI* api = new tesseract::TessBaseAPI();
 
-	if (api->Init(nullptr, "eng", tesseract::OcrEngineMode::OEM_DEFAULT)) {
-		delete api;
-		throw std::runtime_error("tesseract_init_failed");
+	if (api->Init(nullptr, languages.c_str(), tesseract::OcrEngineMode::OEM_DEFAULT)) {
+		if (languages != "eng" && !api->Init(nullptr, "eng", tesseract::OcrEngineMode::OEM_DEFAULT)) {
+			// Fell back to English because one or more requested language models were unavailable.
+		} else {
+			delete api;
+			throw std::runtime_error("tesseract_init_failed");
+		}
 	}
 
 	api->SetPageSegMode(psm);
@@ -354,10 +448,10 @@ static std::string run_tesseract_image_with_psm(Pix* image, tesseract::PageSegMo
 	return text;
 }
 
-std::string run_tesseract_image(Pix* image)
+std::string run_tesseract_image(Pix* image, const std::string& languages)
 {
-	std::string block_text = run_tesseract_image_with_psm(image, tesseract::PageSegMode::PSM_SINGLE_BLOCK);
-	std::string sparse_text = run_tesseract_image_with_psm(image, tesseract::PageSegMode::PSM_SPARSE_TEXT);
+	std::string block_text = run_tesseract_image_with_psm(image, tesseract::PageSegMode::PSM_SINGLE_BLOCK, languages);
+	std::string sparse_text = run_tesseract_image_with_psm(image, tesseract::PageSegMode::PSM_SPARSE_TEXT, languages);
 
 	return block_text + "\n" + sparse_text;
 }
@@ -374,7 +468,7 @@ bool has_text(const std::string& text)
 }
 
 
-std::string run_tesseract_gif(const std::string& file_content, const std::vector<std::size_t>& frames)
+std::string run_tesseract_gif(const std::string& file_content, const std::vector<std::size_t>& frames, const std::string& languages)
 {
 	std::string text;
 
@@ -382,7 +476,7 @@ std::string run_tesseract_gif(const std::string& file_content, const std::vector
 		reinterpret_cast<const unsigned char*>(file_content.data()),
 		file_content.size(),
 		frames,
-		[&text](std::size_t, const unsigned char* pixels, int width, int height) {
+		[&text,&languages](std::size_t, const unsigned char* pixels, int width, int height) {
 			const uint64_t pixel_count = static_cast<uint64_t>(width) * static_cast<uint64_t>(height);
 
 			if (pixel_count > max_pixels) {
@@ -398,7 +492,7 @@ std::string run_tesseract_gif(const std::string& file_content, const std::vector
 			std::string frame_text;
 
 			try {
-				frame_text = run_tesseract_image(image);
+				frame_text = run_tesseract_image(image, languages);
 			} catch (...) {
 				pixDestroy(&image);
 				throw;
@@ -419,7 +513,7 @@ std::string run_tesseract_gif(const std::string& file_content, const std::vector
 	return text;
 }
 
-std::string run_tesseract_mp4(const std::string& file_content, const std::vector<std::size_t>& frames)
+std::string run_tesseract_mp4(const std::string& file_content, const std::vector<std::size_t>& frames, const std::string& languages)
 {
 	std::string text;
 
@@ -427,7 +521,7 @@ std::string run_tesseract_mp4(const std::string& file_content, const std::vector
 		reinterpret_cast<const unsigned char*>(file_content.data()),
 		file_content.size(),
 		frames,
-		[&text](std::size_t, const unsigned char* pixels, int width, int height) {
+		[&text,&languages](std::size_t, const unsigned char* pixels, int width, int height) {
 			if (static_cast<uint64_t>(width) * static_cast<uint64_t>(height) > max_pixels) {
 				throw std::runtime_error("image_size");
 			}
@@ -441,7 +535,7 @@ std::string run_tesseract_mp4(const std::string& file_content, const std::vector
 			std::string frame_text;
 
 			try {
-				frame_text = run_tesseract_image(image);
+				frame_text = run_tesseract_image(image, languages);
 			} catch (...) {
 				pixDestroy(&image);
 				throw;
@@ -462,7 +556,7 @@ std::string run_tesseract_mp4(const std::string& file_content, const std::vector
 	return text;
 }
 
-std::string run_tesseract(const std::string& file_content)
+std::string run_tesseract(const std::string& file_content, const std::string& languages)
 {
 	/**
 	 * We have to use leptonica to load images into tesseract.
@@ -486,7 +580,7 @@ std::string run_tesseract(const std::string& file_content)
 		throw std::runtime_error("image_size");
 	}
 
-	std::string text = run_tesseract_image(image);
+	std::string text = run_tesseract_image(image, languages);
 
 	if (has_text(text)) {
 		pixDestroy(&image);
@@ -509,7 +603,7 @@ std::string run_tesseract(const std::string& file_content)
 		throw std::runtime_error("pix_shape_failed");
 	}
 
-	text = run_tesseract_image(shaped);
+	text = run_tesseract_image(shaped, languages);
 	pixDestroy(&shaped);
 
 	return text;
@@ -557,6 +651,7 @@ scan_result scan_ocr(const dpp::json& command, const std::string& file_content, 
 	const std::vector<std::string> patterns = command.contains("ocr_patterns") ? json_string_array(command.at("ocr_patterns")) : std::vector<std::string>{};
 	const bool profanity_enabled = json_bool(command, "prem_profanity_filter_enable", false);
 	const std::vector<std::string> languages = command.contains("prem_languages") ? json_string_array(command.at("prem_languages")) : std::vector<std::string>{};
+	std::string languages_str = get_tesseract_languages(command);
 
 	if (patterns.empty() && (!profanity_enabled || languages.empty())) {
 		result.text = "No match or not enabled";
@@ -570,19 +665,19 @@ scan_result scan_ocr(const dpp::json& command, const std::string& file_content, 
 	if (command.contains("cache") && command.at("cache").contains("ocr") && command.at("cache").at("ocr").is_string()) {
 		ocr_text = command.at("cache").at("ocr").get<std::string>();
 	} else if (frames.empty()) {
-		ocr_text = run_tesseract(file_content);
+		ocr_text = run_tesseract(file_content, languages_str);
 		result.cache = ocr_text;
 	} else if (mp4) {
-		ocr_text = run_tesseract_mp4(file_content, frames);
+		ocr_text = run_tesseract_mp4(file_content, frames, languages_str);
 		result.cache = ocr_text;
 	} else if (webp) {
-		ocr_text = run_tesseract_webp(file_content, frames);
+		ocr_text = run_tesseract_webp(file_content, frames, languages_str);
 		result.cache = ocr_text;
 	} else if (avif) {
-		ocr_text = run_tesseract_avif(file_content, frames);
+		ocr_text = run_tesseract_avif(file_content, frames, languages_str);
 		result.cache = ocr_text;
 	} else {
-		ocr_text = run_tesseract_gif(file_content, frames);
+		ocr_text = run_tesseract_gif(file_content, frames, languages_str);
 		result.cache = ocr_text;
 	}
 
@@ -886,7 +981,7 @@ dpp::json result_to_json(const scan_result& result)
 	return out;
 }
 
-std::string run_tesseract_webp(const std::string& file_content, const std::vector<std::size_t>& frames)
+std::string run_tesseract_webp(const std::string& file_content, const std::vector<std::size_t>& frames, const std::string& languages)
 {
 	std::string text;
 
@@ -894,7 +989,7 @@ std::string run_tesseract_webp(const std::string& file_content, const std::vecto
 		reinterpret_cast<const unsigned char*>(file_content.data()),
 		file_content.size(),
 		frames,
-		[&text](std::size_t, const unsigned char* pixels, int width, int height) {
+		[&text,&languages](std::size_t, const unsigned char* pixels, int width, int height) {
 			if (static_cast<uint64_t>(width) * static_cast<uint64_t>(height) > max_pixels) {
 				throw std::runtime_error("image_size");
 			}
@@ -908,7 +1003,7 @@ std::string run_tesseract_webp(const std::string& file_content, const std::vecto
 			std::string frame_text;
 
 			try {
-				frame_text = run_tesseract_image(image);
+				frame_text = run_tesseract_image(image, languages);
 			} catch (...) {
 				pixDestroy(&image);
 				throw;
@@ -966,7 +1061,7 @@ dpp::json run_basic_nsfw_webp(const std::string& file_content, const std::vector
 	return answer;
 }
 
-std::string run_tesseract_avif(const std::string& file_content, const std::vector<std::size_t>& frames)
+std::string run_tesseract_avif(const std::string& file_content, const std::vector<std::size_t>& frames, const std::string& languages)
 {
 	std::string text;
 
@@ -974,7 +1069,7 @@ std::string run_tesseract_avif(const std::string& file_content, const std::vecto
 		reinterpret_cast<const unsigned char*>(file_content.data()),
 		file_content.size(),
 		frames,
-		[&text](std::size_t, const unsigned char* pixels, int width, int height) {
+		[&text, &languages](std::size_t, const unsigned char* pixels, int width, int height) {
 			if (static_cast<uint64_t>(width) * static_cast<uint64_t>(height) > max_pixels) {
 				throw std::runtime_error("image_size");
 			}
@@ -988,7 +1083,7 @@ std::string run_tesseract_avif(const std::string& file_content, const std::vecto
 			std::string frame_text;
 
 			try {
-				frame_text = run_tesseract_image(image);
+				frame_text = run_tesseract_image(image, languages);
 			} catch (...) {
 				pixDestroy(&image);
 				throw;

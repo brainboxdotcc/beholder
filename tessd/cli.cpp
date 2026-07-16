@@ -149,7 +149,7 @@ int tessd_cli(int argc, char** argv)
 
 		std::cout << "\nOCR:\n";
 
-		const std::string ocr_text = command == "gif-frames" ? run_tesseract_gif(file_content, frames) : run_tesseract_mp4(file_content, frames);
+		const std::string ocr_text = command == "gif-frames" ? run_tesseract_gif(file_content, frames, {"en"}) : run_tesseract_mp4(file_content, frames, {"en"});
 
 		if (ocr_text.empty()) {
 			std::cout << "(no text found)\n";

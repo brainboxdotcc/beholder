@@ -327,7 +327,7 @@ json make_continue_request(dpp::cluster& bot, dpp::snowflake guild_id, dpp::snow
 		{"prem_profanity_filter_enable", premium.profanity_enabled},
 		{"prem_anim_scan_enable", premium.animated_scan_enabled},
 		{"prem_video_scan_enable", premium.video_scan_enabled},
-		{"prem_languages", premium.languages},
+		{"prem_languages", premium.premium ? premium.languages : std::vector<std::string>{"en"} },
 		{"ocr_patterns", get_ocr_patterns(guild_id, channel_id)},
 		{"basic_nsfw", get_basic_nsfw_config(bot, guild_id, channel_id)},
 		{"cache", get_scan_cache(hash)}
