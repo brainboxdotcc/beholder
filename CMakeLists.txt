@@ -21,8 +21,12 @@ aux_source_directory("src/commands" coresrc)
 add_executable(${BOT_NAME} ${coresrc})
 
 find_package(CxxUrl REQUIRED)
-
+find_library(FMT_LIBRARY NAMES fmt REQUIRED)
+find_library(TENSORFLOW_LIBRARY NAMES tensorflow REQUIRED)
 find_package(OpenCV REQUIRED COMPONENTS core imgproc img_hash)
+find_package(spdlog REQUIRED)
+
+link_directories(/usr/local/lib)
 
 aux_source_directory("tessd" tessdsrc)
 add_executable("tessd"
@@ -83,9 +87,9 @@ else()
 endif()
 
 set(CMAKE_CXX_FLAGS "-g -Wall -Wno-unused-private-field -Wno-psabi -Wempty-body -Wignored-qualifiers -Wimplicit-fallthrough -Wmissing-field-initializers -Wsign-compare -Wtype-limits -Wuninitialized -Wshift-negative-value")
-target_compile_definitions(${BOT_NAME} PUBLIC DPP_CORO=ON SPDLOG_FMT_EXTERNAL=ON CPPHTTPLIB_OPENSSL_SUPPORT)
-target_compile_definitions("tessd" PUBLIC DPP_CORO=ON SPDLOG_FMT_EXTERNAL=ON CPPHTTPLIB_OPENSSL_SUPPORT)
-target_compile_definitions("nsfwd" PUBLIC DPP_CORO=ON SPDLOG_FMT_EXTERNAL=ON CPPHTTPLIB_OPENSSL_SUPPORT)
+target_compile_definitions(${BOT_NAME} PUBLIC DPP_CORO=ON SPDLOG_FMT_EXTERNAL CPPHTTPLIB_OPENSSL_SUPPORT)
+target_compile_definitions("tessd" PUBLIC DPP_CORO=ON SPDLOG_FMT_EXTERNAL CPPHTTPLIB_OPENSSL_SUPPORT)
+target_compile_definitions("nsfwd" PUBLIC DPP_CORO=ON SPDLOG_FMT_EXTERNAL CPPHTTPLIB_OPENSSL_SUPPORT)
 
 target_include_directories(${BOT_NAME} PUBLIC
 	${CMAKE_CURRENT_SOURCE_DIR}/include
@@ -119,7 +123,7 @@ target_link_libraries("tessd"
 	leptonica
 	ssl
 	crypto
-	fmt
+	${FMT_LIBRARY}	
 	CxxUrl
 	${OpenCV_LIBS}
 	PkgConfig::WEBP
@@ -130,7 +134,7 @@ target_link_libraries("tessd"
 )
 
 target_link_libraries("nsfwd"
-	tensorflow
+	${TENSORFLOW_LIBRARY}
 	drogon
 	jsoncpp
 	trantor
@@ -138,15 +142,15 @@ target_link_libraries("nsfwd"
 	uuid
 	ssl
 	crypto
-	fmt
-	spdlog
+	${FMT_LIBRARY}
+	spdlog::spdlog
 	${DPP_LIBRARIES}
 	${CMAKE_THREAD_LIBS_INIT}
 )
 
 target_link_libraries(${BOT_NAME}
-	fmt
-	spdlog
+	${FMT_LIBRARY}
+	spdlog::spdlog
 	mysqlclient
 	crypto
 	ssl
