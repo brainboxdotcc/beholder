@@ -283,7 +283,7 @@ bool handle_scan_response(json response, std::string hash, dpp::cluster& bot, co
 	if (get_profanity_result(response, original_text, censored_text)) {
 		bot.log(dpp::ll_warning, "delete and warn; profanity found; hash=" + hash);
 		INCREMENT_STATISTIC("images_ocr", ev.msg.guild_id);
-		return delete_message_and_warn(hash, "", bot, ev, attach, censored_text);
+		return delete_message_and_warn(hash, "", bot, ev, attach, "Swear word or slur detected");
 	}
 	if (!response.contains("status") || response.at("status") != "blocked") {
 		bot.log(dpp::ll_warning, "tessd status: not blocked: " + response.dump());
