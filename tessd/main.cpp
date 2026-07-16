@@ -316,7 +316,6 @@ bool fetch_image(const std::string& url, std::string& file_content)
 
 	httplib::Client cli(host.c_str());
 
-	cli.set_interface("mullvad");
 	cli.set_default_headers({
 		{ "User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/149.0.0.0 Safari/537.36" },
 		{ "Accept", "image/*,video/*,*/*;q=0.8" },
@@ -331,7 +330,7 @@ bool fetch_image(const std::string& url, std::string& file_content)
 
 	if (!trusted_media_host(host)) {
 		cli.enable_server_certificate_verification(false);
-		cli.set_proxy("127.0.0.1", 9080);
+		cli.set_interface("mullvad");
 	}
 
 	auto res = cli.Get(path);
