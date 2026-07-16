@@ -93,7 +93,7 @@ std::vector<std::string> json_string_array(const dpp::json& value);
 
 std::string tesseract_language_code(const std::string& language)
 {
-	static const std::unordered_map<std::string, std::string> tesseract_languages = {
+	static const std::unordered_map<std::string, std::string> languages = {
 		{"af", "afr"},
 		{"am", "amh"},
 		{"ar", "ara"},
