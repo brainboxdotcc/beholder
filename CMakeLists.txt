@@ -74,7 +74,15 @@ else()
 	find_package(OpenSSL REQUIRED)
 endif()
 
-set(CMAKE_CXX_FLAGS "-g -O2 -Wall -Wno-unused-private-field -Wno-psabi -Wempty-body -Wignored-qualifiers -Wimplicit-fallthrough -Wmissing-field-initializers -Wsign-compare -Wtype-limits -Wuninitialized -Wshift-negative-value")
+option(PRODUCTION_BUILD "Optimised production build" OFF)
+
+if (PRODUCTION_BUILD)
+	add_compile_options(-O2)
+else()
+	add_compile_options(-O0)
+endif()
+
+set(CMAKE_CXX_FLAGS "-g -Wall -Wno-unused-private-field -Wno-psabi -Wempty-body -Wignored-qualifiers -Wimplicit-fallthrough -Wmissing-field-initializers -Wsign-compare -Wtype-limits -Wuninitialized -Wshift-negative-value")
 target_compile_definitions(${BOT_NAME} PUBLIC DPP_CORO=ON SPDLOG_FMT_EXTERNAL=ON CPPHTTPLIB_OPENSSL_SUPPORT)
 target_compile_definitions("tessd" PUBLIC DPP_CORO=ON SPDLOG_FMT_EXTERNAL=ON CPPHTTPLIB_OPENSSL_SUPPORT)
 target_compile_definitions("nsfwd" PUBLIC DPP_CORO=ON SPDLOG_FMT_EXTERNAL=ON CPPHTTPLIB_OPENSSL_SUPPORT)
