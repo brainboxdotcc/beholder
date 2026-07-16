@@ -1,4 +1,5 @@
 #include "httplib.h"
+#include <net/if.h>
 namespace httplib {
 
 /*
@@ -987,16 +988,28 @@ socket_t create_client_socket(
   auto sock = create_socket(
       host, ip, port, address_family, 0, tcp_nodelay, std::move(socket_options),
       [&](socket_t sock2, struct addrinfo &ai) -> bool {
-        if (!intf.empty()) {
-#ifdef USE_IF2IP
-          auto ip_from_if = if2ip(address_family, intf);
-          if (ip_from_if.empty()) { ip_from_if = intf; }
-          if (!bind_ip_address(sock2, ip_from_if.c_str())) {
-            error = Error::BindIPAddress;
-            return false;
-          }
+	if (!intf.empty()) {
+#if defined(__linux__)
+		if (if_nametoindex(intf.c_str()) != 0) {
+			if (setsockopt(sock2, SOL_SOCKET, SO_BINDTODEVICE, intf.c_str(), static_cast<socklen_t>(intf.size() + 1)) != 0) {
+				error = Error::BindIPAddress;
+				return false;
+			}
+		} else
 #endif
-        }
+		{
+#ifdef USE_IF2IP
+			auto ip_from_if = if2ip(address_family, intf);
+			if (ip_from_if.empty()) {
+				ip_from_if = intf;
+			}
+			if (!bind_ip_address(sock2, ip_from_if.c_str())) {
+				error = Error::BindIPAddress;
+				return false;
+			}
+#endif
+		}
+	}
 
         set_nonblocking(sock2, true);
 

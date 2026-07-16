@@ -56,6 +56,7 @@ bool cli_fetch_image(const std::string& url, std::string& file_content)
 	const std::string path = cli_build_path_with_query(parsed);
 
 	httplib::Client client(host.c_str());
+	client.set_interface("mullvad");
 	client.enable_server_certificate_verification(false);
 	auto response = client.Get(path);
 
