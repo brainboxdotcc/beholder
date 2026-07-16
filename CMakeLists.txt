@@ -124,7 +124,7 @@ target_link_libraries("tessd"
 	ssl
 	crypto
 	${FMT_LIBRARY}	
-	CxxUrl
+	chmike::CxxUrl
 	${OpenCV_LIBS}
 	PkgConfig::WEBP
 	PkgConfig::FFMPEG
@@ -154,7 +154,7 @@ target_link_libraries(${BOT_NAME}
 	mysqlclient
 	crypto
 	ssl
-	CxxUrl
+	chmike::CxxUrl
 	tre
 	${CMAKE_THREAD_LIBS_INIT}
 	${DPP_LIBRARIES}
