@@ -838,6 +838,10 @@ void download_image(const dpp::attachment attach, dpp::cluster& bot, const dpp::
 	try {
 		Url u(attach.url);
 		path = u.path();
+		if (u.scheme() != "http" && u.scheme() != "https") {
+			bot.log(dpp::ll_info, "Not a URL: " + attach.url);
+			return;
+		}
 	} catch (const std::exception& e) {
 		bot.log(dpp::ll_info, "Not a URL: " + attach.url + ": " + std::string(e.what()));
 		return;
