@@ -5,9 +5,78 @@
 #include <nsfwd/stb_image_resize2.h>
 #include <nsfwd/nsfwd.h>
 #include <emmintrin.h>
+#include <avif/avif.h>
+#include <webp/decode.h>
 
 stbi_image::stbi_image(std::string_view body) {
-	image = stbi_load_from_memory(reinterpret_cast<const stbi_uc *>(body.data()), body.size(), &width, &height, &channels, INPUT_CHANNELS);
+	const auto *data = reinterpret_cast<const stbi_uc *>(body.data());
+	const size_t size = body.size();
+
+	image = stbi_load_from_memory(data, static_cast<int>(size), &width, &height, &channels, INPUT_CHANNELS);
+	if (image) {
+		channels = INPUT_CHANNELS;
+		return;
+	}
+
+	int webp_width = 0;
+	int webp_height = 0;
+
+	if (WebPGetInfo(data, size, &webp_width, &webp_height) && webp_width > 0 && webp_height > 0 && static_cast<size_t>(webp_width) <= SIZE_MAX / static_cast<size_t>(webp_height) / INPUT_CHANNELS) {
+		const size_t output_size = static_cast<size_t>(webp_width) * static_cast<size_t>(webp_height) * INPUT_CHANNELS;
+		image = static_cast<stbi_uc *>(STBI_MALLOC(output_size));
+
+		if (image && WebPDecodeRGBInto(data, size, image, output_size, webp_width * INPUT_CHANNELS)) {
+			width = webp_width;
+			height = webp_height;
+			channels = INPUT_CHANNELS;
+			return;
+		}
+
+		STBI_FREE(image);
+		image = nullptr;
+	}
+
+	avifDecoder *decoder = avifDecoderCreate();
+
+	if (!decoder) {
+		return;
+	}
+
+	avifResult result = avifDecoderSetIOMemory(decoder, data, size);
+
+	if (result == AVIF_RESULT_OK) {
+		result = avifDecoderParse(decoder);
+	}
+
+	if (result == AVIF_RESULT_OK) {
+		result = avifDecoderNextImage(decoder);
+	}
+
+	if (result == AVIF_RESULT_OK && decoder->image->width > 0 && decoder->image->height > 0 && static_cast<size_t>(decoder->image->width) <= SIZE_MAX / static_cast<size_t>(decoder->image->height) / INPUT_CHANNELS) {
+		const size_t output_size = static_cast<size_t>(decoder->image->width) * static_cast<size_t>(decoder->image->height) * INPUT_CHANNELS;
+		image = static_cast<stbi_uc *>(STBI_MALLOC(output_size));
+
+		if (image) {
+			avifRGBImage rgb;
+			avifRGBImageSetDefaults(&rgb, decoder->image);
+			rgb.format = AVIF_RGB_FORMAT_RGB;
+			rgb.depth = 8;
+			rgb.pixels = image;
+			rgb.rowBytes = decoder->image->width * INPUT_CHANNELS;
+			result = avifImageYUVToRGB(decoder->image, &rgb);
+
+			if (result == AVIF_RESULT_OK) {
+				width = static_cast<int>(decoder->image->width);
+				height = static_cast<int>(decoder->image->height);
+				channels = INPUT_CHANNELS;
+			} else {
+				STBI_FREE(image);
+				image = nullptr;
+			}
+		}
+	}
+
+	avifDecoderDestroy(decoder);
 }
 
 stbi_image::~stbi_image() {

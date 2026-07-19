@@ -144,6 +144,8 @@ target_link_libraries("nsfwd"
 	crypto
 	${FMT_LIBRARY}
 	spdlog::spdlog
+	PkgConfig::WEBP
+	avif
 	${DPP_LIBRARIES}
 	${CMAKE_THREAD_LIBS_INIT}
 )

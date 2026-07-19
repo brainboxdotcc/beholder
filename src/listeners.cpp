@@ -88,25 +88,14 @@ namespace listeners {
 			dpp::message(channel_id, "")
 			.add_embed(
 				dpp::embed()
-					.set_description("Thank you for inviting the **Beholder** Bot! You can configure this \
-bot either via application commands, or [through the Beholder Dashboard](https://beholder.cc/dashboard). \
-\n\n\
-To get started, use the `/logchannel` command to set the channel where the bot will send \
-alerts of blocked images, and use `/patterns` to set up words that are banned within images. \
-You can also use the `/ignorechannels` and `/roles` commands to configure channels or roles that \
-Beholder will not scan images for. \
-\n\n\
-**Beholder's default settings will block various NSFW image types automatically,** provided a log channel is configured. \
-\n\n\
-Beholder can also read text from screenshots, memes and other images, helping prevent users from \
-bypassing your server's word filters by posting text as images. \
-\n\n\
-For more in-depth configuration, please visit the [Beholder Dashboard](https://beholder.cc/dashboard). \
-You can get help with the bot on our [support server](https://discord.com/invite/Ac2duhZAr5). \
-\n\n\
-A new premium offering is currently in development, with additional moderation features and \
-more powerful filtering options planned. More information will be announced on the support server soon. :coffee:\
-")
+					.set_description(
+						"Thank you for inviting **Beholder**! The easiest way to set up the bot is through the "
+						"[Beholder Dashboard](https://beholder.cc/dashboard/), where you can configure everything in one place.\n\n"
+						"You can also use application commands such as `/logchannel`, `/patterns`, `/ignorechannels` and `/roles`.\n\n"
+						"After you've set a log channel, Beholder can read text in screenshots, memes and other images to help stop users bypassing your server's word filters. It can also automatically scan images for NSFW content.\n\n"
+						"[Beholder Premium](https://beholder.cc/premium/) adds more powerful image scanning, animated GIF and video scanning, swear and slur filtering, and extra configuration options, all unlimited and for only £3 per month. That's less than a cup of coffee! ☕\n\n"
+						"Need help? Join our [support server](https://discord.com/invite/Ac2duhZAr5)."
+					)
 				.set_title("Thank You for Inviting Beholder!")
 				.set_color(colours::good)
 				.set_url("https://beholder.cc/")
