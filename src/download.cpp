@@ -259,7 +259,6 @@ bool get_profanity_result(const json& response)
 		    !raw.at("censored").is_boolean()) {
 			return false;
 		}
-		std::cout << response.dump() << "\n";
 		return raw.at("censored").get<bool>();
 	}
 
