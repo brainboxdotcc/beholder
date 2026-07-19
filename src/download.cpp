@@ -236,7 +236,7 @@ static void increment_block_stat(const json& response, dpp::snowflake guild_id) 
 	}
 }
 
-bool get_profanity_result(const json& response, std::string& original_text, std::string& censored_text)
+bool get_profanity_result(const json& response)
 {
 	if (!response.contains("results") || !response.at("results").is_array()) {
 		return false;
@@ -253,18 +253,14 @@ bool get_profanity_result(const json& response, std::string& original_text, std:
 		}
 
 		const json& raw = result.at("raw");
-
 		if (!raw.contains("text") ||
 		    !raw.at("text").is_string() ||
-		    !raw.contains("censored_text") ||
-		    !raw.at("censored_text").is_string()) {
+		    !raw.contains("censored") ||
+		    !raw.at("censored").is_boolean()) {
 			return false;
 		}
-
-		original_text = raw.at("text").get<std::string>();
-		censored_text = raw.at("censored_text").get<std::string>();
-
-		return original_text != censored_text;
+		std::cout << response.dump() << "\n";
+		return raw.at("censored").get<bool>();
 	}
 
 	return false;
@@ -278,9 +274,7 @@ bool handle_scan_response(json response, std::string hash, dpp::cluster& bot, co
 		return false;
 	}
 	write_scan_cache(hash, response, ev.msg.guild_id);
-	std::string original_text;
-	std::string censored_text;
-	if (get_profanity_result(response, original_text, censored_text)) {
+	if (get_profanity_result(response)) {
 		bot.log(dpp::ll_warning, "delete and warn; profanity found; hash=" + hash);
 		INCREMENT_STATISTIC("images_ocr", ev.msg.guild_id);
 		return delete_message_and_warn(hash, "", bot, ev, attach, "Swear word or slur detected");

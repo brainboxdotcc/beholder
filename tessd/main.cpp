@@ -627,13 +627,13 @@ std::string run_tesseract(const std::string& file_content, const std::string& la
 	return text;
 }
 
-std::string run_profanity_filter(const std::string& text, const std::vector<std::string>& languages)
+bool run_profanity_filter(const std::string& text, const std::vector<std::string>& languages)
 {
 	httplib::Client cli("http://localhost:6970");
 
 	const dpp::json payload = {
 		{"content", text},
-		{"censor-character", "*"},
+		{"censor-character", "#"},
 		{"languages", languages}
 	};
 
@@ -653,11 +653,11 @@ std::string run_profanity_filter(const std::string& text, const std::vector<std:
 		throw std::runtime_error("Profanity API Error: " + answer.at("error").get<std::string>());
 	}
 
-	if (!answer.contains("censored-content") || !answer.at("censored-content").is_string()) {
+	if (!answer.contains("is-bad") || !answer.at("is-bad").is_boolean()) {
 		throw std::runtime_error("Profanity API returned no censored content");
 	}
 
-	return answer.at("censored-content").get<std::string>();
+	return answer.at("is-bad").get<bool>();
 }
 
 scan_result scan_ocr(const dpp::json& command, const std::string& file_content, const std::vector<std::size_t>& frames, bool mp4, bool webp, bool avif)
@@ -705,7 +705,7 @@ scan_result scan_ocr(const dpp::json& command, const std::string& file_content, 
 
 	if (profanity_enabled && !languages.empty() && has_text(ocr_text)) {
 		try {
-			result.raw["censored_text"] = run_profanity_filter(ocr_text, languages);
+			result.raw["censored"] = run_profanity_filter(ocr_text, languages);
 		} catch (const std::exception& e) {
 			result.raw["profanity_error"] = e.what();
 		}
