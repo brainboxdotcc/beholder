@@ -326,7 +326,7 @@ namespace listeners {
 		dpp::cluster& bot = *(event.owner);
 		std::vector<std::string> parts = dpp::utility::tokenize(event.custom_id, ";");
 		bot.log(dpp::ll_info, "Button click with id: " + event.custom_id);
-		db::resultset logchannel = db::query("SELECT embeds_disabled, log_channel, embed_title, embed_body FROM guild_config WHERE guild_id = ?", { event.command.guild_id });
+		db::resultset logchannel = db::query("SELECT log_channel, embed_title, embed_body FROM guild_config WHERE guild_id = ?", { event.command.guild_id });
 		if (!logchannel.size() || parts.size() < 3) {
 			event.reply(dpp::message(event.command.channel_id, "There's something weird about this button, or your server's configuration is missing.").set_flags(dpp::m_ephemeral));
 			return;
